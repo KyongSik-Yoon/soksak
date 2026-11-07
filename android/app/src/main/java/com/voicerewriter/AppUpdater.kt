@@ -1,15 +1,10 @@
 package com.voicerewriter
 
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
-import android.util.Log
-import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -20,14 +15,14 @@ import java.util.concurrent.TimeUnit
 /**
  * In-app updates for this personal fork. CI publishes every main build as a GitHub Release
  * `build-<run>` carrying the APK, and stamps the APK with versionCode `1000 + run`. This checks
- * the latest release, downloads its APK and hands it to [PackageInstaller].
+ * the latest release, downloads its APK and opens it in the system package installer.
  *
  * The repo is private, so the GitHub API needs a token: a fine-grained, read-only ("Contents:
  * Read") token the user creates and pastes into Settings. It is only ever sent to api.github.com
  * (OkHttp drops the Authorization header when the asset download redirects to the storage host).
  *
- * Android asks the user to confirm every install (plus Play Protect and biometrics on the user's
- * phone); a silent self-update is refused for sideloaded apps, see [downloadAndInstall].
+ * The system installer asks the user to confirm (plus Play Protect and biometrics on the user's
+ * phone); see [downloadAndInstall] for why it is not a session of our own.
  */
 object AppUpdater {
 
@@ -120,7 +115,7 @@ object AppUpdater {
         }
     }
 
-    /** Last install outcome reported by [InstallResultReceiver], shown in Settings > Updates. */
+    /** Last update step result, shown in Settings > Updates and the update dialog. */
     val lastResult = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
     fun canInstall(context: Context): Boolean =
@@ -132,87 +127,54 @@ object AppUpdater {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     /**
-     * Stream the release APK straight into a PackageInstaller session and commit it. The result
-     * (including the confirm prompt, when Android wants one) arrives at [InstallResultReceiver].
+     * Download the release APK to the cache and hand it to the **system package installer**,
+     * exactly as a browser download does.
+     *
+     * Why not a PackageInstaller session of our own: on the user's Galaxy that path is a "self
+     * update" (the app installing a new version of itself) and is refused with
+     * `INSTALL_FAILED_ABORTED: Self update is blocked by unknown source package` whenever the
+     * installed copy's installer of record is this app — i.e. every second in-app update, after
+     * the first one made us the installer. Explicit USER_ACTION_REQUIRED did not help. Installs
+     * opened from the browser always worked; with ACTION_VIEW the session belongs to the system
+     * installer, the same path.
      */
-    suspend fun downloadAndInstall(context: Context, token: String, release: Release, onProgress: (Float) -> Unit) =
-        withContext(Dispatchers.IO) {
-            val app = context.applicationContext
-            val installer = app.packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-                setAppPackageName(app.packageName)
-                // Always let Android ask. A silent self-update (USER_ACTION_NOT_REQUIRED) fails on
-                // the user's Galaxy in both states this app can be in: sideloaded from the browser
-                // ("Self update…" abort), and after it became its own installer of record
-                // ("Self update is blocked by unknown source package"), because the package's
-                // original source is still an unknown-sources install. Asking costs one tap.
-                // Explicit rather than UNSPECIFIED, so the OS never takes the silent path itself.
-                if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
-                if (release.size > 0) setSize(release.size)
-            }
-            val sessionId = installer.createSession(params)
-            val session = installer.openSession(sessionId)
-            try {
-                val req = Request.Builder()
-                    .url("https://api.github.com/repos/$REPO/releases/assets/${release.assetId}")
-                    .header("Authorization", "Bearer ${token.trim()}")
-                    .header("Accept", "application/octet-stream")
-                    .build()
-                http.newCall(req).execute().use { res ->
-                    if (!res.isSuccessful) throw IllegalStateException("Download failed (${res.code}).")
-                    val body = res.body ?: throw IllegalStateException("Empty download.")
-                    val total = body.contentLength().takeIf { it > 0 } ?: release.size
-                    session.openWrite("base.apk", 0, if (total > 0) total else -1).use { out ->
-                        body.byteStream().use { input ->
-                            val buf = ByteArray(1 shl 16)
-                            var done = 0L
-                            while (true) {
-                                val n = input.read(buf)
-                                if (n < 0) break
-                                out.write(buf, 0, n)
-                                done += n
-                                if (total > 0) onProgress((done.toFloat() / total).coerceIn(0f, 1f))
-                            }
-                            session.fsync(out)
+    suspend fun downloadAndInstall(context: Context, token: String, release: Release, onProgress: (Float) -> Unit) {
+        val app = context.applicationContext
+        val apk = withContext(Dispatchers.IO) {
+            val dir = java.io.File(app.cacheDir, "updates").apply { mkdirs() }
+            dir.listFiles()?.forEach { it.delete() } // older downloads
+            val out = java.io.File(dir, "openwispr-${release.run}.apk")
+            val req = Request.Builder()
+                .url("https://api.github.com/repos/$REPO/releases/assets/${release.assetId}")
+                .header("Authorization", "Bearer ${token.trim()}")
+                .header("Accept", "application/octet-stream")
+                .build()
+            http.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) throw IllegalStateException("Download failed (${res.code}).")
+                val body = res.body ?: throw IllegalStateException("Empty download.")
+                val total = body.contentLength().takeIf { it > 0 } ?: release.size
+                out.outputStream().use { o ->
+                    body.byteStream().use { input ->
+                        val buf = ByteArray(1 shl 16)
+                        var done = 0L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            o.write(buf, 0, n)
+                            done += n
+                            if (total > 0) onProgress((done.toFloat() / total).coerceIn(0f, 1f))
                         }
                     }
                 }
-                val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-                    (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-                val pi = PendingIntent.getBroadcast(
-                    app, sessionId, Intent(app, InstallResultReceiver::class.java), flags,
-                )
-                lastResult.value = null
-                session.commit(pi.intentSender)
-                onProgress(1f)
-            } catch (e: Exception) {
-                runCatching { session.abandon() }
-                throw e
-            } finally {
-                session.close()
             }
+            out
         }
-}
-
-/** Receives the PackageInstaller result: show the confirm screen, or say what went wrong. */
-class InstallResultReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                @Suppress("DEPRECATION")
-                val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
-                context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-            PackageInstaller.STATUS_SUCCESS -> {
-                Log.i("AppUpdater", "update installed")
-                AppUpdater.lastResult.value = "Installed."
-            }
-            else -> {
-                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "status $status"
-                Log.w("AppUpdater", "install failed: $msg")
-                AppUpdater.lastResult.value = "Update failed: $msg"
-                Toast.makeText(context, "Update failed: $msg", Toast.LENGTH_LONG).show()
-            }
-        }
+        onProgress(1f)
+        val uri = androidx.core.content.FileProvider.getUriForFile(app, "${app.packageName}.updates", apk)
+        val view = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        withContext(Dispatchers.Main) { app.startActivity(view) }
+        lastResult.value = "Installer opened. Confirm there to finish."
     }
 }

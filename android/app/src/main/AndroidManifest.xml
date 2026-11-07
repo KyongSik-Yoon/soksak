@@ -104,9 +104,15 @@
         </service>
 
         <!-- Restores the bubble after a reboot / app update, if the user had it on -->
-        <receiver
-            android:name=".InstallResultReceiver"
-            android:exported="false" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
         <receiver
             android:name=".BootReceiver"
             android:exported="true"

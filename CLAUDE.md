@@ -54,10 +54,11 @@
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.
 
 ## 앱 내 업데이트
-- `AppUpdater.kt`: Releases API(사용자가 설정에 넣은 fine-grained 토큰, Contents: Read-only) → APK를 PackageInstaller 세션으로 설치.
-- 무확인 설치(`USER_ACTION_NOT_REQUIRED`)는 **요청하지 않는다**. 사용자 폰(Galaxy)에서 두 경우 모두 실패했다:
-  브라우저로 설치된 상태(`INSTALL_FAILED_ABORTED: Self update…`), 앱이 installer of record가 된 뒤에도
-  (`Self update is blocked by unknown source package`). 매번 설치 확인 화면을 띄우는 게 유일하게 되는 경로.
+- `AppUpdater.kt`: Releases API(사용자가 설정에 넣은 fine-grained 토큰, Contents: Read-only) → APK를 캐시에 받고
+  FileProvider(`update_paths.xml`) URI로 **시스템 패키지 설치 관리자**를 연다(ACTION_VIEW, 브라우저 다운로드와 같은 경로).
+- 앱이 직접 PackageInstaller 세션을 만드는 방식은 쓰지 않는다. 사용자 폰(Galaxy)에서 그 방식은 "self update"로 분류돼,
+  설치된 앱의 installer of record가 이 앱 자신이면 `INSTALL_FAILED_ABORTED: Self update is blocked by unknown source package`로
+  거부됐다(웹 설치 후 첫 업데이트는 성공, 두 번째부터 실패). USER_ACTION_REQUIRED를 명시해도 같았다.
 - Play 프로텍트 "검사 없이 설치?"와 지문 확인은 OS 보안 단계라 앱에서 우회할 수 없다.
 
 ## 작업 규칙
