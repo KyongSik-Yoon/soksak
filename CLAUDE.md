@@ -25,6 +25,7 @@
 1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
 2. 성공하면 Release `build-<run_number>`에 `openwispr-dev-<run>.apk`를 올리고 최근 5개만 남긴다.
    versionCode = `1000 + run`, versionName = `1.6.0-dev.<run>` (`android/app/build.gradle.kts`).
+  설정 화면에는 `1.6.0 · build N`으로 보인다. `1.6.0`은 원본 기반 버전 그대로 두기로 결정(2026-11-08) — 바꾸지 않는다.
 3. 폰의 앱이 Home 진입 시 새 빌드를 감지해 업데이트 창을 띄운다 (`UpdatePrompt.kt`, `AppUpdater.kt`).
 - 상태 확인: `scripts/ci-wait.sh` (커밋 SHA의 CI를 기다려 결과·APK 링크·실패 로그 출력).
 - 서명: 디버그 빌드는 커밋된 고정 키 `android/app/debug.keystore`(pw `android`)로 서명 → 덮어 설치 가능.
