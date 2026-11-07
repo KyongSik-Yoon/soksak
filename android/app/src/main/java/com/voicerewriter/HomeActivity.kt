@@ -974,7 +974,9 @@ class HomeActivity : ComponentActivity() {
      * or an aggressive task-killer. Cheap: a SharedPreferences read and a static check.
      */
     private fun restoreBubbleIfWanted(ctx: Context) {
-        if (BubbleService.isRunning) return
+        // Running but without the microphone (started at boot, or restarted by the system in
+        // the background): a start from this visible activity lets it acquire it now.
+        if (BubbleService.isRunning && BubbleService.micReady) return
         if (!BubblePrefs.enabled(ctx)) return
         if (!SetupUtils.canDrawOverlays(ctx)) return
         try {

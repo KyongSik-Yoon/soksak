@@ -102,6 +102,16 @@ class BubbleService : Service() {
         @Volatile
         var holdingToTalk = false
 
+        /**
+         * True when this service is in the foreground with the microphone type, which it can
+         * only become while our UI is visible (Android 14+ while-in-use rule). It then keeps
+         * the microphone after the user leaves, which is what lets [HeadlessDictation] record
+         * without opening a sheet. False after a background (re)start — boot, or the system
+         * restarting a killed service — until the user opens OpenWispr again.
+         */
+        @Volatile
+        var micReady = false
+
         private const val CHANNEL_ID = "bubble"
         private const val NOTIF_ID = 1
     }
@@ -142,11 +152,7 @@ class BubbleService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            startForeground(NOTIF_ID, buildNotification())
-        } catch (e: Exception) {
-            android.util.Log.e("BubbleService", "startForeground failed", e)
-        }
+        enterForeground()
         gateSetting = try {
             runBlocking { SettingsRepository(applicationContext).get().bubbleOnlyOnFields }
         } catch (_: Exception) { true }
@@ -183,7 +189,64 @@ class BubbleService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A start from our own visible UI is the moment the microphone type can be (re)acquired;
+        // see [micReady]. Harmless when it already holds it.
+        if (!micReady) enterForeground()
+        return START_STICKY
+    }
+
+    /**
+     * Go foreground, with the microphone type when the OS allows it right now. Asking for it
+     * from the background throws on Android 14+, so the attempt is made and the plain
+     * special-use type is the fallback, never the other way round.
+     */
+    private fun enterForeground() {
+        val notification = buildNotification()
+        val hasMic = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        try {
+            when {
+                Build.VERSION.SDK_INT >= 34 -> {
+                    val special = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                    val mic = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    micReady = hasMic && runCatching { startForeground(NOTIF_ID, notification, special or mic) }
+                        .onFailure { android.util.Log.i("BubbleService", "microphone FGS type refused: ${it.message}") }
+                        .isSuccess
+                    if (!micReady) startForeground(NOTIF_ID, notification, special)
+                }
+                Build.VERSION.SDK_INT >= 30 -> {
+                    val mic = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    micReady = hasMic && runCatching { startForeground(NOTIF_ID, notification, mic) }.isSuccess
+                    if (!micReady) startForeground(NOTIF_ID, notification)
+                }
+                else -> {
+                    // No while-in-use restriction for services before Android 11.
+                    startForeground(NOTIF_ID, notification)
+                    micReady = hasMic
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BubbleService", "startForeground failed", e)
+        }
+        android.util.Log.i("BubbleService", "foreground, micReady=$micReady")
+    }
+
+    /**
+     * Start a dictation: headless when possible ([HeadlessDictation]), otherwise the sheet.
+     * Settings are read off the main thread; the gesture's haptic has already fired.
+     */
+    private fun beginDictation(pushToTalk: Boolean) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val s = runCatching { SettingsRepository(applicationContext).get() }.getOrNull()
+            val headless = s != null && HeadlessDictation.canRun(applicationContext, s) &&
+                HeadlessDictation.start(applicationContext, s, pushToTalk) {
+                    // Silenced microphone: say nothing, just let the sheet take this take.
+                    launchRewrite(Defaults.MODE_DICTATE, autoRecord = true, pushToTalk = pushToTalk && holdingToTalk)
+                }
+            if (!headless) launchRewrite(Defaults.MODE_DICTATE, autoRecord = true, pushToTalk = pushToTalk)
+        }
+    }
 
     /**
      * The bubble floats over other apps, so it can't read the host's theme and has no way to
@@ -319,7 +382,7 @@ class BubbleService : Service() {
                 longFired = true
                 holdingToTalk = true
                 hapticHeld() // a heavier beat than a tap: you are holding, and release will send
-                launchRewrite(Defaults.MODE_DICTATE, autoRecord = true, pushToTalk = true)
+                beginDictation(pushToTalk = true)
             }
         }
 
@@ -607,7 +670,7 @@ class BubbleService : Service() {
             mainHandler.post(stop) // stop the in-progress recording
         } else {
             hapticStart()
-            launchRewrite(Defaults.MODE_DICTATE)
+            beginDictation(pushToTalk = false)
         }
     }
 

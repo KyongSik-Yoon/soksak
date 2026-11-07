@@ -25,8 +25,10 @@ object VocabCorrector {
      * A compact glossary string to bias Whisper's decoding (initial_prompt). Only
      * canonical spellings — never aliases (those are mishearings we don't want
      * emitted). Capped to stay within Whisper's prompt-token budget (~224 tokens).
+     * 320 chars: a mostly-Latin tech glossary is ~4 chars/token, so this still leaves room
+     * for Hangul entries (1-3 tokens a syllable) — 200 cut a typical dev word list in half.
      */
-    fun biasPrompt(vocab: List<VocabEntry>, maxChars: Int = 200): String {
+    fun biasPrompt(vocab: List<VocabEntry>, maxChars: Int = 320): String {
         if (vocab.isEmpty()) return ""
         val sb = StringBuilder("Glossary: ")
         // Names only. Priority for the capped budget: terms the user actually had to correct

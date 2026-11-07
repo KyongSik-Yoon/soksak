@@ -133,6 +133,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var deterministicCleanup by remember { mutableStateOf(true) }
     var polishLevel by remember { mutableStateOf(PolishLevel.OFF) }
     var vadAutoStop by remember { mutableStateOf(true) }
+    var headlessRecording by remember { mutableStateOf(true) }
     var reviewBeforeInsert by remember { mutableStateOf(false) }
     var parakeetHotwordsExperimental by remember { mutableStateOf(false) }
     var bubbleOnlyOnFields by remember { mutableStateOf(true) }
@@ -173,7 +174,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
         defaultMode = s.defaultMode
         deterministicCleanup = s.deterministicCleanup; polishLevel = s.polishLevel
-        vadAutoStop = s.vadAutoStop; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         parakeetHotwordsExperimental = s.parakeetHotwordsExperimental
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
@@ -228,7 +229,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage, defaultMode = defaultMode,
         deterministicCleanup = deterministicCleanup, polishLevel = polishLevel,
-        vadAutoStop = vadAutoStop, bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
         parakeetHotwordsExperimental = parakeetHotwordsExperimental,
@@ -437,6 +438,12 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     ) { pickingLanguage = true }
                     Divider()
                     ToggleRow("Auto-stop on pause", "End recording when you stop talking", vadAutoStop) { vadAutoStop = it; persist() }
+                    Divider()
+                    ToggleRow(
+                        "Record without the sheet",
+                        "Keep the app you're typing in focused. On-device only; open OpenWispr once after a reboot",
+                        headlessRecording,
+                    ) { headlessRecording = it; persist() }
                     Divider()
                     ToggleRow(
                         "Review before inserting",
