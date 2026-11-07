@@ -256,12 +256,13 @@ object ModelDownloader {
     /** Parakeet's sherpa-onnx bundle directory. */
     private val RETIRED_DIRS = listOf("parakeet")
 
-    /** On-device LLM GGUFs and the Hinglish Whisper fine-tune. */
+    /** On-device LLM GGUFs, the Hinglish Whisper fine-tune, and the dropped turbo q5_0. */
     private val RETIRED_FILES = listOf(
         "openwispr-cleanup-qwen3-0.6b-Q4_K_M.gguf",
         "gemma-3-270m-qat-Q4_0.gguf",
         "Qwen3-0.6B-Q8_0.gguf",
         "ggml-hinglish-swift-q5_1.bin",
+        "ggml-acft-large-v3-turbo-q5_0.bin",
     )
 
     private val SIDECARS = listOf(".part", ".etag", ".sha256")

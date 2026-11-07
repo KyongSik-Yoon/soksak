@@ -46,7 +46,6 @@ object WhisperModelManager {
     private fun hf(file: String) = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
 
     const val SMALL_ACFT_MODEL = "small-acft"
-    const val TURBO_ACFT_MODEL = "turbo-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
 
     val MODELS = listOf(
@@ -71,23 +70,14 @@ object WhisperModelManager {
         // full-context accuracy. ~3x the parameters of small and much stronger on Korean, but
         // slower: try it before relying on it. No public ggml exists, so the
         // convert-model workflow builds one as a release asset and it is imported from a file.
-        WhisperModel(
-            id = TURBO_ACFT_MODEL,
-            label = "Large v3 Turbo ACFT",
-            fileName = "ggml-acft-large-v3-turbo-q5_0.bin",
-            url = "",
-            sizeLabel = "~550MB · slowest, most accurate",
-            acft = true,
-            releaseTag = "model-acft-large-v3-turbo-q5_0",
-        ),
-        // Same weights at q4_0: smaller, and q4_0 is the type ggml repacks for ARM's
-        // dot-product / i8mm matmul kernels, so it is usually the fastest quant on a phone.
+        // q4_0 only: it is the type ggml repacks for ARM's dot-product / i8mm kernels, so the
+        // fastest on a phone. The q5_0 build was dropped as too slow for what it added.
         WhisperModel(
             id = TURBO_ACFT_Q4_MODEL,
-            label = "Large v3 Turbo ACFT (q4)",
+            label = "Large v3 Turbo ACFT",
             fileName = "ggml-acft-large-v3-turbo-q4_0.bin",
             url = "",
-            sizeLabel = "~450MB · faster turbo",
+            sizeLabel = "~450MB · largest, slower",
             acft = true,
             releaseTag = "model-acft-large-v3-turbo-q4_0",
         ),
