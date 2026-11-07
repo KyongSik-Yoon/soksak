@@ -146,6 +146,8 @@ object AppUpdater {
                 // ("Self update…" abort), and after it became its own installer of record
                 // ("Self update is blocked by unknown source package"), because the package's
                 // original source is still an unknown-sources install. Asking costs one tap.
+                // Explicit rather than UNSPECIFIED, so the OS never takes the silent path itself.
+                if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
                 if (release.size > 0) setSize(release.size)
             }
             val sessionId = installer.createSession(params)
