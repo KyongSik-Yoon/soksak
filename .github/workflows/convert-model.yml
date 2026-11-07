@@ -83,6 +83,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
-            gh release create "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" --title "${{ inputs.out_name }}" \
+            gh release create "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" --prerelease --title "${{ inputs.out_name }}" \
               --notes "Converted from ${{ inputs.hf_repo }} (${{ inputs.quant }}). Import it in OpenWispr: Settings -> Speech model -> Import."
           gh release upload "${{ inputs.tag }}" "out/${{ inputs.out_name }}" -R "$GITHUB_REPOSITORY" --clobber

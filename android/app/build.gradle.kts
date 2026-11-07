@@ -15,10 +15,13 @@ android {
         // behaviour changes handled in this migration (edge-to-edge, predictive back,
         // 16 KB native page alignment) noted at each site.
         targetSdk = 36
-        versionCode = 10
+        // Personal fork: CI stamps each build with its run number so every build is a newer
+        // version than the last — what an updater (Obtainium) keys on. Local builds stay at 10.
+        val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+        versionCode = if (ciRun != null) 1000 + ciRun else 10
         // Kept in step with the git tag and macOS MARKETING_VERSION from 1.1.0 on; before this
         // release the three drifted apart (Android 1.0.1 / tag v0.2.1 / macOS 0.2.1).
-        versionName = "1.6.0"
+        versionName = if (ciRun != null) "1.6.0-dev.$ciRun" else "1.6.0"
         ndk {
             // Device is arm64; whisper.cpp and onnxruntime (Silero VAD) ship arm64-v8a.
             // Restricting here keeps the APK from bundling unused ABIs.

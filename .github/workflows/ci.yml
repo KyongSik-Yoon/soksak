@@ -10,6 +10,8 @@ jobs:
   android:
     name: Android build & unit tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # publish each main build as a release (Obtainium updates from it)
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +46,28 @@ jobs:
         with:
           name: openwispr-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+
+      # Each push to main becomes a GitHub Release carrying the bare APK (no zip), tagged
+      # build-<run>. Obtainium (or a browser) installs straight from it; only the newest
+      # five builds are kept. Model releases (model-*) are never touched.
+      - name: Publish build as release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-${GITHUB_RUN_NUMBER}"
+          APK="openwispr-dev-${GITHUB_RUN_NUMBER}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK"
+          gh release create "$TAG" "$APK" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Dev build ${GITHUB_RUN_NUMBER}" \
+            --notes "$(git log -1 --format=%s)"
+          gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
+            while read -r old; do gh release delete "$old" -R "$GITHUB_REPOSITORY" --cleanup-tag --yes; done
+          # Model files are releases too; keep them pre-releases so "latest" is always an app build.
+          gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName,isPrerelease \
+            --jq '.[] | select((.tagName | startswith("model-")) and (.isPrerelease | not)) | .tagName' |
+            while read -r m; do gh release edit "$m" -R "$GITHUB_REPOSITORY" --prerelease; done
 
   # macOS was not built here until #52 sat for eleven days with a one-line compile error and a
   # green PR, because the only job in this file was the Android one. Half the codebase had no
