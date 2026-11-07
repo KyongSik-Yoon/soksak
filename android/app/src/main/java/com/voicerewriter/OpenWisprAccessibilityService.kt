@@ -82,6 +82,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     }
 
     private val main = Handler(Looper.getMainLooper())
+    private val clipHandler = Handler(Looper.getMainLooper())
     @Volatile private var pendingText: String? = null
     private val retryDelays = longArrayOf(250, 500, 900, 1400, 2000)
 
@@ -301,7 +302,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
      * paste. This is the path that keeps the clipboard untouched on a normal dictation.
      */
     private fun insertAtCursor(node: AccessibilityNodeInfo, insert: String): Boolean {
-        val current = node.text?.toString() ?: ""
+        // An empty field can report its placeholder ("Ask Gemini") as its text, with no cursor.
+        // Read that as non-empty and every first dictation into it took the clipboard paste
+        // path (seen in the Gemini app). The hint is not content: treat the field as empty.
+        val showingHint = Build.VERSION.SDK_INT >= 26 && node.isShowingHintText
+        val current = if (showingHint) "" else node.text?.toString() ?: ""
         val selA = node.textSelectionStart
         val selB = node.textSelectionEnd
         val (start, end) = when {
@@ -328,7 +333,23 @@ class OpenWisprAccessibilityService : AccessibilityService() {
      *  text is necessarily left on the clipboard (only used when [insertAtCursor] can't). */
     private fun pasteViaClipboard(node: AccessibilityNodeInfo, text: String): Boolean {
         setClipboard(text)
-        return node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+        val ok = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+        // Don't leave the dictation sitting on the clipboard after it was pasted. Whatever the
+        // user had copied before is already gone (a background app can't read it to restore),
+        // but at least the next paste won't surprise them with their last dictation.
+        if (ok && Build.VERSION.SDK_INT >= 28) {
+            // Own handler: attemptInsert clears `main`'s queue right after a successful insert.
+            clipHandler.postDelayed({
+                runCatching {
+                    val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    // A background service usually can't read the clip (null description); only
+                    // skip when we can see the user copied something else in the meantime.
+                    val label = cb.primaryClipDescription?.label
+                    if (label == null || label == "rewrite") cb.clearPrimaryClip()
+                }
+            }, 800)
+        }
+        return ok
     }
 
     /** Focused editable node in the active window, only if it's NOT our own app. */

@@ -3,6 +3,11 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — Gemini 앱 클립보드
+- 접근성 삽입: 빈 입력창이 placeholder("Ask Gemini")를 글자로 보고하던 경우를 빈 칸으로 처리해 클립보드 없이
+  SET_TEXT로 넣는다(`isShowingHintText`). 그래도 붙여넣기 경로를 타면 0.8초 뒤 클립보드를 비운다.
+  사용자 보고: Claude 앱은 정상, Gemini 앱에서만 받아쓰기 텍스트가 클립보드에도 복사됨.
+
 ## 2026-11-08 — build-21
 - 업데이터가 무확인 설치를 요청하지 않고 항상 `USER_ACTION_REQUIRED`로 설치 확인을 띄운다.
   build-17이 installer of record가 된 뒤 `Self update is blocked by unknown source package`로 실패했기 때문.
