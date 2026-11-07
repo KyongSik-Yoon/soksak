@@ -1,0 +1,88 @@
+name: Convert Whisper model
+
+# Converts a Hugging Face Whisper checkpoint (safetensors) to a quantized whisper.cpp ggml file
+# and attaches it to a GitHub Release in this repo. The app imports the file from the phone
+# (Settings -> model -> Import), so it never needs a public download URL.
+on:
+  workflow_dispatch:
+    inputs:
+      hf_repo:
+        description: Hugging Face model repo
+        default: MahmoudAshraf/acft-whisper-large-v3-turbo
+      tokenizer_repo:
+        description: Repo to take tokenizer files from if the model repo lacks them
+        default: openai/whisper-large-v3-turbo
+      quant:
+        description: whisper.cpp quantization type
+        default: q5_0
+      out_name:
+        description: Output file name
+        default: ggml-acft-large-v3-turbo-q5_0.bin
+      tag:
+        description: Release tag to attach the file to
+        default: model-acft-large-v3-turbo-q5_0
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Python deps
+        run: |
+          pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet "transformers<5" safetensors numpy huggingface_hub
+
+      - name: Fetch whisper.cpp and openai/whisper (converter + mel filters)
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
+          git clone --depth 1 https://github.com/openai/whisper.git
+
+      - name: Download checkpoint
+        env:
+          HF_REPO: ${{ inputs.hf_repo }}
+          TOK_REPO: ${{ inputs.tokenizer_repo }}
+        run: |
+          python - <<'EOF'
+          import os, shutil
+          from huggingface_hub import snapshot_download
+          d = snapshot_download(os.environ["HF_REPO"], local_dir="hf_model",
+                                allow_patterns=["*.json", "*.safetensors", "*.txt"])
+          need = ["vocab.json", "added_tokens.json"]
+          if not all(os.path.exists(os.path.join(d, f)) for f in need):
+              t = snapshot_download(os.environ["TOK_REPO"], local_dir="hf_tok", allow_patterns=["*.json", "*.txt"])
+              for f in os.listdir(t):
+                  if f.endswith((".json", ".txt")) and not os.path.exists(os.path.join(d, f)) and f != "config.json":
+                      shutil.copy(os.path.join(t, f), os.path.join(d, f))
+          print(sorted(os.listdir(d)))
+          EOF
+
+      - name: Convert to ggml (f16)
+        run: |
+          mkdir -p out
+          python whisper.cpp/models/convert-h5-to-ggml.py hf_model whisper out
+          ls -la out
+
+      - name: Build whisper.cpp tools
+        run: |
+          cmake -S whisper.cpp -B wbuild -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_TESTS=OFF
+          cmake --build wbuild -j --target whisper-quantize whisper-cli
+
+      - name: Quantize
+        run: |
+          ./wbuild/bin/whisper-quantize out/ggml-model.bin "out/${{ inputs.out_name }}" ${{ inputs.quant }}
+          ls -la out
+
+      - name: Sanity check (short audio context, as the app runs it)
+        run: |
+          ./wbuild/bin/whisper-cli -m "out/${{ inputs.out_name }}" -f whisper.cpp/samples/jfk.wav -l en -ac 768 -nt
+
+      - name: Publish release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" --title "${{ inputs.out_name }}" \
+              --notes "Converted from ${{ inputs.hf_repo }} (${{ inputs.quant }}). Import it in OpenWispr: Settings -> Speech model -> Import."
+          gh release upload "${{ inputs.tag }}" "out/${{ inputs.out_name }}" -R "$GITHUB_REPOSITORY" --clobber
