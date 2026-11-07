@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
@@ -116,6 +117,10 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var vadAutoStop by remember { mutableStateOf(true) }
     var headlessRecording by remember { mutableStateOf(true) }
     var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
+    var githubToken by remember { mutableStateOf("") }
+    var updateStatus by remember { mutableStateOf("") }
+    var latestBuild by remember { mutableStateOf<AppUpdater.Release?>(null) }
+    var updateProgress by remember { mutableStateOf<Float?>(null) }
     var reviewBeforeInsert by remember { mutableStateOf(false) }
     var bubbleOnlyOnFields by remember { mutableStateOf(true) }
     var keepHistory by remember { mutableStateOf(DictationHistory.keepHistory(context)) }
@@ -155,7 +160,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
         notifOn = SetupUtils.notificationsGranted(context)
@@ -206,7 +211,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -239,6 +244,37 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             } catch (e: Exception) {
                 dlId = null
                 Toast.makeText(context, e.message ?: "Import failed", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    fun checkUpdate() {
+        updateStatus = "Checking…"; latestBuild = null
+        launch {
+            updateStatus = try {
+                val r = AppUpdater.latest(githubToken)
+                val cur = AppUpdater.installedVersionCode(context)
+                if (r.versionCode > cur) { latestBuild = r; "Build ${r.run} is available." }
+                else "Up to date (build ${r.run})."
+            } catch (e: Exception) { e.message ?: "Check failed." }
+        }
+    }
+
+    fun installUpdate(r: AppUpdater.Release) {
+        if (!AppUpdater.canInstall(context)) {
+            updateStatus = "Allow OpenWispr to install updates, then tap Update again."
+            context.startActivity(AppUpdater.installPermissionIntent(context))
+            return
+        }
+        updateProgress = 0f
+        launch {
+            try {
+                AppUpdater.downloadAndInstall(context, githubToken, r) { p -> updateProgress = p }
+                updateStatus = "Installing… confirm if Android asks."
+            } catch (e: Exception) {
+                updateStatus = e.message ?: "Update failed."
+            } finally {
+                updateProgress = null
             }
         }
     }
@@ -534,6 +570,35 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     Divider()
                     NavRow("Rate OpenWispr", "Leave a review on Google Play") {
                         launchOrNotify(context, Feedback.playListingIntent(context), "Couldn't open Google Play.")
+                    }
+                }
+            }
+
+            Section("Updates") {
+                Card {
+                    Padded {
+                        Label("GitHub token")
+                        Spacer(Modifier.height(6.dp))
+                        Text("Fine-grained token with Contents: Read-only on ${AppUpdater.REPO}. Stored only on this phone; used to fetch new builds.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        KeyField(githubToken, "github_pat_…", secret = true) { githubToken = it; persist() }
+                        Spacer(Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(updateStatus.ifBlank { "Installed: ${appVersion(context)}" },
+                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f))
+                            val avail = latestBuild
+                            when {
+                                updateProgress != null -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp)
+                                avail != null -> PillButton("Update") { installUpdate(avail) }
+                                else -> PillOutline("Check") { checkUpdate() }
+                            }
+                        }
+                        updateProgress?.let { p ->
+                            Spacer(Modifier.height(10.dp))
+                            LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+                        }
                     }
                 }
             }
@@ -874,11 +939,13 @@ private fun InfoNote(text: String, onSwitch: () -> Unit) {
 }
 
 @Composable
-private fun KeyField(value: String, placeholder: String, onChange: (String) -> Unit) {
+private fun KeyField(value: String, placeholder: String, secret: Boolean = false, onChange: (String) -> Unit) {
     val cs = MaterialTheme.colorScheme
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(cs.surface).border(1.5.dp, cs.outline, RoundedCornerShape(11.dp)).padding(13.dp)) {
         BasicTextField(
             value = value, onValueChange = onChange, singleLine = true,
+            visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation()
+                else androidx.compose.ui.text.input.VisualTransformation.None,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = cs.onSurface),
             cursorBrush = SolidColor(cs.primary),
             decorationBox = { inner ->

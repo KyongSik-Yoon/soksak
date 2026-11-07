@@ -92,7 +92,7 @@ class HomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge() // draw under the status/nav bars; the cream/plum bg fills the whole screen
         super.onCreate(savedInstanceState)
-        setContent { OpenWisprTheme { HomeScreen() } }
+        setContent { OpenWisprTheme { HomeScreen(); UpdatePrompt() } }
         // First launch: route once into onboarding (it returns here when finished).
         lifecycleScope.launch {
             val done = withContext(Dispatchers.IO) {

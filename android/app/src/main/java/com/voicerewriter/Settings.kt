@@ -36,6 +36,8 @@ data class Settings(
      * Blank disables it.
      */
     val promptExample: String = DEFAULT_PROMPT_EXAMPLE,
+    /** Read-only GitHub token for in-app updates from the private fork ([AppUpdater]). */
+    val githubToken: String = "",
     /**
      * Show the result and wait before inserting it. Off by default: the field the user is
      * already looking at is a better place to read new text than a sheet showing it out of
@@ -73,6 +75,7 @@ class SettingsRepository(private val context: Context) {
         val VAD_AUTO_STOP = booleanPreferencesKey("vadAutoStop")
         val HEADLESS_RECORDING = booleanPreferencesKey("headlessRecording")
         val PROMPT_EXAMPLE = stringPreferencesKey("promptExample")
+        val GITHUB_TOKEN = stringPreferencesKey("githubToken")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("hasCompletedOnboarding")
@@ -100,6 +103,7 @@ class SettingsRepository(private val context: Context) {
             vadAutoStop = p[Keys.VAD_AUTO_STOP] ?: defaults.vadAutoStop,
             headlessRecording = p[Keys.HEADLESS_RECORDING] ?: defaults.headlessRecording,
             promptExample = p[Keys.PROMPT_EXAMPLE] ?: defaults.promptExample,
+            githubToken = p[Keys.GITHUB_TOKEN] ?: defaults.githubToken,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
             hasCompletedOnboarding = p[Keys.HAS_COMPLETED_ONBOARDING] ?: defaults.hasCompletedOnboarding,
@@ -118,6 +122,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.VAD_AUTO_STOP] = s.vadAutoStop
             p[Keys.HEADLESS_RECORDING] = s.headlessRecording
             p[Keys.PROMPT_EXAMPLE] = s.promptExample
+            p[Keys.GITHUB_TOKEN] = s.githubToken
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields
             p[Keys.HAS_COMPLETED_ONBOARDING] = s.hasCompletedOnboarding
