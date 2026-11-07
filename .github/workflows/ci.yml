@@ -3,6 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+    # Harness/doc-only commits don't make a new app build (and so no update prompt on the phone).
+    paths-ignore:
+      - "**.md"
+      - ".claude/**"
+      - "scripts/**"
   pull_request:
   workflow_dispatch:
 
