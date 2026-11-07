@@ -32,6 +32,15 @@ android {
     // build is simply left unsigned; debug builds use the standard debug keystore as always.
     val releaseKeystore = System.getenv("OPENWISPR_KEYSTORE_FILE")
     signingConfigs {
+        // Personal fork: a fixed, committed debug key. CI runners otherwise each generate a
+        // fresh one, and Android refuses to install a build over one signed differently.
+        // Debug-only; it signs nothing that ships to the Play Store.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (releaseKeystore != null) {
             create("release") {
                 storeFile = file(releaseKeystore)
