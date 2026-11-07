@@ -121,6 +121,14 @@ object AppUpdater {
         }
     }
 
+    /** Last install outcome reported by [InstallResultReceiver], shown in Settings > Updates. */
+    val lastResult = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+    private fun isInstallerOfRecord(context: Context): Boolean =
+        Build.VERSION.SDK_INT >= 30 && runCatching {
+            context.packageManager.getInstallSourceInfo(context.packageName).installingPackageName == context.packageName
+        }.getOrDefault(false)
+
     fun canInstall(context: Context): Boolean =
         Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
 
@@ -139,7 +147,14 @@ object AppUpdater {
             val installer = app.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                 setAppPackageName(app.packageName)
-                if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                // Ask for a silent install only once this app is its own installer of record.
+                // For a browser-sideloaded app it isn't, and some OEM builds (seen on a Galaxy:
+                // "INSTALL_FAILED_ABORTED: Self update…") abort instead of falling back to the
+                // confirm prompt. The first in-app update therefore prompts; once it lands, this
+                // app is the installer of record and later ones can go through silently.
+                if (Build.VERSION.SDK_INT >= 31 && isInstallerOfRecord(app)) {
+                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                }
                 if (release.size > 0) setSize(release.size)
             }
             val sessionId = installer.createSession(params)
@@ -174,6 +189,7 @@ object AppUpdater {
                 val pi = PendingIntent.getBroadcast(
                     app, sessionId, Intent(app, InstallResultReceiver::class.java), flags,
                 )
+                lastResult.value = null
                 session.commit(pi.intentSender)
                 onProgress(1f)
             } catch (e: Exception) {
@@ -194,10 +210,14 @@ class InstallResultReceiver : BroadcastReceiver() {
                 val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
                 context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-            PackageInstaller.STATUS_SUCCESS -> Log.i("AppUpdater", "update installed")
+            PackageInstaller.STATUS_SUCCESS -> {
+                Log.i("AppUpdater", "update installed")
+                AppUpdater.lastResult.value = "Installed."
+            }
             else -> {
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "status $status"
                 Log.w("AppUpdater", "install failed: $msg")
+                AppUpdater.lastResult.value = "Update failed: $msg"
                 Toast.makeText(context, "Update failed: $msg", Toast.LENGTH_LONG).show()
             }
         }

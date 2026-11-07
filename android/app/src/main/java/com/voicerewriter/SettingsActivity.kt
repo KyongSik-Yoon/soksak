@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -591,7 +592,8 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         KeyField(githubToken, "github_pat_…", secret = true) { githubToken = it; persist() }
                         Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(updateStatus.ifBlank { "Installed: ${appVersion(context)}" },
+                            val installResult by AppUpdater.lastResult.collectAsState()
+                            Text(installResult ?: updateStatus.ifBlank { "Installed: ${appVersion(context)}" },
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f))
                             val avail = latestBuild

@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,7 +72,8 @@ fun UpdatePrompt() {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(r.notes.ifBlank { "A new build of OpenWispr is ready." }, style = MaterialTheme.typography.bodyMedium)
                 progress?.let { p -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth()) }
-                message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                val installResult by AppUpdater.lastResult.collectAsState()
+                (installResult ?: message)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         },
         confirmButton = {
