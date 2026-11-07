@@ -593,7 +593,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val installResult by AppUpdater.lastResult.collectAsState()
-                            Text(installResult ?: updateStatus.ifBlank { "Installed: ${appVersion(context)}" },
+                            Text(installResult ?: updateStatus.ifBlank { "Installed: ${prettyVersion(appVersion(context))}" },
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f))
                             val avail = latestBuild
@@ -618,9 +618,16 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     // remember: this is a binder call into PackageManager, and the version can't
                     // change while the screen is up.
                     val version = remember { appVersion(context) }
+                    // Label never wraps ("Versio/n"); the value takes what's left and ellipsizes.
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Version", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                        Text("$version · open source", style = MonoEyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Version", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1, softWrap = false)
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            prettyVersion(version), style = MonoEyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            textAlign = TextAlign.End, modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -998,6 +1005,10 @@ private fun launchOrNotify(context: Context, intent: Intent, fallback: String) {
         Toast.makeText(context, fallback, Toast.LENGTH_LONG).show()
     }
 }
+
+/** "1.6.0-dev.15" -> "1.6.0 · build 15"; anything else unchanged. */
+private fun prettyVersion(raw: String): String =
+    Regex("""^(.+)-dev\.(\d+)$""").find(raw)?.let { "${it.groupValues[1]} · build ${it.groupValues[2]}" } ?: raw
 
 private fun appVersion(context: Context): String = try {
     context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
