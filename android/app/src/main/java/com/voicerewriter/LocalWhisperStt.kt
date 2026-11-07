@@ -56,7 +56,13 @@ object LocalWhisperStt {
         // pulls this decoder back toward English spellings, which is the one thing it was
         // fine-tuned not to do. VocabCorrector.correct() runs on the output either way and does
         // land the name, because the output is Latin (Soundex "srshti" == Soundex "Srushti").
-        val prompt = if (model.isTransliterating) null else biasPrompt?.ifBlank { null }
+        val prompt = if (model.isTransliterating) null
+            else biasPrompt?.ifBlank { null }?.let { localizeGlossary(it, lang) }
+        // Non-English dictation is where the English-pull problem below bites outside the
+        // Hinglish model too: Korean speech full of English tech terms ("worktree 만들고 MR
+        // 올려") is code-switched speech decoded with a Korean language token, and greedy
+        // decoding at each ambiguous step drifts into English. Same remedy, same cost.
+        val codeSwitched = model.isTransliterating || !DictationLanguage.isEnglish(lang)
         // Beam search and natural segmentation, for a transliterating model only.
         //
         // Both were measured against the owner's own Hinglish dictations, replayed through
@@ -70,14 +76,14 @@ object LocalWhisperStt {
         // The cost lands on decode, not encode: +344ms on a 9s clip, against a ~400ms encode.
         // English dictation keeps greedy + single-segment until someone measures it the same
         // way; the same fix may well help there too, and that deserves its own numbers.
-        val beamSize = if (model.isTransliterating) 5 else 1
+        val beamSize = if (codeSwitched) 5 else 1
         val raw = whisper.transcribeData(
             samples,
             printTimestamp = false,
             prompt = prompt,
             language = lang,
             beamSize = beamSize,
-            singleSegment = !model.isTransliterating,
+            singleSegment = !codeSwitched,
         )
         val tDone = System.nanoTime()
         Log.i(
@@ -109,6 +115,18 @@ object LocalWhisperStt {
             Log.i("LocalWhisperStt", "warm model=$id load=${(System.nanoTime() - t0) / 1_000_000}ms")
         }
     }
+
+    /**
+     * Whisper reads initial_prompt as preceding transcript, so its language leans the decoder.
+     * "Glossary: GitLab, MR, worktree." is an English sentence; in front of Korean speech it
+     * pulls toward English. Keep the terms, swap the English frame for a Korean one.
+     */
+    internal fun localizeGlossary(prompt: String, lang: String): String = when (lang) {
+        "ko" -> if (prompt.startsWith(GLOSSARY_PREFIX)) "용어: " + prompt.removePrefix(GLOSSARY_PREFIX) else prompt
+        else -> prompt
+    }
+
+    private const val GLOSSARY_PREFIX = "Glossary: "
 
     /** Strip whisper's bracketed non-speech markers (e.g. [BLANK_AUDIO], [Music]). */
     private fun cleanTranscript(s: String): String =

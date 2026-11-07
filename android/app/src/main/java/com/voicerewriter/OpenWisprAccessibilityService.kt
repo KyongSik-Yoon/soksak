@@ -85,6 +85,16 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     @Volatile private var pendingText: String? = null
     private val retryDelays = longArrayOf(250, 500, 900, 1400, 2000)
 
+    /**
+     * The last editable field the user had focused in a host app. Tapping the bubble brings
+     * up RewriteActivity, which takes window focus away from the host; plenty of apps
+     * (messengers especially) do not hand input focus back to the composer when they return
+     * to the front, so a focus-only lookup found nothing and the dictation fell back to the
+     * clipboard. Remembering the field lets [attemptInsert] write into it directly and
+     * re-focus it.
+     */
+    private var lastEditable: AccessibilityNodeInfo? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
@@ -141,8 +151,15 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             }
             val f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             if (f != null) {
-                if (f.isEditable) editable = true
-                @Suppress("DEPRECATION") f.recycle()
+                if (f.isEditable) {
+                    editable = true
+                    lastEditable = f // kept, not recycled: see [lastEditable]
+                } else {
+                    // The user moved focus somewhere non-editable in a host app: whatever
+                    // field we remembered is no longer the target.
+                    lastEditable = null
+                    @Suppress("DEPRECATION") f.recycle()
+                }
             }
             if (editable) break
         }
@@ -235,9 +252,21 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     /** Try once to insert into the host app's focused editable field. */
     private fun attemptInsert() {
         val text = pendingText ?: return
-        val node = findHostFocusedEditable() ?: return
+        var refocus = false
+        val node = findHostFocusedEditable()
+            ?: rememberedEditable()?.also { refocus = true }
+            ?: return
         var viaPaste = false
         val ok = try {
+            if (refocus) {
+                // Give the field input focus back before writing, and click it so the app
+                // raises its keyboard again — the user was mid-typing when they tapped the
+                // bubble, and an insert into a field that then sits unfocused reads as the
+                // input having been closed.
+                node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                node.refresh()
+            }
             // Prefer a clipboard-free splice at the cursor; fall back to paste only when
             // we can't determine the cursor (e.g. some WebView fields).
             insertAtCursor(node, text) || run { viaPaste = true; pasteViaClipboard(node, text) }
@@ -310,6 +339,23 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         if (focused != null && focused.isEditable) return focused
         @Suppress("DEPRECATION") focused?.recycle()
         return null
+    }
+
+    /**
+     * [lastEditable], if it is still on screen in the window that is now in front and that
+     * window is not ours. Only consulted once our sheet has gone; the window-id check keeps a
+     * field from a screen the user has since left from receiving the text.
+     */
+    private fun rememberedEditable(): AccessibilityNodeInfo? {
+        val node = lastEditable ?: return null
+        val root = rootInActiveWindow ?: return null
+        if (root.packageName == packageName) return null // our sheet is still up
+        if (!node.refresh() || !node.isEditable || !node.isVisibleToUser) return null
+        if (node.windowId != root.windowId) return null
+        // A copy: attemptInsert recycles what it gets. obtain() rather than the copy
+        // constructor, which is API 33+ (minSdk is 24).
+        @Suppress("DEPRECATION")
+        return AccessibilityNodeInfo.obtain(node)
     }
 
     private fun setClipboard(text: String) {
