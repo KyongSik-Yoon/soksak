@@ -73,6 +73,15 @@ class BubbleService : Service() {
         /** How long the green check holds. The design's figure. */
         private const val INSERTED_HOLD_MS = 1600L
 
+        /**
+         * Idle this long with no touch and the bubble tucks itself away: smaller, toward its
+         * docked edge, and translucent (as Typeless does), so it covers less of the app beneath.
+         * Any touch or any non-idle state brings it straight back.
+         */
+        private const val IDLE_SHRINK_MS = 3500L
+        private const val SHRUNK_SCALE = 0.7f
+        private const val SHRUNK_ALPHA = 0.5f
+
         /** Gap between the screen edge and the docked bubble. */
         private const val EDGE_INSET_DP = 8f
 
@@ -394,6 +403,7 @@ class BubbleService : Service() {
         view.setOnTouchListener { _, e ->
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    wake(animate = false) // full size under the finger before anything else
                     downRawX = e.rawX
                     downRawY = e.rawY
                     startX = params.x
@@ -445,6 +455,7 @@ class BubbleService : Service() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     mainHandler.removeCallbacks(longPress)
+                    scheduleShrink()
                     if (longFired) {
                         // Release ends the take. ACTION_CANCEL lands here too, deliberately:
                         // if the window system takes the gesture away mid-hold we must not
@@ -493,6 +504,37 @@ class BubbleService : Service() {
             android.util.Log.e("BubbleService", "addView failed (overlay permission?)", e)
         }
         addDismissTarget()
+        scheduleShrink()
+    }
+
+    private val shrinkRunnable = Runnable { shrink() }
+
+    /** (Re)start the idle countdown; only an idle bubble ever shrinks. */
+    private fun scheduleShrink() {
+        mainHandler.removeCallbacks(shrinkRunnable)
+        if (bubble?.state == BubbleView.State.IDLE) mainHandler.postDelayed(shrinkRunnable, IDLE_SHRINK_MS)
+    }
+
+    private fun shrink() {
+        val v = bubble ?: return
+        if (v.state != BubbleView.State.IDLE) return
+        // Shrink toward the docked edge so it tucks in rather than floating off the edge.
+        v.pivotX = if (dockedLeft) pad().toFloat() else (v.width - pad()).toFloat()
+        v.pivotY = v.height / 2f
+        v.animate().scaleX(SHRUNK_SCALE).scaleY(SHRUNK_SCALE).alpha(SHRUNK_ALPHA)
+            .setDuration(420L).start()
+    }
+
+    /** Back to full size and opacity; cancels a pending shrink. */
+    private fun wake(animate: Boolean) {
+        mainHandler.removeCallbacks(shrinkRunnable)
+        val v = bubble ?: return
+        v.animate().cancel()
+        if (animate) {
+            v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(160L).start()
+        } else {
+            v.scaleX = 1f; v.scaleY = 1f; v.alpha = 1f
+        }
     }
 
     /**
@@ -546,6 +588,9 @@ class BubbleService : Service() {
         val v = bubble ?: return
         if (v.state == state) return
         v.state = state
+        // Anything happening (listening, working, a confirmation) is shown at full size; back
+        // to idle starts the countdown to tuck away again.
+        if (state == BubbleView.State.IDLE) scheduleShrink() else wake(animate = true)
         redock(animate = true)
     }
 
