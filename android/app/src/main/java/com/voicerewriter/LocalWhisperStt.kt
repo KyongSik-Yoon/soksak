@@ -61,6 +61,8 @@ object LocalWhisperStt {
             language = lang,
             beamSize = beamSize,
             singleSegment = !codeSwitched,
+            // ACFT weights tolerate a context sized to the clip; 128 keeps a small margin.
+            audioCtxFloor = if (WhisperModelManager.model(id).acft) 128 else 768,
         )
         val tDone = System.nanoTime()
         Log.i(

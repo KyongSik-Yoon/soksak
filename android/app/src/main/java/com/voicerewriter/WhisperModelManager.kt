@@ -27,6 +27,11 @@ object WhisperModelManager {
         val fileName: String,
         val url: String,
         val sizeLabel: String,
+        /**
+         * Fine-tuned for a shortened audio context (FUTO ACFT). These run with a much lower
+         * audio_ctx floor than stock weights, which loop below 768 — see jni.c.
+         */
+        val acft: Boolean = false,
     ) {
         /** No public download: the file is converted in CI and imported from the phone. */
         val importOnly: Boolean get() = url.isBlank()
@@ -36,6 +41,7 @@ object WhisperModelManager {
 
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_MODEL = "turbo-acft"
+    const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
 
     val MODELS = listOf(
         WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB"),
@@ -51,6 +57,7 @@ object WhisperModelManager {
             fileName = "small_acft_q8_0.bin",
             url = "https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin",
             sizeLabel = "~264MB · tuned for short clips",
+            acft = true,
         ),
         // whisper-large-v3-turbo with FUTO's audio-context fine-tune, by Mahmoud Ashraf
         // (Apache 2.0, huggingface.co/MahmoudAshraf/acft-whisper-large-v3-turbo). Stock turbo
@@ -64,6 +71,17 @@ object WhisperModelManager {
             fileName = "ggml-acft-large-v3-turbo-q5_0.bin",
             url = "",
             sizeLabel = "~550MB · import file · slowest, most accurate",
+            acft = true,
+        ),
+        // Same weights at q4_0: smaller, and q4_0 is the type ggml repacks for ARM's
+        // dot-product / i8mm matmul kernels, so it is usually the fastest quant on a phone.
+        WhisperModel(
+            id = TURBO_ACFT_Q4_MODEL,
+            label = "Large v3 Turbo ACFT (q4)",
+            fileName = "ggml-acft-large-v3-turbo-q4_0.bin",
+            url = "",
+            sizeLabel = "~470MB · import file · faster turbo",
+            acft = true,
         ),
     )
 

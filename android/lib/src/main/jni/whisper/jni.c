@@ -164,7 +164,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_freeContext(
 JNIEXPORT void JNICALL
 Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data, jstring prompt,
-        jstring language, jint beam_size, jboolean single_segment) {
+        jstring language, jint beam_size, jboolean single_segment, jint audio_ctx_floor) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
     jfloat *audio_data_arr = (*env)->GetFloatArrayElements(env, audio_data, NULL);
@@ -212,7 +212,11 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
     {
         int needed = (audio_data_length + 319) / 320 + 16; // ceil(samples/16000*50) + margin
         int ctx = ((needed + 63) / 64) * 64;
-        if (ctx < 768)  ctx = 768;
+        // The floor is the caller's: 768 for stock weights (see above), much lower for ACFT
+        // fine-tunes, which were trained on truncated contexts and do not loop. On a 4s clip
+        // that is ~256 instead of 768 — the encoder, which dominates large models, shrinks 3x.
+        int floor_ctx = audio_ctx_floor > 0 ? audio_ctx_floor : 768;
+        if (ctx < floor_ctx) ctx = floor_ctx;
         if (ctx > 1500) ctx = 1500;
         params.audio_ctx = ctx;
     }

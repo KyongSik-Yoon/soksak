@@ -29,11 +29,12 @@ class WhisperContext private constructor(private var ptr: Long) {
         language: String = "en",
         beamSize: Int = 1,
         singleSegment: Boolean = true,
+        audioCtxFloor: Int = 768,
     ): String = withContext(scope.coroutineContext) {
         require(ptr != 0L)
         val numThreads = WhisperCpuConfig.preferredThreadCount
         Log.d(LOG_TAG, "Selecting $numThreads threads")
-        WhisperLib.fullTranscribe(ptr, numThreads, data, prompt, language, beamSize, singleSegment)
+        WhisperLib.fullTranscribe(ptr, numThreads, data, prompt, language, beamSize, singleSegment, audioCtxFloor)
         val textCount = WhisperLib.getTextSegmentCount(ptr)
         return@withContext buildString {
             for (i in 0 until textCount) {
@@ -155,6 +156,7 @@ private class WhisperLib {
             language: String,
             beamSize: Int,
             singleSegment: Boolean,
+            audioCtxFloor: Int,
         )
         external fun getTextSegmentCount(contextPtr: Long): Int
         external fun getTextSegment(contextPtr: Long, index: Int): String
