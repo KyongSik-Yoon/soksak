@@ -43,6 +43,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Personal build: installs next to the Play Store app (different signing key,
+            // so it cannot replace it) instead of forcing an uninstall that wipes its data.
+            applicationIdSuffix = ".dev"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

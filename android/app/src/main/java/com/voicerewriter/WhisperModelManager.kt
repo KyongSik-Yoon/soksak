@@ -57,11 +57,23 @@ object WhisperModelManager {
     private fun hf(file: String) = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
 
     const val HINGLISH_MODEL = "hinglish"
+    const val SMALL_ACFT_MODEL = "small-acft"
 
     val MODELS = listOf(
         WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB"),
         WhisperModel("base", "Base (balanced)", "ggml-base.bin", hf("ggml-base.bin"), "~142MB"),
         WhisperModel("small", "Small (most accurate)", "ggml-small.bin", hf("ggml-small.bin"), "~488MB"),
+        // FUTO's audio-context fine-tune of multilingual whisper-small (Apache 2.0,
+        // github.com/futo-org/whisper-acft) — the same weights FUTO Voice Input ships. jni.c
+        // shrinks audio_ctx to the clip length (768 floor) for speed; stock Whisper was never
+        // trained on a truncated context and loses accuracy there, ACFT was trained for it.
+        WhisperModel(
+            id = SMALL_ACFT_MODEL,
+            label = "Small ACFT (FUTO)",
+            fileName = "small_acft_q8_0.bin",
+            url = "https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin",
+            sizeLabel = "~264MB · tuned for short clips",
+        ),
         // Oriserve/Whisper-Hindi2Hinglish-Swift (Apache 2.0), a whisper-base fine-tune that
         // transcribes Hindi and code-switched Hindi-English straight into Roman script:
         // "Kal office mein meeting thi", not "कल ऑफिस में मीटिंग थी". Our own ggml conversion

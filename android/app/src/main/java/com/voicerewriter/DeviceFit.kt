@@ -211,6 +211,7 @@ object DeviceFit {
     private fun sttBytes(id: String): Long = when {
         OnDeviceStt.isParakeet(id) -> 631L * 1024 * 1024
         id == "small" -> 488L * 1024 * 1024
+        id == WhisperModelManager.SMALL_ACFT_MODEL -> 264L * 1024 * 1024
         id == "base" -> 142L * 1024 * 1024
         else -> 75L * 1024 * 1024
     }
