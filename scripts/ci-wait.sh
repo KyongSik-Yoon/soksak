@@ -24,7 +24,7 @@ for _ in $(seq 1 40); do
   RUN=$(api "actions/runs?head_sha=$SHA&per_page=20" | py '
 import sys, json
 runs = [r for r in json.load(sys.stdin).get("workflow_runs", []) if r["name"] == "CI"]
-print(f"{runs[0][\"id\"]} {runs[0][\"run_number\"]}" if runs else "")')
+print("%s %s" % (runs[0]["id"], runs[0]["run_number"]) if runs else "")')
   [ -n "$RUN" ] && break
   sleep 10
 done
@@ -36,7 +36,7 @@ while true; do
   read -r STATUS CONCL JOB_ID < <(api "actions/runs/$RUN_ID/jobs" | py '
 import sys, json
 j = [x for x in json.load(sys.stdin).get("jobs", []) if x["name"].startswith("Android")]
-print(f"{j[0][\"status\"]} {j[0][\"conclusion\"]} {j[0][\"id\"]}" if j else "queued None 0")')
+print("%s %s %s" % (j[0]["status"], j[0]["conclusion"], j[0]["id"]) if j else "queued None 0")')
   echo "$(date +%T) android: $STATUS/$CONCL"
   [ "$STATUS" = "completed" ] && break
   sleep 30
