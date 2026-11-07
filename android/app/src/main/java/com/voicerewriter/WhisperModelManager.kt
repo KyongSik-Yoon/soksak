@@ -32,9 +32,15 @@ object WhisperModelManager {
          * audio_ctx floor than stock weights, which loop below 768 — see jni.c.
          */
         val acft: Boolean = false,
+        /**
+         * Hosted as an asset of this release in the private fork (built by the convert-model
+         * workflow), fetched with the user's GitHub token from Settings > Updates.
+         */
+        val releaseTag: String? = null,
     ) {
-        /** No public download: the file is converted in CI and imported from the phone. */
-        val importOnly: Boolean get() = url.isBlank()
+        val githubHosted: Boolean get() = releaseTag != null
+        /** No download at all: the file can only be imported from the phone. */
+        val importOnly: Boolean get() = url.isBlank() && !githubHosted
     }
 
     private fun hf(file: String) = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
@@ -70,8 +76,9 @@ object WhisperModelManager {
             label = "Large v3 Turbo ACFT",
             fileName = "ggml-acft-large-v3-turbo-q5_0.bin",
             url = "",
-            sizeLabel = "~550MB · import file · slowest, most accurate",
+            sizeLabel = "~550MB · slowest, most accurate",
             acft = true,
+            releaseTag = "model-acft-large-v3-turbo-q5_0",
         ),
         // Same weights at q4_0: smaller, and q4_0 is the type ggml repacks for ARM's
         // dot-product / i8mm matmul kernels, so it is usually the fastest quant on a phone.
@@ -80,8 +87,9 @@ object WhisperModelManager {
             label = "Large v3 Turbo ACFT (q4)",
             fileName = "ggml-acft-large-v3-turbo-q4_0.bin",
             url = "",
-            sizeLabel = "~470MB · import file · faster turbo",
+            sizeLabel = "~450MB · faster turbo",
             acft = true,
+            releaseTag = "model-acft-large-v3-turbo-q4_0",
         ),
     )
 
@@ -158,8 +166,13 @@ object WhisperModelManager {
     suspend fun download(context: Context, id: String, onProgress: (Float) -> Unit) =
         withContext(Dispatchers.IO) {
             if (isReady(context, id)) { onProgress(1f); return@withContext }
-            if (model(id).importOnly) throw IllegalStateException("${model(id).label} has no download; import its file instead.")
-            ModelDownloader.fetch(model(id).url, modelFile(context, id), onProgress)
+            val m = model(id)
+            if (m.importOnly) throw IllegalStateException("${m.label} has no download; import its file instead.")
+            val url = if (m.githubHosted) {
+                val token = SettingsRepository(context.applicationContext).get().githubToken
+                AppUpdater.releaseAssetUrl(token, m.releaseTag!!, m.fileName)
+            } else m.url
+            ModelDownloader.fetch(url, modelFile(context, id), onProgress)
         }
 
     // --- Lifecycle-independent download ---

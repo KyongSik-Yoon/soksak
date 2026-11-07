@@ -279,6 +279,10 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         }
     }
 
+    fun needsImport(id: String): Boolean = WhisperModelManager.model(id).let {
+        it.importOnly || (it.githubHosted && githubToken.isBlank())
+    }
+
     fun downloadStt(id: String) {
         dlId = id; dlProgress = 0f
         launch {
@@ -403,9 +407,11 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                                 ModelRow(
                                     name = m.name, meta = m.meta, recommended = m.recommended,
                                     state = sttModelState(m.id), progress = dlProgress,
-                                    getLabel = if (WhisperModelManager.model(m.id).importOnly) "Import" else "Get",
+                                    // A GitHub-hosted model downloads like the rest once a token is
+                                    // set; without one, importing the file is the way in.
+                                    getLabel = if (needsImport(m.id)) "Import" else "Get",
                                     onGet = {
-                                        if (WhisperModelManager.model(m.id).importOnly) {
+                                        if (needsImport(m.id)) {
                                             importTarget = m.id
                                             importLauncher.launch(arrayOf("*/*"))
                                         } else downloadStt(m.id)

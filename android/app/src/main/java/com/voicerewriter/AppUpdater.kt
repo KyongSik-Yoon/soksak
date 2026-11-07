@@ -44,6 +44,39 @@ object AppUpdater {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    private val noRedirect = http.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
+    /**
+     * A short-lived, unauthenticated download URL for asset [name] of release [tag] — what the
+     * API's asset endpoint redirects to. Handing that to [ModelDownloader] keeps its resume and
+     * size checks, and the token never leaves api.github.com.
+     */
+    suspend fun releaseAssetUrl(token: String, tag: String, name: String): String = withContext(Dispatchers.IO) {
+        require(token.isNotBlank()) { "Add a GitHub token in Settings > Updates first." }
+        val rel = Request.Builder()
+            .url("https://api.github.com/repos/$REPO/releases/tags/$tag")
+            .header("Authorization", "Bearer ${token.trim()}")
+            .header("Accept", "application/vnd.github+json")
+            .build()
+        val assetId = http.newCall(rel).execute().use { res ->
+            if (res.code == 401) throw IllegalStateException("GitHub rejected the token (expired or wrong).")
+            if (!res.isSuccessful) throw IllegalStateException("Couldn't find release $tag (${res.code}).")
+            val assets = JSONObject(res.body?.string().orEmpty()).optJSONArray("assets")
+            (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
+                .firstOrNull { it.optString("name") == name }?.getLong("id")
+                ?: throw IllegalStateException("Release $tag has no $name.")
+        }
+        val dl = Request.Builder()
+            .url("https://api.github.com/repos/$REPO/releases/assets/$assetId")
+            .header("Authorization", "Bearer ${token.trim()}")
+            .header("Accept", "application/octet-stream")
+            .build()
+        noRedirect.newCall(dl).execute().use { res ->
+            res.header("Location")?.takeIf { res.isRedirect }
+                ?: throw IllegalStateException("GitHub didn't return a download link (${res.code}).")
+        }
+    }
+
     fun installedVersionCode(context: Context): Long {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
         return if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
