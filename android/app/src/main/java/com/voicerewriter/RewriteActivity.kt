@@ -8,9 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import com.voicerewriter.textproc.AppContext
-import com.voicerewriter.textproc.TextProcessor
-import com.voicerewriter.textproc.TextProcessingConfig
 import com.voicerewriter.textproc.VocabCorrector
 import com.voicerewriter.ui.BrandAmber
 import com.voicerewriter.ui.BrandCoral
@@ -132,11 +129,6 @@ class RewriteActivity : ComponentActivity() {
 
     private lateinit var repo: SettingsRepository
     private lateinit var audioRecorder: AudioRecorder
-    private val sourceState = mutableStateOf("") // selection (PROCESS_TEXT) or clipboard text
-    private var readOnly: Boolean = false
-    private var processTextMode: Boolean = false // launched from the selection toolbar
-    private var voiceMode: Boolean = false        // launched from the bubble
-    private var clipboardResolved: Boolean = false
     private var autoRecord: Boolean = false        // start recording on open (dictation)
     private var pushToTalk: Boolean = false        // hold-to-talk: bubble release ends the take
     private var retryId: String? = null            // re-transcribe this saved recording instead
@@ -161,21 +153,13 @@ class RewriteActivity : ComponentActivity() {
         repo = SettingsRepository(applicationContext)
         audioRecorder = AudioRecorder(applicationContext)
 
-        val processText = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
-        if (processText != null) {
-            processTextMode = true
-            sourceState.value = processText.toString()
-            readOnly = intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
-        } else {
-            voiceMode = true
-            autoRecord = intent.getBooleanExtra(EXTRA_AUTO_RECORD, false)
-            pushToTalk = intent.getBooleanExtra(EXTRA_PUSH_TO_TALK, false)
-            retryId = intent.getStringExtra(EXTRA_RETRY_ID)
-        }
+        autoRecord = intent.getBooleanExtra(EXTRA_AUTO_RECORD, false)
+        pushToTalk = intent.getBooleanExtra(EXTRA_PUSH_TO_TALK, false)
+        retryId = intent.getStringExtra(EXTRA_RETRY_ID)
 
         // A retry from Home keeps its sheet: there is no focused field behind it, so with no
         // sheet the result would land on the clipboard with nothing on screen to say so.
-        chromeless = voiceMode && autoRecord && retryId == null &&
+        chromeless = autoRecord && retryId == null &&
             runCatching { kotlinx.coroutines.runBlocking { !repo.get().reviewBeforeInsert } }
                 .getOrDefault(false)
 
@@ -187,25 +171,8 @@ class RewriteActivity : ComponentActivity() {
         }
 
         setContent {
-            OpenWisprTheme {
-                when {
-                    processTextMode ->
-                        ChipRewriteSheet(
-                            title = "Rewrite",
-                            acceptLabel = if (readOnly) "Copy" else "Accept",
-                            onAccept = ::accept,
-                        )
-                    else -> VoiceSheet()
-                }
-            }
+            OpenWisprTheme { VoiceSheet() }
         }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus || clipboardResolved || !voiceMode) return
-        sourceState.value = readClipboardText()
-        clipboardResolved = true
     }
 
     override fun onDestroy() {
@@ -215,24 +182,6 @@ class RewriteActivity : ComponentActivity() {
         // unfinished and Home offers a retry. Nothing is written — absence of a result is
         // already the truth on disk.
         pendingId?.let { PendingAudio.release(it) }
-    }
-
-    private fun readClipboardText(): String {
-        val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = cb.primaryClip ?: return ""
-        if (clip.itemCount == 0) return ""
-        return clip.getItemAt(0).coerceToText(this)?.toString()?.trim().orEmpty()
-    }
-
-    /** PROCESS_TEXT path: replace the selection in place (or copy if read-only). */
-    private fun accept(result: String) {
-        if (!readOnly) {
-            setResult(Activity.RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, result))
-        } else {
-            setClipboard(result)
-            setResult(Activity.RESULT_CANCELED)
-        }
-        finish()
     }
 
     /** Voice path: hand the result to the accessibility service (auto-insert) and close. */
@@ -264,43 +213,6 @@ class RewriteActivity : ComponentActivity() {
      */
     private var dictationHostPkg: String? = null
 
-    /** App context of the in-flight dictation, captured in [process] for corpus tagging. */
-    private var dictationCategory: AppContext.Category = AppContext.Category.GENERIC
-
-    /**
-     * Save an accepted dictation to the personalization corpus (off-thread). [cleaned] is
-     * what the pipeline produced; [final] is what the user kept — equal when they didn't edit.
-     */
-    private fun recordCorpus(cleaned: String, final: String, edited: Boolean) {
-        val ctx = applicationContext
-        val cat = dictationCategory.key
-        Thread {
-            runCatching {
-                CorrectionCorpus.record(ctx, CorrectionSample(
-                    ts = System.currentTimeMillis(), category = cat,
-                    cleaned = cleaned, final = final, edited = edited,
-                ))
-            }
-        }.start()
-    }
-
-    /**
-     * Render past corrections as a compact few-shot block for the polish prompt. Each
-     * example is truncated so a couple of them can't blow the tiny model's context budget.
-     */
-    private fun fewShotBlock(samples: List<CorrectionSample>): String {
-        val usable = samples.filter { it.cleaned.isNotBlank() && it.final.isNotBlank() }
-        if (usable.isEmpty()) return ""
-        fun clip(s: String) = s.trim().let { if (it.length > 240) it.take(240) + "…" else it }
-        return buildString {
-            append("Examples of how I like my dictation cleaned (raw, then the version I keep):")
-            for (s in usable) {
-                append("\nRaw: ").append(clip(s.cleaned))
-                append("\nKept: ").append(clip(s.final))
-            }
-        }
-    }
-
     /** Log a finished dictation to the Home feed (off-thread; no-op when history is disabled). */
     private fun recordHistory(before: String, after: String, durationSec: Int, edited: Boolean, onDevice: Boolean) {
         if (after.isBlank()) return
@@ -321,23 +233,6 @@ class RewriteActivity : ComponentActivity() {
         )
         val ctx = applicationContext
         Thread { runCatching { DictationHistory.record(ctx, entry) } }.start()
-    }
-
-    /**
-     * In chat/messaging apps, strip the single trailing full stop Whisper tends to add to a
-     * short one-liner ("On my way." -> "On my way"). Only touches a *single-sentence* message
-     * ending in a lone "." — never "!"/"?", never an ellipsis, and never multi-sentence text
-     * (where the period is doing real work). Question/exclamation marks are left untouched.
-     */
-    private fun dropChatTerminalPeriod(text: String, category: AppContext.Category): String {
-        if (category != AppContext.Category.CHAT && category != AppContext.Category.SOCIAL) return text
-        val t = text.trimEnd()
-        if (!t.endsWith(".") || t.endsWith("..")) return text // keep ellipses
-        val body = t.dropLast(1).trimEnd()
-        if (body.isEmpty()) return text
-        // Only for a single sentence — bail if there's another terminator or a line break inside.
-        if (body.any { it == '.' || it == '!' || it == '?' || it == '\n' }) return text
-        return body
     }
 
     private fun appLabel(pkg: String): String {
@@ -397,10 +292,6 @@ class RewriteActivity : ComponentActivity() {
         }.start()
     }
 
-    private fun streamFor(s: Settings, prompt: String, text: String): kotlinx.coroutines.flow.Flow<String> =
-        if (s.provider == "local") LocalLlmEngine.streamWithPrompt(applicationContext, s, prompt, text)
-        else RewriteEngine.streamWithPrompt(s, prompt, text)
-
     /** Map a raw exception to plain, actionable copy for the sheet. */
     private fun friendlyError(e: Throwable): String {
         val msg = e.message ?: e.toString()
@@ -417,55 +308,18 @@ class RewriteActivity : ComponentActivity() {
         }
     }
 
-    private fun llmReady(s: Settings): Boolean =
-        if (s.provider == "local") LlmModelManager.isReady(this, s.model) else s.isConfigured
-
-    /**
-     * A downloaded on-device engine that *isn't* the one that just failed, as `id to label`.
-     * Parakeet and Whisper fail on different things, so re-running the saved audio on the
-     * other one genuinely rescues transcripts — and on-device it costs nothing but a few
-     * seconds. Null when the user only has one engine, or is on a cloud provider.
-     */
-    /**
-     * True when the engine this dictation actually used emits a transliterated script rather
-     * than prose in the dictation language — today, the Hinglish fine-tune. Resolved through
-     * [OnDeviceStt.resolveModel] rather than read off `settings.sttModel`, because that is what
-     * decides which model ran. Cloud providers are never transliterating.
-     */
-    private fun isTransliteratingModel(s: Settings): Boolean {
-        if (s.sttProvider != "local") return false
-        val id = OnDeviceStt.resolveModel(this, s.sttModel, s.sttLanguage)
-        if (OnDeviceStt.isParakeet(id)) return false
-        return WhisperModelManager.model(id).isTransliterating
-    }
-
-    private fun altOnDeviceEngine(s: Settings): Pair<String, String>? {
-        if (s.sttProvider != "local") return null
-        val current = OnDeviceStt.resolveModel(this, s.sttModel, s.sttLanguage)
-        if (!OnDeviceStt.isParakeet(current)) {
-            return if (ParakeetModelManager.isReady(this)) ParakeetModelManager.MODEL_ID to "Parakeet" else null
-        }
-        // GENERIC, not MODELS: the alternate engine is a general-purpose fallback, and the
-        // Hinglish fine-tune would answer an English dictation in romanized Hindi.
-        return WhisperModelManager.GENERIC
-            .firstOrNull { WhisperModelManager.isReady(this, it.id) }
-            ?.let { it.id to "Whisper" }
-    }
-
     // ---------------- voice dictation sheet ----------------
 
-    private enum class Stage { IDLE, WAITING_MODEL, RECORDING, TRANSCRIBING, CORRECTING, REVIEW, ERROR }
+    private enum class Stage { IDLE, WAITING_MODEL, RECORDING, TRANSCRIBING, REVIEW, ERROR }
 
     @Composable
     private fun VoiceSheet() {
         val scope = rememberCoroutineScope()
         val haptics = LocalHapticFeedback.current
-        val parakeetDlPct by ParakeetModelManager.downloadProgress.collectAsState()
 
         var settings by remember { mutableStateOf<Settings?>(null) }
         var stage by remember { mutableStateOf(Stage.IDLE) }
         var transcript by remember { mutableStateOf("") }   // raw STT (shown immediately)
-        var output by remember { mutableStateOf("") }       // LLM streaming buffer
         var finalText by remember { mutableStateOf("") }    // corrected text to insert
         var error by remember { mutableStateOf<String?>(null) }
         var notice by remember { mutableStateOf<String?>(null) }  // soft, non-blocking note in REVIEW
@@ -501,7 +355,6 @@ class RewriteActivity : ComponentActivity() {
             if (autoRecord && s != null && !s.reviewBeforeInsert) {
                 recordHistory(transcript, text, durationSec, edited = false,
                     onDevice = s.sttProvider == "local")
-                recordCorpus(text, text, edited = false)
                 acceptVoice(text)
                 return
             }
@@ -509,88 +362,10 @@ class RewriteActivity : ComponentActivity() {
         }
 
         fun process(s: Settings, spoken: String) {
-            transcript = spoken; output = ""; error = null; notice = null
-            val host = dictationHostPkg ?: OpenWisprAccessibilityService.lastHostPackage
-            // App-context up front: drives code handling, the chat-period rule, and polish tone.
-            val category = AppContext.categoryFor(host, spoken)
-            dictationCategory = category
-            val isCode = category == AppContext.Category.CODE
-            // The deterministic stage is English-shaped, not language-neutral: Capitalizer applies
-            // sentence case (Devanagari has no case at all), FillerWordRemover hunts "um"/"uh",
-            // NumberNormalizer and SpokenFormNormalizer encode English spoken conventions. Run on
-            // Hindi it degrades correct output rather than improving it, so non-English dictation
-            // takes the raw transcript. Per-language rules would be their own project.
-            // The second clause catches what a language check alone cannot. Romanized Hinglish
-            // is Latin text produced while the decoder was told "en", so `isEnglish` says yes
-            // and the English-shaped stage would run on "kal office mein meeting thi" —
-            // sentence-casing it, hunting "um"/"uh" among Hindi function words, and normalizing
-            // numbers by English convention. The script is Latin; the language is not English.
-            val englishOnlyCleanup = s.deterministicCleanup &&
-                DictationLanguage.isEnglish(s.sttLanguage) &&
-                !isTransliteratingModel(s)
-            val cleaned0 = if (englishOnlyCleanup)
-                TextProcessor.process(spoken, TextProcessingConfig(), isCodeContext = isCode) else spoken
-            // Chat/messaging: drop the trailing full stop Whisper adds to short one-liners — a
-            // period on a single casual message reads as terse/formal, which people don't want.
-            val cleaned = if (englishOnlyCleanup) dropChatTerminalPeriod(cleaned0, category) else cleaned0
-            // Guards: skip the LLM where it tends to
-            // harm rather than help — polish off, very short input, or code/terminal context
-            // (the deterministic stage already handles those; code only goes to the LLM at FULL).
-            val wordCount = cleaned.trim().split(Regex("\\s+")).count { it.isNotBlank() }
-            // Skip the LLM when the deterministic stage already produced line structure: once
-            // ListFormatter has turned a dictated enumeration into a multi-line numbered list
-            // (or "new line"/"new paragraph" into real breaks), handing it to the tiny on-device
-            // model reflows it back onto one line. Keep the structured text verbatim.
-            val deterministicStructure = cleaned.contains('\n')
-            // The cleanup model has never seen Hinglish. It is a 0.6B fine-tuned on English
-            // transcript cleanup, and on romanized Hindi it does not polish, it mangles:
-            // measured 2026-10-06, "Is baar main try karoonga ki main vaise chizen bataoon jo
-            // main user leni bolta hoon" came back as a three-item bullet list with most of the
-            // words gone. preservesContent() let it through, because the guard cannot tell a
-            // reformat from a rewrite in a language it also does not know. Until there is a
-            // Hinglish-capable cleanup model, the transcript is better off untouched.
-            if (!s.llmPolishEnabled || wordCount < 4 || (isCode && s.polishLevel != PolishLevel.FULL) ||
-                deterministicStructure || isTransliteratingModel(s)) {
-                toReview(cleaned); return
-            }
-            stage = Stage.CORRECTING
-            val relaxed = RewriteEngine.hasSelfCorrection(spoken)
-            streamJob = scope.launch {
-                val tone = AppToneRepository(this@RewriteActivity).toneFor(category)
-                // L3: at Medium/Full, show the model how THIS user likes their dictation cleaned,
-                // using their closest past corrections as few-shot (skipped at Light to keep it cheap).
-                val examples = if (s.polishLevel == PolishLevel.MEDIUM || s.polishLevel == PolishLevel.FULL)
-                    withContext(Dispatchers.IO) {
-                        fewShotBlock(CorrectionCorpus.similar(applicationContext, cleaned, category.key, k = 2))
-                    } else ""
-                // The cleanup level (light/medium/full) tunes how much the model may edit.
-                val prompt = buildString {
-                    append(Defaults.DICTATION_PROMPT)
-                    if (s.polishLevel.instruction.isNotEmpty()) append("\n\n").append(s.polishLevel.instruction)
-                    if (tone.isNotBlank()) append("\n\nTone for this app: ").append(tone)
-                    if (examples.isNotEmpty()) append("\n\n").append(examples)
-                }
-                collectInto(
-                    streamFor(s, prompt, cleaned),
-                    { output += it },
-                    { _ ->
-                        // The polish is optional — never throw away a good transcript on its failure.
-                        notice = "Couldn't polish. Using the cleaned text."
-                        toReview(cleaned)
-                    },
-                    {
-                        // Content-preservation guard: if the model dropped too much or ballooned
-                        // with invented content, fall back to the deterministic text.
-                        val polished = RewriteEngine.cleanOutput(output)
-                        if (polished.isBlank() || !RewriteEngine.preservesContent(cleaned, polished, relaxed)) {
-                            notice = "Polish changed too much. Using the cleaned text."
-                            toReview(cleaned)
-                        } else {
-                            toReview(dropChatTerminalPeriod(polished, category))
-                        }
-                    },
-                )
-            }
+            // Whisper's own punctuation and casing are the output. No rule-based cleanup or LLM
+            // polish in this build: both were English-shaped and degraded Korean dictation.
+            transcript = spoken; error = null; notice = null
+            toReview(spoken)
         }
 
         /**
@@ -599,7 +374,7 @@ class RewriteActivity : ComponentActivity() {
          * [recId] names the durable copy; the cloud backend uploads that exact file.
          */
         fun runTranscription(s: Settings, samples: ShortArray, recId: String?) {
-            error = null; notice = null; output = ""; finalText = ""
+            error = null; notice = null; finalText = ""
             recId?.let { PendingAudio.claim(it) }
             pendingId = recId
             stage = Stage.TRANSCRIBING
@@ -614,12 +389,7 @@ class RewriteActivity : ComponentActivity() {
                     } else {
                         SttEngine.transcribe(s, PendingAudio.wavFile(this@RewriteActivity, recId!!), bias)
                     }
-                    // On a transliterating model, protect the Hindi function words by name.
-                    // Learned entries like "mean", "by", "home" and "honey" otherwise swallow
-                    // main, mein, bhai, hoon and thik. Names still get corrected at any length,
-                    // which a length floor could not manage.
-                    val guardHindi = isTransliteratingModel(s)
-                    val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab, guardHindi)
+                    val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
                     if (text.isBlank()) { error = "Empty transcript. Try again."; stage = Stage.ERROR }
                     else process(s, text)
                 } catch (e: Exception) {
@@ -675,7 +445,7 @@ class RewriteActivity : ComponentActivity() {
         }
 
         fun startRecording(s: Settings) {
-            error = null; notice = null; transcript = ""; output = ""; finalText = ""; amps.clear()
+            error = null; notice = null; transcript = ""; finalText = ""; amps.clear()
             // "Keep history" off promises nothing is saved to disk. Clear anything a previous
             // session left behind (e.g. a crash mid-dictation) before this one writes its own.
             if (!DictationHistory.keepHistory(this@RewriteActivity)) {
@@ -724,20 +494,19 @@ class RewriteActivity : ComponentActivity() {
 
         fun ensurePermissionThenRecord(s: Settings) {
             if (s.sttProvider == "local") {
-                if (!OnDeviceStt.isReady(this, s.sttModel, s.sttLanguage)) {
+                if (!OnDeviceStt.isReady(this, s.sttModel)) {
                     // Onboarding starts the model download and deliberately doesn't wait for
                     // it, so a first dictation legitimately lands mid-download. Sit on a
                     // spinner and start the moment it lands; only a genuinely stalled or
                     // failed download should reach the error below. Nudge the download too,
                     // in case it hasn't started yet (e.g. this is a resumed process).
-                    if (OnDeviceStt.isParakeet(s.sttModel)) ParakeetModelManager.ensureDownloading(this)
                     error = null
                     stage = Stage.WAITING_MODEL
                     scope.launch {
                         val deadline = System.currentTimeMillis() + MODEL_WAIT_TIMEOUT_MS
                         while (System.currentTimeMillis() < deadline) {
                             delay(500)
-                            if (OnDeviceStt.isReady(this@RewriteActivity, s.sttModel, s.sttLanguage)) {
+                            if (OnDeviceStt.isReady(this@RewriteActivity, s.sttModel)) {
                                 requestMicThenRecord(s)
                                 return@launch
                             }
@@ -815,7 +584,6 @@ class RewriteActivity : ComponentActivity() {
                 if (isActive && stage == Stage.REVIEW && !editing) {
                     recordHistory(transcript, finalText, durationSec, edited = false,
                         onDevice = settings?.sttProvider == "local")
-                    recordCorpus(finalText, finalText, edited = false)
                     acceptVoice(finalText)
                 }
             }
@@ -837,7 +605,7 @@ class RewriteActivity : ComponentActivity() {
         // waveform; this carries it through transcribe and polish, which is otherwise a silent
         // gap with nothing on screen at all.
         LaunchedEffect(stage) {
-            if (chromeless && (stage == Stage.TRANSCRIBING || stage == Stage.CORRECTING)) {
+            if (chromeless && (stage == Stage.TRANSCRIBING)) {
                 BubbleService.instance?.showWorking()
             }
         }
@@ -854,7 +622,6 @@ class RewriteActivity : ComponentActivity() {
                     Stage.WAITING_MODEL -> "Finishing setup"
                     Stage.RECORDING -> "Listening"
                     Stage.TRANSCRIBING -> "Transcribing"
-                    Stage.CORRECTING -> "Polishing"
                     Stage.REVIEW -> "Ready"
                     else -> "OpenWispr"
                 }
@@ -862,21 +629,12 @@ class RewriteActivity : ComponentActivity() {
 
             when (stage) {
                 Stage.WAITING_MODEL -> {
-                    val showPct = settings?.sttModel?.let { OnDeviceStt.isParakeet(it) } == true
                     TranscribingRing("Finishing setup")
                     Text(
-                        if (showPct) "Your speech model is still downloading (${(parakeetDlPct * 100).toInt()}%). I'll start listening the moment it's ready."
-                        else "Your speech model is still downloading. I'll start listening the moment it's ready.",
+                        "Your speech model is still downloading. I'll start listening the moment it's ready.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (showPct) {
-                        Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(
-                            progress = { parakeetDlPct.coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { cancelAndFinish() }) { Text("Cancel") }
                     }
@@ -907,13 +665,6 @@ class RewriteActivity : ComponentActivity() {
 
                 Stage.TRANSCRIBING -> TranscribingRing("Transcribing")
 
-                Stage.CORRECTING -> {
-                    TranscribingRing("Polishing")
-                    if (output.isNotBlank()) {
-                        OutputText(RewriteEngine.cleanOutput(output))
-                    }
-                }
-
                 Stage.REVIEW -> {
                     if (editing) {
                         OutlinedTextField(
@@ -933,7 +684,6 @@ class RewriteActivity : ComponentActivity() {
                                 learnFromEditAsync(finalText, editText)
                                 recordHistory(transcript, editText, durationSec, edited = true,
                                     onDevice = settings?.sttProvider == "local")
-                                recordCorpus(finalText, editText, edited = true)
                                 acceptVoice(editText)
                             }) {
                                 Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Text("  Insert")
@@ -969,8 +719,7 @@ class RewriteActivity : ComponentActivity() {
                                     runCatching { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
                                     recordHistory(transcript, finalText, durationSec, edited = false,
                                         onDevice = settings?.sttProvider == "local")
-                                    recordCorpus(finalText, finalText, edited = false)
-                                    acceptVoice(finalText)
+                                                    acceptVoice(finalText)
                                 }) {
                                     Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Text("  Insert")
                                 }
@@ -988,18 +737,9 @@ class RewriteActivity : ComponentActivity() {
                     // audio we still have, or start over. Back dismisses; the recording stays
                     // on disk either way and is retryable from Home.
                     val saved = pendingId
-                    // Re-running the *same* on-device engine on the *same* samples is
-                    // deterministic — it fails identically. So a retry prefers the other
-                    // downloaded engine, which is the only thing that can actually rescue the
-                    // take. Falls back to the current engine (cloud, or only one model), where
-                    // a retry does mean something because the failure was transient.
-                    val alt = if (saved != null) settings?.let { altOnDeviceEngine(it) } else null
                     if (saved != null) {
                         Text(
-                            if (alt != null)
-                                "Your recording is saved on this device. Nothing was lost. " +
-                                    "Retry runs it again on ${alt.second}."
-                            else "Your recording is saved on this device. Nothing was lost.",
+                            "Your recording is saved on this device. Nothing was lost.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1007,9 +747,7 @@ class RewriteActivity : ComponentActivity() {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         if (saved != null) {
                             TextButton(onClick = {
-                                settings?.let { s ->
-                                    retryTranscription(if (alt != null) s.copy(sttModel = alt.first) else s)
-                                }
+                                settings?.let { s -> retryTranscription(s) }
                             }) {
                                 Icon(Icons.Default.Refresh, null, Modifier.size(18.dp)); Text("  Retry")
                             }
@@ -1019,99 +757,6 @@ class RewriteActivity : ComponentActivity() {
                             Text(if (saved != null) "  Record again" else "  Try again")
                         }
                     }
-                }
-            }
-        }
-    }
-
-    /** Collect a streaming Flow<String>, forwarding chunks/errors/completion. */
-    private suspend fun collectInto(
-        flow: kotlinx.coroutines.flow.Flow<String>,
-        onChunk: (String) -> Unit,
-        onError: (Throwable) -> Unit,
-        onDone: () -> Unit,
-    ) {
-        var failed = false
-        flow.catch { e -> failed = true; onError(e) }
-            .onCompletion { cause -> if (cause == null && !failed) onDone() }
-            .collect { chunk -> onChunk(chunk) }
-    }
-
-    // ---------------- chip rewrite sheet (text selected via PROCESS_TEXT) ----------------
-
-    @Composable
-    private fun ChipRewriteSheet(title: String, acceptLabel: String, onAccept: (String) -> Unit) {
-        val scope = rememberCoroutineScope()
-        val haptics = LocalHapticFeedback.current
-        var selectedAction by remember { mutableStateOf<String?>(null) }
-        var output by remember { mutableStateOf("") }
-        var streaming by remember { mutableStateOf(false) }
-        var done by remember { mutableStateOf(false) }
-        var error by remember { mutableStateOf<String?>(null) }
-        var streamJob by remember { mutableStateOf<Job?>(null) }
-
-        fun run(actionId: String) {
-            runCatching { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
-            streamJob?.cancel()
-            selectedAction = actionId; output = ""; error = null; done = false; streaming = true
-            streamJob = scope.launch {
-                // Anti-AI guardrails humanize prose; they fight structured output, so
-                // turn them off for Prompt Engineer (which needs its bold template).
-                val settings = repo.get().let {
-                    if (actionId == "prompt_engineer") it.copy(antiAI = false) else it
-                }
-                if (!llmReady(settings)) {
-                    error = if (settings.provider == "local")
-                        "On-device model not downloaded. Open OpenWispr → Save settings."
-                    else "No API key set. Open OpenWispr to configure it."
-                    streaming = false
-                    return@launch
-                }
-                if (sourceState.value.isBlank()) {
-                    error = "Nothing to transform. Copy some text first."
-                    streaming = false
-                    return@launch
-                }
-                streamFor(settings, Defaults.DEFAULT_PROMPTS.getValue(actionId), sourceState.value)
-                    .catch { e -> error = friendlyError(e); streaming = false }
-                    .onCompletion { cause ->
-                        if (cause == null && error == null) { output = RewriteEngine.cleanOutput(output); done = true }
-                        streaming = false
-                    }
-                    .collect { chunk -> output += chunk }
-            }
-        }
-
-        BottomSheet(onScrimTap = {
-            streamJob?.cancel(); setResult(Activity.RESULT_CANCELED); finish()
-        }) {
-            SheetHeader(title)
-            ChipRow(enabled = !streaming, selected = selectedAction, onPick = ::run)
-
-            when {
-                error != null -> Text(error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                selectedAction == null -> Text(
-                    sourceState.value.ifEmpty { "Reading clipboard…" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp).verticalScroll(rememberScrollState()),
-                )
-                streaming && output.isBlank() -> TranscribingRing("Working")
-                else -> OutputText(RewriteEngine.cleanOutput(output).ifEmpty { "…" })
-            }
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                if (streaming) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                if (selectedAction != null && !streaming && error == null) {
-                    TextButton(onClick = { run(selectedAction!!) }) {
-                        Icon(Icons.Default.Refresh, null, Modifier.size(18.dp)); Text("  Redo")
-                    }
-                }
-                TextButton(onClick = { streamJob?.cancel(); setResult(Activity.RESULT_CANCELED); finish() }) {
-                    Icon(Icons.Default.Close, null, Modifier.size(18.dp)); Text("  Discard")
-                }
-                TextButton(enabled = done && output.isNotBlank(), onClick = { onAccept(output) }) {
-                    Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Text("  $acceptLabel")
                 }
             }
         }
@@ -1157,20 +802,6 @@ class RewriteActivity : ComponentActivity() {
     private fun OutputText(text: String) {
         Column(Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
             Text(text, style = MaterialTheme.typography.bodyLarge)
-        }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class)
-    @Composable
-    private fun ChipRow(enabled: Boolean, selected: String?, onPick: (String) -> Unit) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (action in Defaults.ACTIONS) {
-                AssistChip(
-                    onClick = { if (enabled) onPick(action.id) },
-                    enabled = enabled || selected == action.id,
-                    label = { Text(action.title) },
-                )
-            }
         }
     }
 

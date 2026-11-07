@@ -12,7 +12,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,15 +40,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -82,12 +78,9 @@ import com.voicerewriter.ui.Wordmark
 import kotlinx.coroutines.launch
 
 /**
- * Settings, redesigned to the OpenWispr Settings spec: a sectioned, on-device-first
- * surface — setup status, Voice (engine segment + per-model download manager, Parakeet
- * recommended on top), Cleanup & Polish (smart cleanup + AI-polish level + advanced
- * polish model), Bubble, Privacy, Personalization, Reliability, General. Changes persist
- * immediately. All prior capabilities (cloud STT/LLM providers, voice profile, etc.) are
- * preserved under the relevant sections / Advanced.
+ * Settings: a sectioned, on-device-first surface — setup status, Voice (engine segment +
+ * per-model Whisper download manager, the device-fit pick badged as recommended), Bubble,
+ * Privacy, Personalization, Reliability, General. Changes persist immediately.
  */
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,34 +107,18 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var notifOn by remember { mutableStateOf(true) }
     var micGranted by remember { mutableStateOf(false) }
 
-    // LLM (rewrite / polish model)
-    var provider by remember { mutableStateOf(Defaults.DEFAULT_PROVIDER) }
-    var model by remember { mutableStateOf(Defaults.DEFAULT_MODEL) }
-    var customEndpoint by remember { mutableStateOf("") }
-    var apiKey by remember { mutableStateOf("") }
-    var voice by remember { mutableStateOf("") }
-    var antiAI by remember { mutableStateOf(true) }
-    var temperature by remember { mutableFloatStateOf(Defaults.DEFAULT_TEMPERATURE.toFloat()) }
-
     // STT
     var sttProvider by remember { mutableStateOf(Defaults.DEFAULT_STT_PROVIDER) }
     var sttEndpoint by remember { mutableStateOf("") }
     var sttKey by remember { mutableStateOf("") }
     var sttModel by remember { mutableStateOf("") }
     var sttLanguage by remember { mutableStateOf(DictationLanguage.DEFAULT) }
-    var defaultMode by remember { mutableStateOf(Defaults.MODE_DICTATE) }
-    var deterministicCleanup by remember { mutableStateOf(true) }
-    var polishLevel by remember { mutableStateOf(PolishLevel.OFF) }
     var vadAutoStop by remember { mutableStateOf(true) }
     var headlessRecording by remember { mutableStateOf(true) }
     var reviewBeforeInsert by remember { mutableStateOf(false) }
-    var parakeetHotwordsExperimental by remember { mutableStateOf(false) }
     var bubbleOnlyOnFields by remember { mutableStateOf(true) }
     var keepHistory by remember { mutableStateOf(DictationHistory.keepHistory(context)) }
     var audioKeepDays by remember { mutableStateOf(PendingAudio.keepDays(context)) }
-
-    var advancedOpen by remember { mutableStateOf(false) }
-    var cloudLlmOpen by remember { mutableStateOf(false) }
 
     // download tracking (a single in-flight download at a time)
     var dlId by remember { mutableStateOf<String?>(null) }
@@ -168,15 +145,17 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
 
     LaunchedEffect(Unit) {
         val s = repo.get()
-        provider = s.provider; model = s.model; customEndpoint = s.customEndpoint; apiKey = s.apiKey
-        voice = s.voice; antiAI = s.antiAI; temperature = s.temperature.toFloat()
         sttProvider = s.sttProvider; sttEndpoint = s.sttEndpoint; sttKey = s.sttKey; sttModel = s.sttModel
+        // A blank id, or one a previous build offered (Parakeet, the Hinglish fine-tune), shows
+        // here as the downloaded Whisper model that will actually run, so the list has an active
+        // row. Only when that model is on disk: an "Active" row hides its own Get button.
+        if (sttProvider == "local" && OnDeviceStt.resolveModel(sttModel) != sttModel) {
+            val running = OnDeviceStt.resolveModel(context, sttModel)
+            if (WhisperModelManager.isReady(context, running)) sttModel = running
+        }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        defaultMode = s.defaultMode
-        deterministicCleanup = s.deterministicCleanup; polishLevel = s.polishLevel
         vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
-        parakeetHotwordsExperimental = s.parakeetHotwordsExperimental
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
         notifOn = SetupUtils.notificationsGranted(context)
         micGranted = SetupUtils.micGranted(context)
@@ -224,15 +203,11 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var pickingLanguage by remember { mutableStateOf(false) }
 
     fun snapshot() = Settings(
-        provider = provider, model = model.trim(), customEndpoint = customEndpoint.trim(),
-        apiKey = apiKey.trim(), voice = voice, antiAI = antiAI, temperature = temperature.toDouble(),
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
-        sttModel = sttModel.trim(), sttLanguage = sttLanguage, defaultMode = defaultMode,
-        deterministicCleanup = deterministicCleanup, polishLevel = polishLevel,
+        sttModel = sttModel.trim(), sttLanguage = sttLanguage,
         vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
-        parakeetHotwordsExperimental = parakeetHotwordsExperimental,
     )
 
     // Persist silently on every change (the design saves immediately).
@@ -244,13 +219,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun sttModelState(id: String): String = when {
         sttModel == id -> "active"
         dlId == id -> "downloading"
-        OnDeviceStt.isReady(context, id, sttLanguage) -> "downloaded"
-        else -> "idle"
-    }
-    fun llmModelState(id: String): String = when {
-        provider == "local" && model == id -> "active"
-        dlId == id -> "downloading"
-        LlmModelManager.isReady(context, id) -> "downloaded"
+        WhisperModelManager.isReady(context, id) -> "downloaded"
         else -> "idle"
     }
 
@@ -258,8 +227,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         dlId = id; dlProgress = 0f
         launch {
             try {
-                if (OnDeviceStt.isParakeet(id)) ParakeetModelManager.download(context) { p -> dlProgress = p }
-                else WhisperModelManager.download(context, id) { p -> dlProgress = p }
+                WhisperModelManager.download(context, id) { p -> dlProgress = p }
                 sttModel = id; dlId = null; modelsRev++; persist()
             } catch (e: Exception) {
                 dlId = null; Toast.makeText(context, e.message ?: "Download failed", Toast.LENGTH_LONG).show()
@@ -273,12 +241,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
      */
     fun deleteModel(target: DeletableModel) {
         launch {
-            val freed = when (target.kind) {
-                ModelKind.STT ->
-                    if (OnDeviceStt.isParakeet(target.id)) ParakeetModelManager.delete(context)
-                    else WhisperModelManager.delete(context, target.id)
-                ModelKind.LLM -> LlmModelManager.delete(context, target.id)
-            }
+            val freed = WhisperModelManager.delete(context, target.id)
             modelsRev++
             val mb = freed / (1024 * 1024)
             Toast.makeText(
@@ -286,18 +249,6 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                 if (mb > 0) "Deleted ${target.label} — ${mb}MB freed" else "Deleted ${target.label}",
                 Toast.LENGTH_SHORT,
             ).show()
-        }
-    }
-
-    fun downloadLlm(id: String) {
-        dlId = id; dlProgress = 0f
-        launch {
-            try {
-                LlmModelManager.download(context, id) { p -> dlProgress = p }
-                provider = "local"; model = id; dlId = null; modelsRev++; persist()
-            } catch (e: Exception) {
-                dlId = null; Toast.makeText(context, e.message ?: "Download failed", Toast.LENGTH_LONG).show()
-            }
         }
     }
 
@@ -333,12 +284,6 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     current = sttLanguage,
                     onPick = { code ->
                         sttLanguage = code
-                        // Parakeet cannot do anything but English, so a non-English pick moves the
-                        // selected model too. Doing it here keeps Settings showing the model that
-                        // will actually run, rather than one the router would quietly override.
-                        if (!DictationLanguage.isEnglish(code) && OnDeviceStt.isParakeet(OnDeviceStt.resolveModel(sttModel))) {
-                            sttModel = OnDeviceStt.resolveModel(context, sttModel, code)
-                        }
                         pickingLanguage = false
                         persist()
                     },
@@ -392,7 +337,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                             Spacer(Modifier.height(6.dp))
                             // Which model suits *this* phone, not which is biggest. The list
                             // below shows every option regardless — this is the hint that keeps
-                            // someone on a 3GB device from picking the 631MB one and hitting an
+                            // someone on a 3GB device from picking the 488MB one and hitting an
                             // out-of-memory failure they have no way to diagnose.
                             Text(deviceHint,
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -404,7 +349,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                                     state = sttModelState(m.id), progress = dlProgress,
                                     onGet = { downloadStt(m.id) }, onUse = { sttModel = m.id; persist() },
                                     onDelete = {
-                                        pendingDelete = DeletableModel(ModelKind.STT, m.id, m.name, m.meta)
+                                        pendingDelete = DeletableModel(m.id, m.name, m.meta)
                                     },
                                 )
                                 Spacer(Modifier.height(10.dp))
@@ -431,11 +376,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         }
                     }
                     Divider()
-                    LanguageRow(
-                        current = sttLanguage,
-                        forcesWhisper = !DictationLanguage.isEnglish(sttLanguage) &&
-                            OnDeviceStt.isParakeet(OnDeviceStt.resolveModel(sttModel)),
-                    ) { pickingLanguage = true }
+                    LanguageRow(current = sttLanguage) { pickingLanguage = true }
                     Divider()
                     ToggleRow("Auto-stop on pause", "End recording when you stop talking", vadAutoStop) { vadAutoStop = it; persist() }
                     Divider()
@@ -450,83 +391,6 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         "Show the text and wait, instead of typing it straight into the field",
                         reviewBeforeInsert,
                     ) { reviewBeforeInsert = it; persist() }
-                    if (sttProvider == "local" && OnDeviceStt.isParakeet(OnDeviceStt.resolveModel(sttModel, sttLanguage))) {
-                        Divider()
-                        ToggleRow(
-                            "Vocab-biased decoding (experimental)",
-                            "Tries harder to hit your personal dictionary during transcription, not just after. " +
-                                "Uses a decode mode with a known upstream bug that occasionally returns blank or " +
-                                "wrong text. Leave off unless you're testing it.",
-                            parakeetHotwordsExperimental,
-                        ) { parakeetHotwordsExperimental = it; persist() }
-                    }
-                }
-            }
-
-            // ---------------- CLEANUP & POLISH ----------------
-            Section("Cleanup & polish") {
-                Card {
-                    ToggleRow("Smart cleanup", "Fillers, punctuation, numbers, backtracking · on-device, instant", deterministicCleanup) { deterministicCleanup = it; persist() }
-                    Divider()
-                    Padded {
-                        Text("AI polish", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                        Text("An optional model refines the cleaned text.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(12.dp))
-                        Segment(
-                            options = PolishLevel.entries.map { it.name.lowercase() to it.label },
-                            selected = polishLevel.name.lowercase(),
-                            onSelect = { sel -> PolishLevel.entries.firstOrNull { it.name.lowercase() == sel }?.let { polishLevel = it; persist() } },
-                        )
-                        Spacer(Modifier.height(11.dp))
-                        Text(polishLevel.blurb, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Polish always keeps your words and meaning. It falls back to the clean text if it strays.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
-
-                        if (polishLevel != PolishLevel.OFF) {
-                            Spacer(Modifier.height(14.dp))
-                            DisclosureHeader("Advanced polish model", advancedOpen) { advancedOpen = !advancedOpen }
-                            AnimatedVisibility(visible = advancedOpen) {
-                                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Label("Polish model")
-                                    modelsRev
-                                    LlmModelManager.MODELS.forEach { m ->
-                                        ModelRow(
-                                            name = m.label, meta = m.sizeLabel, recommended = m.recommended,
-                                            state = llmModelState(m.id), progress = dlProgress,
-                                            onGet = { downloadLlm(m.id) }, onUse = { provider = "local"; model = m.id; persist() },
-                                            onDelete = {
-                                                pendingDelete = DeletableModel(ModelKind.LLM, m.id, m.label, m.sizeLabel)
-                                            },
-                                        )
-                                    }
-                                    Column {
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("Creativity", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                                            Text("%.1f".format(temperature), style = MonoEyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                        Slider(value = temperature, onValueChange = { temperature = it }, onValueChangeFinished = { persist() }, valueRange = 0f..1f)
-                                    }
-                                    ToggleRowBare("Anti-AI phrasing", antiAI) { antiAI = it; persist() }
-                                    DisclosureHeader("Use a cloud model instead", cloudLlmOpen) { cloudLlmOpen = !cloudLlmOpen }
-                                    AnimatedVisibility(visible = cloudLlmOpen) {
-                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            Segment(
-                                                options = Defaults.PROVIDERS.values.filter { it.id != "local" }.map { it.id to it.label },
-                                                selected = if (provider == "local") "" else provider,
-                                                onSelect = { p -> provider = p; Defaults.PROVIDERS[p]?.defaultModel?.takeIf { it.isNotEmpty() }?.let { model = it }; persist() },
-                                            )
-                                            if (provider != "local") {
-                                                if (provider == "custom") KeyField(customEndpoint, "Endpoint URL") { customEndpoint = it; persist() }
-                                                KeyField(model, "Model id") { model = it; persist() }
-                                                KeyField(apiKey, "API key") { apiKey = it; persist() }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
@@ -599,10 +463,6 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     Divider()
                     NavRow("Learned from edits", "Corrections it remembered") { context.startActivity(Intent(context, LearnedVocabActivity::class.java)) }
                     Divider()
-                    NavRow("Style memory", "On-device examples · never uploaded") { context.startActivity(Intent(context, StyleMemoryActivity::class.java)) }
-                    Divider()
-                    NavRow("Tone by app", "Email, chat, code, notes") { context.startActivity(Intent(context, AppToneActivity::class.java)) }
-                    Divider()
                     NavRow("Import from contacts", "Matched on-device · never uploaded") { context.startActivity(Intent(context, ContactsImportActivity::class.java)) }
                 }
             }
@@ -662,13 +522,9 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
 
 /* --------------------------- dictation language --------------------------- */
 
-/**
- * The dictation language row. [forcesWhisper] is true when the user has picked a non-English
- * language while Parakeet is their selected model: we route them to Whisper automatically, and
- * saying so is better than letting them wonder why the engine changed under them.
- */
+/** The dictation language row. */
 @Composable
-private fun LanguageRow(current: String, forcesWhisper: Boolean, onClick: () -> Unit) {
+private fun LanguageRow(current: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -676,8 +532,7 @@ private fun LanguageRow(current: String, forcesWhisper: Boolean, onClick: () -> 
         Column(Modifier.weight(1f)) {
             Text("Dictation language", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                if (forcesWhisper) "Uses Whisper — Parakeet is English-only"
-                else "The language you speak while dictating",
+                "The language you speak while dictating",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -704,9 +559,7 @@ private fun LanguageDialog(current: String, onPick: (String) -> Unit, onDismiss:
         text = {
             Column {
                 Text(
-                    "Speech is transcribed in this language, never translated. Cleanup rules " +
-                        "(capitalization, filler words, number formatting) are English-only and " +
-                        "are skipped for other languages.",
+                    "Speech is transcribed in this language, never translated.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -737,10 +590,7 @@ private fun LanguageDialog(current: String, onPick: (String) -> Unit, onDismiss:
 
 /* ------------------------ deleting a downloaded model (issue #53) ------------------------ */
 
-private enum class ModelKind { STT, LLM }
-
 private data class DeletableModel(
-    val kind: ModelKind,
     val id: String,
     val label: String,
     val size: String,
@@ -775,22 +625,12 @@ private fun DeleteModelDialog(target: DeletableModel, onConfirm: () -> Unit, onD
 private data class SttModelOption(val id: String, val name: String, val meta: String, val recommended: Boolean)
 
 /**
- * Every on-device speech model, with the "recommended" badge on whichever one [DeviceFit]
- * picked for this phone rather than always on Parakeet. The list itself never shrinks — a
- * budget device can still choose the large model deliberately, it just isn't told to.
+ * Every on-device Whisper model, with the "recommended" badge on whichever one [DeviceFit]
+ * picked for this phone. The list itself never shrinks — a budget device can still choose the
+ * large model deliberately, it just isn't told to.
  */
-private fun sttModelOptions(recommendedId: String): List<SttModelOption> = buildList {
-    add(
-        SttModelOption(
-            ParakeetModelManager.MODEL_ID, "Parakeet",
-            "${ParakeetModelManager.SIZE_LABEL} · most accurate",
-            OnDeviceStt.isParakeet(recommendedId),
-        ),
-    )
-    WhisperModelManager.MODELS.forEach {
-        add(SttModelOption(it.id, it.label, it.sizeLabel, it.id == recommendedId))
-    }
-}
+private fun sttModelOptions(recommendedId: String): List<SttModelOption> =
+    WhisperModelManager.MODELS.map { SttModelOption(it.id, it.label, it.sizeLabel, it.id == recommendedId) }
 
 private fun keyPlaceholder(provider: String) = when (provider) {
     "groq" -> "gsk_..."; "openai" -> "sk-..."; else -> "key or endpoint"
@@ -971,14 +811,6 @@ private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChang
 }
 
 @Composable
-private fun ToggleRowBare(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}
-
-@Composable
 private fun NavRow(title: String, subtitle: String? = null, danger: Boolean = false, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onClick: () -> Unit) {
     val color = if (danger) Color(0xFFB4502E) else MaterialTheme.colorScheme.onSurface
     Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -987,14 +819,6 @@ private fun NavRow(title: String, subtitle: String? = null, danger: Boolean = fa
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(icon ?: Icons.Filled.ChevronRight, null, tint = if (danger) color else MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-private fun DisclosureHeader(title: String, open: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onClick() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-        Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
     }
 }
 

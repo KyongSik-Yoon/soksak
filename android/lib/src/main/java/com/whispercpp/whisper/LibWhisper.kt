@@ -19,8 +19,8 @@ class WhisperContext private constructor(private var ptr: Long) {
     /**
      * [beamSize] > 1 selects beam search over greedy decoding; [singleSegment] forces the whole
      * clip into one segment. The defaults keep the historical behaviour (greedy, one segment),
-     * which is the cheap choice for a short English take. See [WhisperModel.isTransliterating]
-     * for why a romanizing fine-tune wants the opposite.
+     * which is the cheap choice for a short English take. The app's LocalWhisperStt asks for
+     * the opposite on non-English (code-switched) dictation.
      */
     suspend fun transcribeData(
         data: FloatArray,

@@ -76,16 +76,22 @@ class ModelDownloaderDeleteTest {
         assertTrue(other.exists())
     }
 
-    @Test fun `a Parakeet-style bundle goes file by file, and the directory survives`() {
-        // ParakeetModelManager deletes its four files by name rather than wiping the dir.
-        val dir = tmp.newFolder("parakeet")
-        val files = listOf("encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt")
-            .map { File(dir, it).apply { writeBytes(ByteArray(256)) } }
+    @Test fun `retired engines' weights are swept, current Whisper models are not`() {
+        val parakeet = tmp.newFolder("parakeet")
+        File(parakeet, "encoder.int8.onnx").writeBytes(ByteArray(256))
+        val llm = write("gemma-3-270m-qat-Q4_0.gguf", 128)
+        val llmPart = write("Qwen3-0.6B-Q8_0.gguf.part", 64)
+        val hinglish = write("ggml-hinglish-swift-q5_1.bin", 32)
+        val whisper = write("ggml-base.bin", 100)
+        val whisperPart = write("small_acft_q8_0.bin.part", 50)
 
-        val freed = files.sumOf { ModelDownloader.deleteWithSidecars(it) }
+        ModelDownloader.sweepRetired(tmp.root)
 
-        assertEquals(4L * 256, freed)
-        assertTrue("the bundle directory itself stays", dir.isDirectory)
-        files.forEach { assertFalse(it.name, it.exists()) }
+        assertFalse("parakeet bundle dir", parakeet.exists())
+        assertFalse(llm.exists())
+        assertFalse(llmPart.exists())
+        assertFalse(hinglish.exists())
+        assertTrue("a current model must survive", whisper.exists())
+        assertTrue("a current model's resume state must survive", whisperPart.exists())
     }
 }

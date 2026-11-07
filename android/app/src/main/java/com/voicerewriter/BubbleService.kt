@@ -27,7 +27,6 @@ import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
-import com.arm.aichat.AiChat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -168,20 +167,15 @@ class BubbleService : Service() {
 
     /**
      * Best-effort cold-start warmup so the first dictation doesn't stall on model loads.
-     * Only touches on-device paths (cloud needs no warmup) and never crashes the service.
-     *  - Whisper: preloads the cached context (safe — it's reused across dictations).
-     *  - LLM: constructs the native engine singleton (loads libai-chat + native init). We
-     *    do NOT pre-load the GGUF; LocalLlmEngine reloads it fresh per call by design.
+     * Only touches the on-device path (cloud needs no warmup) and never crashes the service:
+     * preloads the cached Whisper context, which is reused across dictations.
      */
     private fun warmModels() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val s = SettingsRepository(applicationContext).get()
                 if (s.sttProvider == "local") {
-                    OnDeviceStt.warm(applicationContext, s.sttModel, language = s.sttLanguage)
-                }
-                if (s.provider == "local") {
-                    AiChat.getInferenceEngine(applicationContext)
+                    OnDeviceStt.warm(applicationContext, s.sttModel)
                 }
             } catch (e: Exception) {
                 android.util.Log.w("BubbleService", "warmup skipped", e)
@@ -242,9 +236,9 @@ class BubbleService : Service() {
             val headless = s != null && HeadlessDictation.canRun(applicationContext, s) &&
                 HeadlessDictation.start(applicationContext, s, pushToTalk) {
                     // Silenced microphone: say nothing, just let the sheet take this take.
-                    launchRewrite(Defaults.MODE_DICTATE, autoRecord = true, pushToTalk = pushToTalk && holdingToTalk)
+                    launchRewrite(autoRecord = true, pushToTalk = pushToTalk && holdingToTalk)
                 }
-            if (!headless) launchRewrite(Defaults.MODE_DICTATE, autoRecord = true, pushToTalk = pushToTalk)
+            if (!headless) launchRewrite(autoRecord = true, pushToTalk = pushToTalk)
         }
     }
 
@@ -674,7 +668,7 @@ class BubbleService : Service() {
         }
     }
 
-    private fun launchRewrite(mode: String, autoRecord: Boolean = true, pushToTalk: Boolean = false) {
+    private fun launchRewrite(autoRecord: Boolean = true, pushToTalk: Boolean = false) {
         startActivity(
             Intent(this, RewriteActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -699,7 +693,7 @@ class BubbleService : Service() {
     }
 
     /**
-     * Transcribing and polishing. With no sheet on the voice path, this is the only thing
+     * Transcribing. With no sheet on the voice path, this is the only thing
      * telling the user we're still working.
      *
      * Keeps [recording] set so the bubble stays on screen for the duration — our own

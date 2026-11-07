@@ -100,6 +100,11 @@ class HomeActivity : ComponentActivity() {
                 // we no longer offer before anything starts fetching ~1GB of new ones. Sidecars
                 // for current models are kept, since those are what a resume needs.
                 ModelDownloader.sweepOrphans(this@HomeActivity)
+                // Data files of retired features (LLM style memory, per-app tone). The corpus
+                // holds dictated text, so it should not outlive the feature that kept it.
+                listOf("correction_corpus.jsonl", "app_tone.json").forEach {
+                    runCatching { java.io.File(filesDir, it).delete() }
+                }
                 SettingsRepository(this@HomeActivity).get().hasCompletedOnboarding
             }
             if (!done && !isFinishing) startActivity(OnboardingActivity.intent(this@HomeActivity))
@@ -259,12 +264,6 @@ class HomeActivity : ComponentActivity() {
                                                         val repo = VocabRepository(ctx)
                                                         pairs.forEach { (from, to) -> runCatching { repo.learnAlias(from, to) } }
                                                         runCatching { repo.learnFromEdit(old, newText) }
-                                                        runCatching {
-                                                            CorrectionCorpus.record(ctx, CorrectionSample(
-                                                                ts = System.currentTimeMillis(), category = "generic",
-                                                                cleaned = old, final = newText, edited = true,
-                                                            ))
-                                                        }
                                                     }
                                                     editOpen = null
                                                     reload(); showToast("Saved & learned")

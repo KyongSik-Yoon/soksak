@@ -56,17 +56,9 @@
             android:exported="false"
             android:label="Learned words" />
         <activity
-            android:name=".StyleMemoryActivity"
-            android:exported="false"
-            android:label="Style memory" />
-        <activity
             android:name=".ContactsImportActivity"
             android:exported="false"
             android:label="Import from contacts" />
-        <activity
-            android:name=".AppToneActivity"
-            android:exported="false"
-            android:label="Tone by app" />
         <activity
             android:name=".FixDictationActivity"
             android:exported="false"
@@ -74,23 +66,16 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.OpenWispr.Translucent" />
 
-        <!-- The "Rewrite" entry in the text-selection floating toolbar -->
+        <!-- The dictation sheet, launched by the bubble when headless recording can't run -->
         <activity
             android:name=".RewriteActivity"
-            android:exported="true"
-            android:label="@string/process_text_label"
+            android:exported="false"
             android:launchMode="singleTop"
             android:excludeFromRecents="true"
             android:taskAffinity=""
-            android:theme="@style/Theme.OpenWispr.Translucent">
-            <intent-filter>
-                <action android:name="android.intent.action.PROCESS_TEXT" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.OpenWispr.Translucent" />
 
-        <!-- Always-visible floating bubble; tap to rewrite clipboard text -->
+        <!-- Always-visible floating bubble; tap to dictate -->
         <service
             android:name=".BubbleService"
             android:exported="false"

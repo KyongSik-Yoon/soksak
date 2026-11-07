@@ -4,7 +4,7 @@ import kotlin.math.max
 
 /**
  * Snaps mis-transcribed names/terms back to their canonical spelling using a
- * personal vocabulary. Runs after STT, before the cleanup pipeline. Pure and
+ * personal vocabulary. Runs on the raw STT transcript. Pure and
  * deterministic so it's JVM-testable and never hallucinates outside the list.
  *
  * Matching, conservative by design:

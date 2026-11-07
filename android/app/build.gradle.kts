@@ -20,9 +20,8 @@ android {
         // release the three drifted apart (Android 1.0.1 / tag v0.2.1 / macOS 0.2.1).
         versionName = "1.6.0"
         ndk {
-            // Device is arm64; the whisper/llm/mlc4j native libs and the sherpa-onnx AAR
-            // all ship arm64-v8a. Restricting here keeps the APK from bundling unused ABIs
-            // (sherpa ships armeabi-v7a/x86/x86_64 too).
+            // Device is arm64; whisper.cpp and onnxruntime (Silero VAD) ship arm64-v8a.
+            // Restricting here keeps the APK from bundling unused ABIs.
             abiFilters += "arm64-v8a"
         }
     }
@@ -63,7 +62,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Embed native (whisper/llama/sherpa) debug symbols in the AAB so Play Console can
+            // Embed native (whisper) debug symbols in the AAB so Play Console can
             // symbolicate native crash/ANR stack traces. Stripped from the delivered APKs.
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
@@ -85,21 +84,15 @@ android {
         compose = true
     }
     packaging {
-        // The on-device LLM loads ggml backend .so files from nativeLibraryDir at
-        // runtime, so they must be extracted on install (matches extractNativeLibs=true).
+        // Native libs are extracted on install (matches extractNativeLibs=true).
         jniLibs {
             useLegacyPackaging = true
-            // The sherpa static-link AAR still ships an x86 libonnxruntime.so, which collides
-            // with com.microsoft.onnxruntime's at merge-time (merge runs across all ABIs before
-            // abiFilters strips non-arm64). arm64-v8a has only the Microsoft copy (sherpa's is
-            // statically linked there), so picking either is correct; x86 isn't packaged anyway.
-            pickFirsts += "**/libonnxruntime.so"
         }
     }
     testOptions {
         unitTests {
-            // textproc's TextProcessor logs via android.util.Log; return defaults so
-            // pure JVM unit tests don't need Robolectric just to no-op logging.
+            // Code under test logs via android.util.Log; return defaults so pure JVM unit
+            // tests don't need Robolectric just to no-op logging.
             isReturnDefaultValues = true
         }
     }
@@ -130,12 +123,8 @@ dependencies {
     testImplementation("org.json:json:20240303")
 
     implementation(project(":lib")) // on-device whisper.cpp
-    implementation(project(":llm")) // on-device llama.cpp (ARM aichat)
     // Silero VAD (ai.onnxruntime Java API). 1.22.0 is the first release whose arm64 .so files —
     // both libonnxruntime.so and libonnxruntime4j_jni.so — are 16 KB page aligned; 1.19.2 shipped
     // 4 KB, which Android 16 devices with 16 KB pages can only run in compatibility mode.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
-    // On-device Parakeet/Moonshine STT (transducer). Vendored static-link AAR (onnxruntime baked
-    // into libsherpa-onnx-jni.so, so no libonnxruntime.so collision with the VAD ORT above).
-    implementation(group = "", name = "sherpa-onnx-static-link-onnxruntime-1.13.3", ext = "aar")
 }

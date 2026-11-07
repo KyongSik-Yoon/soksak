@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 
 /**
- * Shared file downloader for the on-device models. The models are large (the Parakeet encoder
- * alone is ~622MB), so the things that matter are resuming and not trusting a file just because
+ * Shared file downloader for the on-device models. The models are large (Whisper small is
+ * ~488MB), so the things that matter are resuming and not trusting a file just because
  * it's big.
  *
  * What it does that the previous per-manager loops didn't:
@@ -222,17 +222,18 @@ object ModelDownloader {
      * blob from a build where a different model was selectable. Nothing cleaned these up before,
      * so an abandoned attempt could sit on disk indefinitely.
      *
+     * Also deletes the weights of engines this build dropped (Parakeet, the on-device LLMs, the
+     * Hinglish Whisper fine-tune): nothing can use or delete them from the UI any more, and
+     * together they can hold well over a gigabyte.
+     *
      * Sidecars for *current* models are deliberately kept: they are exactly what makes a resume
      * possible, and deleting them would reintroduce the bug this class exists to fix.
      */
     fun sweepOrphans(context: Context) {
         val root = File(context.filesDir, "models")
         if (!root.isDirectory) return
-        val known = buildSet {
-            addAll(ParakeetModelManager.bundleFiles())
-            LlmModelManager.MODELS.forEach { add(it.fileName) }
-            WhisperModelManager.MODELS.forEach { add(it.fileName) }
-        }
+        sweepRetired(root)
+        val known = WhisperModelManager.MODELS.map { it.fileName }.toSet()
         root.walkTopDown().filter { it.isFile }.forEach { f ->
             val suffix = SIDECARS.firstOrNull { f.name.endsWith(it) } ?: return@forEach
             if (f.name.removeSuffix(suffix) !in known && f.delete()) {
@@ -240,6 +241,28 @@ object ModelDownloader {
             }
         }
     }
+
+    /** Removes [RETIRED_FILES] (and their sidecars) and the [RETIRED_DIRS] under [root]. */
+    internal fun sweepRetired(root: File) {
+        RETIRED_DIRS.map { File(root, it) }.filter { it.isDirectory }.forEach { dir ->
+            if (dir.deleteRecursively()) Log.i(TAG, "removed retired model dir ${dir.name}")
+        }
+        RETIRED_FILES.forEach { name ->
+            val freed = deleteWithSidecars(File(root, name))
+            if (freed > 0) Log.i(TAG, "removed retired model $name (${freed}B)")
+        }
+    }
+
+    /** Parakeet's sherpa-onnx bundle directory. */
+    private val RETIRED_DIRS = listOf("parakeet")
+
+    /** On-device LLM GGUFs and the Hinglish Whisper fine-tune. */
+    private val RETIRED_FILES = listOf(
+        "openwispr-cleanup-qwen3-0.6b-Q4_K_M.gguf",
+        "gemma-3-270m-qat-Q4_0.gguf",
+        "Qwen3-0.6B-Q8_0.gguf",
+        "ggml-hinglish-swift-q5_1.bin",
+    )
 
     private val SIDECARS = listOf(".part", ".etag", ".sha256")
 }

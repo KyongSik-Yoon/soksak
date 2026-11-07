@@ -9,9 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.voicerewriter.textproc.AppContext
-import com.voicerewriter.textproc.TextProcessingConfig
-import com.voicerewriter.textproc.TextProcessor
 import com.voicerewriter.textproc.VocabCorrector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +60,7 @@ object HeadlessDictation {
             s.sttProvider == "local" &&
             OpenWisprAccessibilityService.isEnabled &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
-            OnDeviceStt.isReady(ctx, s.sttModel, s.sttLanguage)
+            OnDeviceStt.isReady(ctx, s.sttModel)
 
     /**
      * Start a take. Returns false (having done nothing) if the recorder could not start, so
@@ -145,12 +142,7 @@ object HeadlessDictation {
                 val vocab = VocabRepository(ctx).get()
                 val bias = if (vocab.isEmpty()) null else VocabCorrector.biasPrompt(vocab)
                 val raw = OnDeviceStt.transcribe(ctx, s, WavIo.toFloats(samples), bias)
-                val corrected = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
-                // The rule-based stage is English-shaped; see RewriteActivity.process.
-                val text = if (s.deterministicCleanup && DictationLanguage.isEnglish(s.sttLanguage)) {
-                    val isCode = AppContext.categoryFor(host, corrected) == AppContext.Category.CODE
-                    TextProcessor.process(corrected, TextProcessingConfig(), isCodeContext = isCode)
-                } else corrected
+                val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
                 if (text.isBlank()) {
                     BubbleService.instance?.showIdle()
                     pendingId?.let { PendingAudio.release(it) }

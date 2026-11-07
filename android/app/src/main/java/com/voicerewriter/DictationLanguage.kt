@@ -19,7 +19,7 @@ object DictationLanguage {
 
     const val DEFAULT = "en"
 
-    /** True for the default. Post-processing is English-shaped — see [Settings.deterministicCleanup]. */
+    /** True for the default. Non-English decodes with beam search — see [LocalWhisperStt]. */
     fun isEnglish(code: String): Boolean = normalize(code) == DEFAULT
 
     /** Coerce a stored value to a language whisper.cpp actually knows, falling back to English. */

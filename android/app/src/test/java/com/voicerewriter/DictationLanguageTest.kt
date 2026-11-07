@@ -46,9 +46,9 @@ class DictationLanguageTest {
         assertEquals("hi", DictationLanguage.normalize(" HI "))
     }
 
-    @Test fun `isEnglish is what gates the english-only cleanup chain`() {
+    @Test fun `isEnglish treats only english and unknown values as english`() {
         assertTrue(DictationLanguage.isEnglish("en"))
-        assertTrue("an unknown value must not silently disable cleanup", DictationLanguage.isEnglish("nonsense"))
+        assertTrue("an unknown value normalizes to english", DictationLanguage.isEnglish("nonsense"))
         assertFalse(DictationLanguage.isEnglish("hi"))
     }
 

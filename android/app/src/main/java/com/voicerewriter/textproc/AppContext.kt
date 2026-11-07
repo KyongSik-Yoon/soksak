@@ -1,12 +1,12 @@
 package com.voicerewriter.textproc
 
 /**
- * Classifies the focused app into a context category so dictation can adapt its
- * tone (formal in email/office, casual in chat). Builds on [CodeContext] (which
- * decides code/terminal handling for the deterministic stages); this adds the
- * broader category used to tune the optional LLM-polish prompt.
+ * Classifies the focused app into a context category (code/terminal, email, chat, ...).
  *
- * The package map is partial/substring-based for robustness across OEM variants.
+ * Terminals are not automatically code: most dictation into one is a natural-language prompt
+ * to an AI agent, so a terminal counts as code only when the text looks like a shell command.
+ * Dedicated code editors are always code. The package map is partial/substring-based for
+ * robustness across OEM variants.
  */
 object AppContext {
 
@@ -18,18 +18,6 @@ object AppContext {
         SOCIAL("social", "Social"),
         NOTES("notes", "Notes"),
     }
-
-    /** Default tone fragment appended to the LLM-polish prompt per category. */
-    val DEFAULT_TONE: Map<Category, String> = mapOf(
-        Category.EMAIL to "Write this for a professional, work context: clear and polite, " +
-            "complete sentences, no slang or emoji.",
-        Category.CHAT to "Keep it casual and conversational, like a chat message: relaxed " +
-            "phrasing and contractions, concise.",
-        Category.SOCIAL to "Keep it casual, natural and a little punchy.",
-        Category.NOTES to "",
-        Category.GENERIC to "",
-        Category.CODE to "",
-    )
 
     private val emailHints = listOf(
         "gmail", "com.google.android.gm", "outlook", "office.word", "office.outlook",
@@ -52,7 +40,7 @@ object AppContext {
 
     /** Category of [text] dictated into [pkg]; code/terminal is decided by content. */
     fun categoryFor(pkg: String?, text: String): Category {
-        if (CodeContext.useCodeMode(pkg, text)) return Category.CODE
+        if (useCodeMode(pkg, text)) return Category.CODE
         val p = pkg?.lowercase() ?: return Category.GENERIC
         return when {
             emailHints.any { p.contains(it) } -> Category.EMAIL
@@ -61,5 +49,50 @@ object AppContext {
             notesHints.any { p.contains(it) } -> Category.NOTES
             else -> Category.GENERIC
         }
+    }
+
+    // Dedicated code editors — content here is overwhelmingly code.
+    private val codeEditors = setOf(
+        "com.microsoft.vscode", "com.itsaky.androidide", "com.foxdebug.acode",
+        "com.spck.editor", "com.rhmsoft.code", "com.sketchware.remod",
+        "com.jetbrains.intellij",
+    )
+
+    // Terminals — could be commands OR (often) AI prompts; decide by content.
+    private val terminals = setOf(
+        "com.googlecode.iterm2", "com.apple.terminal", "com.termux", "com.termux.styling",
+        "com.server.auditor.ssh.client", "org.connectbot", "dev.warp.warp",
+    )
+
+    private val terminalHints = listOf("term", "terminal", "iterm", "tmux", "ssh", "shell", "console")
+
+    // Common command leaders — a strong "this is a shell command" signal.
+    private val commandVerbs = setOf(
+        "cd", "ls", "pwd", "git", "npm", "npx", "node", "yarn", "pnpm", "python", "python3",
+        "pip", "pip3", "brew", "docker", "kubectl", "ssh", "scp", "sudo", "cat", "less",
+        "tail", "head", "grep", "rg", "awk", "sed", "curl", "wget", "make", "cargo", "go",
+        "rustc", "tmux", "chmod", "chown", "mkdir", "rm", "cp", "mv", "touch", "export",
+        "source", "kill", "ps", "top", "vim", "nvim", "nano", "code", "open", "echo",
+    )
+
+    /** Whether [text] dictated into [pkg] is code/terminal input rather than prose. */
+    private fun useCodeMode(pkg: String?, text: String): Boolean {
+        val p = pkg?.lowercase() ?: return false
+        if (p in codeEditors) return true
+        if (p in terminals || terminalHints.any { p.contains(it) }) return looksLikeCommand(text)
+        return false
+    }
+
+    /** Conservative: commands are short and start with a known verb / flag / path. */
+    private fun looksLikeCommand(text: String): Boolean {
+        val t = text.trim()
+        if (t.isEmpty()) return false
+        val words = t.split(Regex("\\s+"))
+        if (words.size > 10) return false // long => natural-language prompt, not a command
+        val first = words[0].lowercase().trim('$', '>', '#')
+        if (first in commandVerbs) return true
+        if (t.startsWith("/") || t.startsWith("~/") || t.startsWith("./")) return true
+        if (Regex("\\s-{1,2}[A-Za-z]").containsMatchIn(t)) return true // has a CLI flag
+        return false
     }
 }

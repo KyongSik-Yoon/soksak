@@ -83,12 +83,12 @@ import kotlinx.coroutines.withContext
  * progress rather than a wall. The download is presented as what it is: the reason nothing has
  * to be uploaded, rather than a toll on the way in.
  *
- * Which model that is depends on the phone. [DeviceFit] reads RAM and free storage before the
- * first byte is fetched and picks a pair this device can actually run, so a budget phone gets a
- * smaller on-device model instead of a 1GB download it will OOM on at the try-it step.
+ * Which Whisper model that is depends on the phone. [DeviceFit] reads RAM and free storage
+ * before the first byte is fetched and picks one this device can actually run, so a budget phone
+ * gets a smaller model instead of one it will OOM on at the try-it step.
  *
  * On-device is the only path here; cloud transcription stays available later in Settings, as
- * does personalization (dictionary, contacts, tone), which is deliberately not in this flow.
+ * does personalization (dictionary, contacts), which is deliberately not in this flow.
  * Special-access grants (overlay, accessibility) deliver no result callback, so live state
  * is re-read from [SetupUtils] on every ON_RESUME. Shown once on first launch (gated by
  * [Settings.hasCompletedOnboarding]); re-launchable from Settings.
@@ -118,22 +118,14 @@ class OnboardingActivity : ComponentActivity() {
     }
 }
 
-// Onboarding downloads exactly one speech model and one polish model — no engine choice is
-// put to the user. Which pair it is comes from [DeviceFit.plan]: the full pair on a phone with
-// the memory to run it, a smaller on-device pair otherwise. Anything else (a different Whisper
-// size, cloud) stays reachable from Settings for people who go looking.
+// Onboarding downloads exactly one Whisper model — no model choice is put to the user. Which
+// size it is comes from [DeviceFit.plan]: the full model on a phone with the memory to run it, a
+// smaller one otherwise. Anything else (a different size, cloud) stays reachable from Settings
+// for people who go looking.
 
-// Read aloud at the try-it step, and chosen by running candidates through the real pipeline:
-// this one fires filler removal, spoken punctuation and list formatting, and turns a single
-// run-on sentence into a numbered list, which is the most legible proof of the cleanup we can
-// get in one breath.
-//
-// A self-correction ("I mean john") would be the fourth trick, but corrections and spoken
-// lists cannot currently be demoed together: a multi-word correction inside a list drops the
-// text before it (see PolishHighlightsTest). Until that's fixed, corrections stay in the
-// also-handles line rather than the script.
+// Read aloud at the try-it step: one ordinary sentence, with a time and a name in it.
 private const val TRY_IT_SCRIPT =
-    "um first email john, second book the room at two thirty, third send the deck period"
+    "Let's meet with Sarah at two thirty tomorrow to go over the launch plan."
 
 // Apps named on the welcome screen. Concrete names beat "works anywhere" — but we name them
 // as text rather than drawing real icons, which would need <queries> manifest entries.
@@ -161,19 +153,12 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
     val fit = remember { DeviceFit.plan(ctx) }
     val fitNote = remember(fit) { DeviceFit.explain(fit) }
 
-    // Downloads live on the model managers themselves (not this composition), so they keep
-    // running across activity/process transitions — e.g. finishing onboarding before either
-    // one completes. This screen just observes and, below, kicks them off. Which speech
-    // manager it observes follows [fit]: Parakeet on a phone that can run it, Whisper
-    // otherwise.
-    val sttState = if (fit.usesParakeet) ParakeetModelManager.downloadState else WhisperModelManager.downloadState
-    val sttProgress = if (fit.usesParakeet) ParakeetModelManager.downloadProgress else WhisperModelManager.downloadProgress
-    val sttError = if (fit.usesParakeet) ParakeetModelManager.downloadError else WhisperModelManager.downloadError
-    val dl by sttState.collectAsState()
-    val dlPct by sttProgress.collectAsState()
-    val dlError by sttError.collectAsState()
-    val llmDl by LlmModelManager.downloadState.collectAsState()
-    val llmPct by LlmModelManager.downloadProgress.collectAsState()
+    // The download lives on the model manager itself (not this composition), so it keeps
+    // running across activity/process transitions — e.g. finishing onboarding before it
+    // completes. This screen just observes and, below, kicks it off.
+    val dl by WhisperModelManager.downloadState.collectAsState()
+    val dlPct by WhisperModelManager.downloadProgress.collectAsState()
+    val dlError by WhisperModelManager.downloadError.collectAsState()
 
     // Play Store installs don't hit Android's "restricted settings" lockout that sideloaded
     // (GitHub-sourced) APKs used to — that gate only applies to apps installed outside a
@@ -190,16 +175,9 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
     // theirs, which keeps a replayed onboarding from claiming credit for an older dictation.
     var tryBaseline by remember { mutableStateOf<String?>(null) }
     var tryResult by remember { mutableStateOf<String?>(null) }
-    var tryRaw by remember { mutableStateOf<String?>(null) }
-    // What the cleanup actually did to their sentence, and a line for whatever it didn't get
-    // to show off. Derived from the raw transcript by [PolishHighlights].
-    var tryDid by remember { mutableStateOf<List<String>>(emptyList()) }
-    var tryAlso by remember { mutableStateOf<String?>(null) }
 
     // Personalization "set up" status — read from the real on-device stores so returning
     // from an editor reflects what the user actually added (see refreshPersonalization).
-    var toneDone by remember { mutableStateOf(false) }
-    var styleN by remember { mutableIntStateOf(0) }
     var dictN by remember { mutableIntStateOf(0) }
     var contactsDone by remember { mutableStateOf(false) }
 
@@ -210,44 +188,23 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
 
     fun refreshPersonalization() {
         scope.launch {
-            val tone = withContext(Dispatchers.IO) { AppToneRepository(ctx).overrides().isNotEmpty() }
             val vocab = withContext(Dispatchers.IO) { VocabRepository(ctx).get() }
-            val samples = withContext(Dispatchers.IO) {
-                CorrectionCorpus.all(ctx).count { it.edited && it.cleaned != it.final }
-            }
-            toneDone = tone
             dictN = vocab.count { it.source != "contact" }
             contactsDone = vocab.any { it.source == "contact" }
-            styleN = samples
         }
     }
 
     /**
      * Pull the dictation the user just did back into onboarding. [RewriteActivity] already
      * persists it via [LastDictation] on the way out (and reports RESULT_CANCELED even on
-     * success), so reading the file beats any activity-result plumbing. The history entry —
-     * when history is on and cleanup actually changed something — additionally gives us the
-     * raw transcript, so the polish can be shown on the user's own words.
+     * success), so reading the file beats any activity-result plumbing.
      */
     fun captureTryResult() {
         val baseline = tryBaseline ?: return
         scope.launch {
             val text = withContext(Dispatchers.IO) { LastDictation.get(ctx) }
             if (text.isBlank() || text == baseline) return@launch
-            val raw = withContext(Dispatchers.IO) {
-                DictationHistory.all(ctx).firstOrNull()
-                    ?.takeIf { it.after == text && it.before.isNotBlank() && it.before.trim() != it.after.trim() }
-                    ?.before
-            }
-            // Naming what the cleanup did is only honest when we have the raw transcript to
-            // derive it from; with history off we show the result and nothing more.
-            val highlights = withContext(Dispatchers.Default) {
-                raw?.let { PolishHighlights.labels(it) to PolishHighlights.alsoHandles(it) }
-            }
             tryResult = text
-            tryRaw = raw
-            tryDid = highlights?.first.orEmpty()
-            tryAlso = highlights?.second
         }
     }
 
@@ -272,32 +229,13 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
     fun persistStt() {
         scope.launch(Dispatchers.IO) {
             val repo = SettingsRepository(ctx)
-            val cur = repo.get()
-            repo.save(
-                cur.copy(
-                    sttProvider = "local",
-                    sttModel = fit.sttModel,
-                    // Only steer the polish model when polish is still on-device. If someone
-                    // re-runs onboarding after pointing the app at a cloud provider, that's
-                    // their choice to keep, not ours to overwrite with a GGUF id.
-                    model = if (cur.provider == "local") fit.llmModel else cur.model,
-                ),
-            )
+            repo.save(repo.get().copy(sttProvider = "local", sttModel = fit.sttModel))
         }
     }
 
-    // Downloads start the moment onboarding opens — no "download" tap needed. Speech goes
-    // first and alone: it's the only model the first dictation needs, and making it share
-    // bandwidth with the polish model just pushes back the moment the user can actually talk.
-    LaunchedEffect(Unit) {
-        if (fit.usesParakeet) ParakeetModelManager.ensureDownloading(ctx)
-        else WhisperModelManager.ensureDownloading(ctx, fit.sttModel)
-    }
-    LaunchedEffect(dl) {
-        if (dl == "done") persistStt()
-        // Failed speech shouldn't strand polish — start it either way, just not first.
-        if (dl == "done" || dl == "error") LlmModelManager.ensureDownloading(ctx, fit.llmModel)
-    }
+    // The download starts the moment onboarding opens — no "download" tap needed.
+    LaunchedEffect(Unit) { WhisperModelManager.ensureDownloading(ctx, fit.sttModel) }
+    LaunchedEffect(dl) { if (dl == "done") persistStt() }
 
     fun finishOnboarding() {
         scope.launch {
@@ -314,12 +252,8 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
             }
             // Steps past the download step keep an ambient status, so a silent background
             // download doesn't read as nothing happening. Never a blocker — just a signal.
-            if (step in 2 until LAST_STEP && (dl == "downloading" || llmDl == "downloading")) {
-                val speechDownloading = dl == "downloading"
-                DownloadStatusChip(
-                    pct = if (speechDownloading) dlPct else llmPct,
-                    label = if (speechDownloading) "Speech model" else "Polish model",
-                )
+            if (step in 2 until LAST_STEP && dl == "downloading") {
+                DownloadStatusChip(pct = dlPct, label = "Speech model")
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -327,10 +261,7 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
                     0 -> WelcomeStep(onNext = { next() })
                     1 -> PrivacyStep(
                         dl = dl, dlPct = dlPct, dlError = dlError, fitNote = fitNote,
-                        onRetry = {
-                            if (fit.usesParakeet) ParakeetModelManager.ensureDownloading(ctx)
-                            else WhisperModelManager.ensureDownloading(ctx, fit.sttModel)
-                        },
+                        onRetry = { WhisperModelManager.ensureDownloading(ctx, fit.sttModel) },
                         onNext = { next() },
                     )
                     2 -> MicStep(
@@ -354,7 +285,7 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
                     4 -> TryItStep(
                         micGranted = micGranted,
                         modelReady = dl == "done", dlPct = dlPct,
-                        result = tryResult, raw = tryRaw, did = tryDid, also = tryAlso,
+                        result = tryResult,
                         onTry = {
                             tryBaseline = LastDictation.get(ctx)
                             onLaunchDictation()
@@ -365,12 +296,12 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
                         micOn = micGranted,
                         sttOn = dl == "done",
                         a11yOn = a11yPhase == "on", a11ySkipped = a11yPhase == "skipped",
-                        personalCount = listOf(toneDone, styleN > 0, dictN > 0, contactsDone).count { it },
+                        personalCount = listOf(dictN > 0, contactsDone).count { it },
                         onPersonalize = { ctx.startActivity(Intent(ctx, VocabActivity::class.java)) },
                         onStart = { finishOnboarding() },
                         onReplay = {
                             step = 0; a11yPhase = "list"
-                            tryResult = null; tryRaw = null; tryDid = emptyList(); tryAlso = null
+                            tryResult = null
                         },
                     )
                 }
@@ -533,7 +464,7 @@ private fun WelcomeStep(onNext: () -> Unit) {
             )
             Spacer(Modifier.height(14.dp))
             Text(
-                "OpenWispr turns your voice into clean, finished text, right on your phone. Setup takes a minute.",
+                "OpenWispr turns your voice into text, right on your phone. Setup takes a minute.",
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(18.dp))
@@ -550,14 +481,13 @@ private fun WelcomeStep(onNext: () -> Unit) {
 }
 
 /**
- * The setup step. The ~1GB download is the most obvious cost of being on-device, but it's also
+ * The setup step. The model download is the most obvious cost of being on-device, but it's also
  * the only tangible proof of the privacy claim: a cloud dictation app has nothing to download
  * because your voice goes to its servers instead. So this step gives the reason in one line
  * and then gets out of the way.
  *
- * Deliberately withheld: file sizes, model names, and the fact that there are two models at
- * all. None of it changes what the user does next, and every number here is one more thing to
- * feel anxious about. The second model is sequenced behind the first and simply arrives.
+ * Deliberately withheld: file sizes and model names. Neither changes what the user does next,
+ * and every number here is one more thing to feel anxious about.
  *
  * One deliberate exception: [fitNote]. When [DeviceFit] has downgraded this phone to a smaller
  * model, or found it short on space, the user is going to notice the consequence either way —
@@ -603,7 +533,7 @@ private fun PrivacyStep(
             Eyebrow("Works offline · no account · nothing uploaded")
         },
         actions = {
-            // The button always just moves on. Making someone sit and watch a ~1GB download
+            // The button always just moves on. Making someone sit and watch a large download
             // reads as stuck, not as progress, and it was the single biggest place onboarding
             // lost people; the download keeps running regardless of where they are.
             when {
@@ -857,13 +787,12 @@ private fun ActionPill(text: String) {
  * The payoff. Everything before this was the user spending trust; this is the first moment
  * they get something back, so it has to visibly land — the previous version bounced them to
  * [RewriteActivity] and returned them to an identical screen, which reads as nothing having
- * happened. Now their own sentence comes back, with the cleanup shown on their words rather
- * than on canned examples.
+ * happened. Now their own sentence comes back.
  */
 @Composable
 private fun TryItStep(
     micGranted: Boolean, modelReady: Boolean, dlPct: Float,
-    result: String?, raw: String?, did: List<String>, also: String?,
+    result: String?,
     onTry: () -> Unit, onNext: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -874,7 +803,7 @@ private fun TryItStep(
                 Text("Try it once", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = cs.onBackground, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Tap the circle and read this aloud, mistakes and all. The filler and the mid-sentence correction are the point.",
+                    "Tap the circle and read this aloud, or say anything you like.",
                     style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                 )
@@ -915,49 +844,12 @@ private fun TryItStep(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cs.surface)
                         .border(1.dp, cs.outline, RoundedCornerShape(16.dp)).padding(18.dp),
                 ) {
-                    // Only when cleanup actually changed something — otherwise the "before"
-                    // is just the answer twice, which undersells rather than demonstrates.
-                    if (raw != null) {
-                        Eyebrow("You said")
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "“$raw”", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant,
-                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                        )
-                        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Box(Modifier.weight(1f).height(1.dp).background(cs.outline))
-                            Text("CLEANED UP", style = MonoEyebrow, fontSize = 10.sp, color = cs.primary)
-                            Box(Modifier.weight(1f).height(1.dp).background(cs.outline))
-                        }
-                    }
                     Eyebrow("OpenWispr wrote")
                     Spacer(Modifier.height(9.dp))
                     Text(result, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = cs.onBackground)
                 }
-                // Teaching the feature set on the sentence they just said, rather than on
-                // canned examples. Every line here is something the cleanup verifiably did to
-                // their own words, so it reads as evidence rather than a brochure.
-                if (did.isNotEmpty()) {
-                    Spacer(Modifier.height(16.dp))
-                    did.forEach { label ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(9.dp),
-                        ) {
-                            Icon(Icons.Filled.Check, null, tint = Color(0xFF3E8E5A), modifier = Modifier.size(15.dp))
-                            Text(label, style = MaterialTheme.typography.bodyMedium, color = cs.onBackground)
-                        }
-                    }
-                }
-                if (also != null) {
-                    Spacer(Modifier.height(12.dp))
-                    Text(also, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-                }
-                if (did.isEmpty() && also == null) {
-                    Spacer(Modifier.height(18.dp))
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { SuccessPill("Nice, that worked") }
-                }
+                Spacer(Modifier.height(18.dp))
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { SuccessPill("Nice, that worked") }
             }
         },
         actions = {
@@ -1002,7 +894,7 @@ private fun DoneStep(
                 Column(Modifier.weight(1f)) {
                     Text("Teach it your words", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = cs.onBackground)
                     Text(
-                        "Names, jargon, contacts, tone per app. All learned on-device.",
+                        "Names, jargon, contacts. All learned on-device.",
                         style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                     )
                 }

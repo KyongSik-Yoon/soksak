@@ -6,24 +6,18 @@ import android.os.Build
 import android.util.Log
 
 /**
- * Picks the on-device model pair that will actually run on *this* phone, before a single byte
+ * Picks the on-device Whisper size that will actually run on *this* phone, before a single byte
  * is downloaded.
  *
- * The default pair — Parakeet (~631MB of weights) plus the cleanup fine-tune (~397MB) — is
- * sized for a current flagship. Onboarding used to download it unconditionally, which is fine
- * on an S25 and a dead end on a 3GB budget phone: the download completes, the first dictation
- * OOMs inside the native runtime, and the user is left at the try-it step with no way forward.
- * That failure lands mid-onboarding, before the app has delivered anything, which is the worst
- * possible moment for it. (A competitor shipping the same architecture has two one-star Play
- * reviews that are precisely this — "Offline voice needs more free memory right now", phone
- * restarted twice, uninstall. See research/11-yaps.md.)
+ * Downloading the largest model unconditionally is fine on a flagship and a dead end on a 3GB
+ * budget phone: the download completes, the first dictation OOMs inside the native runtime, and
+ * the user is left at the try-it step with no way forward.
  *
  * So: read total RAM and free storage first, then choose. Every tier is a real, shipped model
- * pair from [ParakeetModelManager]/[WhisperModelManager]/[LlmModelManager] — a smaller tier is
- * a smaller model, never a broken or cloud-backed one, and never a dead end.
+ * from [WhisperModelManager] — a smaller tier is a smaller model, never a dead end.
  *
- * This is a *starting* choice, not a lock. Settings still offers every engine and model to
- * anyone who wants to override it in either direction.
+ * This is a *starting* choice, not a lock. Settings still offers every model to anyone who
+ * wants to override it in either direction.
  */
 object DeviceFit {
 
@@ -41,19 +35,18 @@ object DeviceFit {
     private const val STORAGE_MARGIN_BYTES = 350L * 1024 * 1024
 
     enum class Tier {
-        /** Parakeet + the cleanup fine-tune. What a flagship gets, and the previous behaviour. */
+        /** Whisper small ACFT (FUTO). What a 6GB-class phone and up gets. */
         FULL,
 
-        /** Whisper base + Gemma 3 270M. Roughly a quarter of the weights, still fully on-device. */
+        /** Whisper base. Roughly half the weights. */
         COMPACT,
 
-        /** Whisper tiny + Gemma 3 270M. The floor: ~316MB total, runs on a 3GB phone. */
+        /** Whisper tiny. The floor: ~75MB, runs on a 3GB phone. */
         MINIMAL,
     }
 
     /**
-     * @param sttModel id for [OnDeviceStt.resolveModel] — Parakeet or a Whisper size.
-     * @param llmModel id for [LlmModelManager].
+     * @param sttModel a [WhisperModelManager] model id.
      * @param ramTier the tier this phone's memory alone allowed. Equal to [tier] normally;
      *   higher than it when free storage was the binding constraint instead. Kept separate so a
      *   caller can tell "your phone is small" from "your phone is full" — they need different
@@ -65,15 +58,12 @@ object DeviceFit {
     data class Plan(
         val tier: Tier,
         val sttModel: String,
-        val llmModel: String,
         val ramTier: Tier = tier,
         val storageShortMb: Long = 0,
     ) {
-        val usesParakeet: Boolean get() = OnDeviceStt.isParakeet(sttModel)
-
-        /** Total weight bytes this plan will pull, for the storage check and for copy. */
+        /** Weight bytes this plan will pull, for the storage check and for copy. */
         val downloadMb: Long
-            get() = (sttBytes(sttModel) + llmBytes(llmModel)) / (1024 * 1024)
+            get() = sttBytes(sttModel) / (1024 * 1024)
     }
 
     /** Total physical RAM as Android reports it, or 0 if the service is unavailable. */
@@ -104,7 +94,7 @@ object DeviceFit {
      *
      * Two independent constraints, applied in order: RAM decides the tier the phone can *run*,
      * then storage can only push that further down — never up. A device with 8GB of RAM and
-     * 400MB free gets the compact pair, because the full one cannot land.
+     * 500MB free gets the compact model, because the full one cannot land.
      */
     fun plan(context: Context): Plan {
         val ram = totalRamBytes(context)
@@ -115,7 +105,7 @@ object DeviceFit {
             "DeviceFit",
             "ram=${ram / (1024 * 1024)}MB lowRam=$lowRam free=${free / (1024 * 1024)}MB " +
                 "device=${Build.MANUFACTURER} ${Build.MODEL} -> ${plan.tier} " +
-                "(${plan.sttModel} + ${plan.llmModel}, ${plan.downloadMb}MB)",
+                "(${plan.sttModel}, ${plan.downloadMb}MB)",
         )
         return plan
     }
@@ -140,7 +130,7 @@ object DeviceFit {
         }
 
         // Storage can only push the tier down, never up: a 12GB phone with 300MB free still
-        // cannot land a 1GB pair, and finding that out mid-download is the failure this whole
+        // cannot land the full model, and finding that out mid-download is the failure this whole
         // object exists to avoid.
         var tier = byRam
         while (tier != Tier.MINIMAL && bytesFor(tier) + STORAGE_MARGIN_BYTES > freeBytes) {
@@ -151,7 +141,6 @@ object DeviceFit {
         return Plan(
             tier = tier,
             sttModel = sttFor(tier),
-            llmModel = llmFor(tier),
             ramTier = byRam,
             storageShortMb = shortBy / (1024 * 1024),
         )
@@ -172,7 +161,7 @@ object DeviceFit {
                 "you can switch to it in Settings."
         plan.tier == Tier.COMPACT ->
             "Your phone has less memory than the largest speech model needs, so OpenWispr will " +
-                "use a lighter one (${plan.downloadMb}MB instead of about 1GB). Still fully " +
+                "use a lighter one (${plan.downloadMb}MB instead of about ${sttBytes(sttFor(Tier.FULL)) / (1024 * 1024)}MB). Still fully " +
                 "on-device — a little less accurate on long or noisy speech. You can switch to " +
                 "the large model in Settings."
         plan.tier == Tier.MINIMAL ->
@@ -187,38 +176,25 @@ object DeviceFit {
         val plan = plan(context)
         val ramGb = totalRamBytes(context).toDouble() / GIB
         val ram = if (ramGb > 0) String.format("%.1fGB RAM", ramGb) else "unknown RAM"
-        val stt = if (plan.usesParakeet) ParakeetModelManager.LABEL
-        else WhisperModelManager.model(plan.sttModel).label
+        val stt = WhisperModelManager.model(plan.sttModel).label
         return "This device: $ram — recommended: $stt"
     }
 
     private fun sttFor(tier: Tier) = when (tier) {
-        Tier.FULL -> ParakeetModelManager.MODEL_ID
+        Tier.FULL -> WhisperModelManager.SMALL_ACFT_MODEL
         Tier.COMPACT -> "base"
         Tier.MINIMAL -> "tiny"
     }
 
-    private fun llmFor(tier: Tier) = when (tier) {
-        Tier.FULL -> LlmModelManager.DEFAULT_MODEL
-        else -> "gemma3-270m"
-    }
-
-    private fun bytesFor(tier: Tier) = sttBytes(sttFor(tier)) + llmBytes(llmFor(tier))
+    private fun bytesFor(tier: Tier) = sttBytes(sttFor(tier))
 
     // Approximate download sizes, matching the sizeLabel strings the model registries already
     // show the user. Only ever used for a "will this fit" comparison against free space, so
     // being a few MB out is harmless — being wrong by a tier is not.
     private fun sttBytes(id: String): Long = when {
-        OnDeviceStt.isParakeet(id) -> 631L * 1024 * 1024
         id == "small" -> 488L * 1024 * 1024
         id == WhisperModelManager.SMALL_ACFT_MODEL -> 264L * 1024 * 1024
         id == "base" -> 142L * 1024 * 1024
         else -> 75L * 1024 * 1024
-    }
-
-    private fun llmBytes(id: String): Long = when (id) {
-        "gemma3-270m" -> 241L * 1024 * 1024
-        "qwen3-0.6b" -> 639L * 1024 * 1024
-        else -> 397L * 1024 * 1024
     }
 }
