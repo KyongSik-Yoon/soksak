@@ -26,9 +26,8 @@ import java.util.concurrent.TimeUnit
  * Read") token the user creates and pastes into Settings. It is only ever sent to api.github.com
  * (OkHttp drops the Authorization header when the asset download redirects to the storage host).
  *
- * Android still asks the user to confirm an install the first time. From Android 12 the session
- * requests USER_ACTION_NOT_REQUIRED, which the OS honours once this app is the installer of
- * record for itself, so later updates may go through with no prompt.
+ * Android asks the user to confirm every install (plus Play Protect and biometrics on the user's
+ * phone); a silent self-update is refused for sideloaded apps, see [downloadAndInstall].
  */
 object AppUpdater {
 
@@ -124,11 +123,6 @@ object AppUpdater {
     /** Last install outcome reported by [InstallResultReceiver], shown in Settings > Updates. */
     val lastResult = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
-    private fun isInstallerOfRecord(context: Context): Boolean =
-        Build.VERSION.SDK_INT >= 30 && runCatching {
-            context.packageManager.getInstallSourceInfo(context.packageName).installingPackageName == context.packageName
-        }.getOrDefault(false)
-
     fun canInstall(context: Context): Boolean =
         Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
 
@@ -147,14 +141,11 @@ object AppUpdater {
             val installer = app.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                 setAppPackageName(app.packageName)
-                // Ask for a silent install only once this app is its own installer of record.
-                // For a browser-sideloaded app it isn't, and some OEM builds (seen on a Galaxy:
-                // "INSTALL_FAILED_ABORTED: Self update…") abort instead of falling back to the
-                // confirm prompt. The first in-app update therefore prompts; once it lands, this
-                // app is the installer of record and later ones can go through silently.
-                if (Build.VERSION.SDK_INT >= 31 && isInstallerOfRecord(app)) {
-                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-                }
+                // Always let Android ask. A silent self-update (USER_ACTION_NOT_REQUIRED) fails on
+                // the user's Galaxy in both states this app can be in: sideloaded from the browser
+                // ("Self update…" abort), and after it became its own installer of record
+                // ("Self update is blocked by unknown source package"), because the package's
+                // original source is still an unknown-sources install. Asking costs one tap.
                 if (release.size > 0) setSize(release.size)
             }
             val sessionId = installer.createSession(params)

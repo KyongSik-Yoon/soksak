@@ -54,8 +54,9 @@
 
 ## 앱 내 업데이트
 - `AppUpdater.kt`: Releases API(사용자가 설정에 넣은 fine-grained 토큰, Contents: Read-only) → APK를 PackageInstaller 세션으로 설치.
-- `USER_ACTION_NOT_REQUIRED`는 앱 자신이 installer of record일 때만 요청한다. 브라우저로 설치된 상태에서 요청하면
-  사용자 폰(Galaxy)에서 `INSTALL_FAILED_ABORTED: Self update…`로 실패했다.
+- 무확인 설치(`USER_ACTION_NOT_REQUIRED`)는 **요청하지 않는다**. 사용자 폰(Galaxy)에서 두 경우 모두 실패했다:
+  브라우저로 설치된 상태(`INSTALL_FAILED_ABORTED: Self update…`), 앱이 installer of record가 된 뒤에도
+  (`Self update is blocked by unknown source package`). 매번 설치 확인 화면을 띄우는 게 유일하게 되는 경로.
 - Play 프로텍트 "검사 없이 설치?"와 지문 확인은 OS 보안 단계라 앱에서 우회할 수 없다.
 
 ## 작업 규칙
