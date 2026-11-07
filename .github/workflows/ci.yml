@@ -42,6 +42,17 @@ jobs:
           curl -fSL --retry 3 -o app/libs/sherpa-onnx-static-link-onnxruntime-1.13.3.aar \
             https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.3/sherpa-onnx-static-link-onnxruntime-1.13.3.aar
 
+      # Every runner otherwise generates a fresh debug key, so each build is signed differently
+      # and Android refuses to install it over the previous one. A fixed key from a secret keeps
+      # personal sideloaded builds updatable in place.
+      - name: Install fixed debug keystore
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        if: ${{ env.DEBUG_KEYSTORE_B64 != '' }}
+        run: |
+          mkdir -p ~/.android
+          echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+
       - name: Assemble debug + run unit tests
         working-directory: android
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon
