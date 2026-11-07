@@ -514,9 +514,19 @@ class HomeActivity : ComponentActivity() {
 
                 // footer: before/after toggle + actions (hidden while the inline editor is open)
                 if (!editOpen) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween) {
-                        BeforeAfterToggle(showBefore, onToggleBefore)
+                    // Before/After only when they differ. With cleanup and polish gone, "after" is
+                    // the transcript plus dictionary fixes, so most entries have nothing to compare —
+                    // and the toggle plus four actions overflowed a phone-width card, squeezing
+                    // Delete into a one-letter-wide column. Actions sit right; if a toggle is
+                    // shown and space runs out, they wrap to their own line instead of squeezing.
+                    val changed = entry.before.trim() != entry.after.trim()
+                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                    androidx.compose.foundation.layout.FlowRow(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (changed) BeforeAfterToggle(showBefore, onToggleBefore) else Spacer(Modifier.width(1.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             ActionText("Edit", onClick = onEdit)
                             ActionText("Copy", onClick = onCopy)
@@ -611,6 +621,8 @@ class HomeActivity : ComponentActivity() {
             fontWeight = FontWeight.Medium,
             fontSize = 12.5.sp,
             color = color,
+            maxLines = 1,
+            softWrap = false, // never break a label into a vertical strip of letters
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(8.dp, 6.dp),
         )
     }
