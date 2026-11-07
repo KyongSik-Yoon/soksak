@@ -27,11 +27,15 @@ object WhisperModelManager {
         val fileName: String,
         val url: String,
         val sizeLabel: String,
-    )
+    ) {
+        /** No public download: the file is converted in CI and imported from the phone. */
+        val importOnly: Boolean get() = url.isBlank()
+    }
 
     private fun hf(file: String) = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
 
     const val SMALL_ACFT_MODEL = "small-acft"
+    const val TURBO_ACFT_MODEL = "turbo-acft"
 
     val MODELS = listOf(
         WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB"),
@@ -47,6 +51,19 @@ object WhisperModelManager {
             fileName = "small_acft_q8_0.bin",
             url = "https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin",
             sizeLabel = "~264MB · tuned for short clips",
+        ),
+        // whisper-large-v3-turbo with FUTO's audio-context fine-tune, by Mahmoud Ashraf
+        // (Apache 2.0, huggingface.co/MahmoudAshraf/acft-whisper-large-v3-turbo). Stock turbo
+        // collapses under a shortened audio_ctx (WER 15.4 -> 62.9 in its card); this keeps
+        // full-context accuracy. ~3x the parameters of small and much stronger on Korean, but
+        // slower: try it before relying on it. No public ggml exists, so the
+        // convert-model workflow builds one as a release asset and it is imported from a file.
+        WhisperModel(
+            id = TURBO_ACFT_MODEL,
+            label = "Large v3 Turbo ACFT",
+            fileName = "ggml-acft-large-v3-turbo-q5_0.bin",
+            url = "",
+            sizeLabel = "~550MB · import file · slowest, most accurate",
         ),
     )
 
@@ -76,10 +93,54 @@ object WhisperModelManager {
         freed
     }
 
+    /**
+     * Copy a ggml file the user picked into model [id]'s slot, reporting progress 0f..1f.
+     * Rejects anything that isn't a whisper.cpp ggml file (magic "ggml", stored little-endian
+     * as the bytes `lmgg`), so a stray zip or HTML page can't become a model that crashes the
+     * native loader. Written to a temp name and renamed, so a half copy is never "ready".
+     */
+    suspend fun importFrom(context: Context, id: String, uri: android.net.Uri, onProgress: (Float) -> Unit) =
+        withContext(Dispatchers.IO) {
+            val resolver = context.contentResolver
+            val total = resolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)
+                ?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else -1L } ?: -1L
+            val target = modelFile(context, id)
+            val tmp = File(target.parentFile, target.name + ".import")
+            try {
+                val input = resolver.openInputStream(uri) ?: throw IllegalStateException("Couldn't open that file.")
+                input.use { inp ->
+                    val head = ByteArray(4)
+                    if (inp.read(head) != 4 || !(head[0] == 'l'.code.toByte() && head[1] == 'm'.code.toByte() &&
+                            head[2] == 'g'.code.toByte() && head[3] == 'g'.code.toByte())
+                    ) throw IllegalArgumentException("That isn't a whisper.cpp model file (.bin).")
+                    tmp.outputStream().use { out ->
+                        out.write(head)
+                        val buf = ByteArray(1 shl 20)
+                        var done = 4L
+                        while (true) {
+                            val n = inp.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            if (total > 0) onProgress((done.toFloat() / total).coerceIn(0f, 1f))
+                        }
+                        out.fd.sync()
+                    }
+                }
+                if (tmp.length() <= MIN_VALID_BYTES) throw IllegalStateException("That file is too small to be a model.")
+                if (target.exists()) target.delete()
+                if (!tmp.renameTo(target)) throw IllegalStateException("Couldn't save the model.")
+                onProgress(1f)
+            } finally {
+                if (tmp.exists()) tmp.delete()
+            }
+        }
+
     /** Download model [id], reporting progress 0f..1f. Throws on network error. */
     suspend fun download(context: Context, id: String, onProgress: (Float) -> Unit) =
         withContext(Dispatchers.IO) {
             if (isReady(context, id)) { onProgress(1f); return@withContext }
+            if (model(id).importOnly) throw IllegalStateException("${model(id).label} has no download; import its file instead.")
             ModelDownloader.fetch(model(id).url, modelFile(context, id), onProgress)
         }
 

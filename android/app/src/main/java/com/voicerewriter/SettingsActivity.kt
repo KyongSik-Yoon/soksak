@@ -115,6 +115,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var sttLanguage by remember { mutableStateOf(DictationLanguage.DEFAULT) }
     var vadAutoStop by remember { mutableStateOf(true) }
     var headlessRecording by remember { mutableStateOf(true) }
+    var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
     var reviewBeforeInsert by remember { mutableStateOf(false) }
     var bubbleOnlyOnFields by remember { mutableStateOf(true) }
     var keepHistory by remember { mutableStateOf(DictationHistory.keepHistory(context)) }
@@ -154,7 +155,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
         notifOn = SetupUtils.notificationsGranted(context)
@@ -205,7 +206,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -221,6 +222,25 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         dlId == id -> "downloading"
         WhisperModelManager.isReady(context, id) -> "downloaded"
         else -> "idle"
+    }
+
+    // Import-only models (no public URL): the user picks the ggml file the convert-model
+    // workflow published, and it is copied into the model slot.
+    var importTarget by remember { mutableStateOf<String?>(null) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val id = importTarget
+        importTarget = null
+        if (uri == null || id == null) return@rememberLauncherForActivityResult
+        dlId = id; dlProgress = 0f
+        launch {
+            try {
+                WhisperModelManager.importFrom(context, id, uri) { p -> dlProgress = p }
+                sttModel = id; dlId = null; modelsRev++; persist()
+            } catch (e: Exception) {
+                dlId = null
+                Toast.makeText(context, e.message ?: "Import failed", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     fun downloadStt(id: String) {
@@ -347,7 +367,14 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                                 ModelRow(
                                     name = m.name, meta = m.meta, recommended = m.recommended,
                                     state = sttModelState(m.id), progress = dlProgress,
-                                    onGet = { downloadStt(m.id) }, onUse = { sttModel = m.id; persist() },
+                                    getLabel = if (WhisperModelManager.model(m.id).importOnly) "Import" else "Get",
+                                    onGet = {
+                                        if (WhisperModelManager.model(m.id).importOnly) {
+                                            importTarget = m.id
+                                            importLauncher.launch(arrayOf("*/*"))
+                                        } else downloadStt(m.id)
+                                    },
+                                    onUse = { sttModel = m.id; persist() },
                                     onDelete = {
                                         pendingDelete = DeletableModel(m.id, m.name, m.meta)
                                     },
@@ -377,6 +404,15 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     }
                     Divider()
                     LanguageRow(current = sttLanguage) { pickingLanguage = true }
+                    Divider()
+                    Padded {
+                        Label("Style example")
+                        Spacer(Modifier.height(6.dp))
+                        Text("A sentence the way you usually dictate. Whisper copies its style: English terms stay in English, punctuation matches. Leave blank to turn off.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        KeyField(promptExample, "e.g. GitLab에 MR 올려줘.") { promptExample = it; persist() }
+                    }
                     Divider()
                     ToggleRow("Auto-stop on pause", "End recording when you stop talking", vadAutoStop) { vadAutoStop = it; persist() }
                     Divider()
@@ -460,6 +496,8 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             Section("Personalization") {
                 Card {
                     NavRow("Personal dictionary", "Names & terms you taught it") { context.startActivity(Intent(context, VocabActivity::class.java)) }
+                    Divider()
+                    NavRow("Compare models", "Re-run a recent dictation on every model") { context.startActivity(Intent(context, CompareActivity::class.java)) }
                     Divider()
                     NavRow("Learned from edits", "Corrections it remembered") { context.startActivity(Intent(context, LearnedVocabActivity::class.java)) }
                     Divider()
@@ -749,7 +787,7 @@ private fun Segment(options: List<Pair<String, String>>, selected: String, onSel
 @Composable
 private fun ModelRow(
     name: String, meta: String, recommended: Boolean, state: String, progress: Float,
-    onGet: () -> Unit, onUse: () -> Unit, onDelete: (() -> Unit)? = null,
+    onGet: () -> Unit, onUse: () -> Unit, onDelete: (() -> Unit)? = null, getLabel: String = "Get",
 ) {
     val cs = MaterialTheme.colorScheme
     Column(
@@ -779,7 +817,7 @@ private fun ModelRow(
                     PillOutline("Use", onUse)
                 }
                 "downloading" -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp, color = cs.primary)
-                else -> PillButton("Get", onGet)
+                else -> PillButton(getLabel, onGet)
             }
         }
         if (state == "downloading") {

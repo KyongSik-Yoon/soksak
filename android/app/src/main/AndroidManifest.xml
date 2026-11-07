@@ -52,6 +52,10 @@
             android:exported="false"
             android:label="Personal dictionary" />
         <activity
+            android:name=".CompareActivity"
+            android:exported="false"
+            android:label="Compare models" />
+        <activity
             android:name=".LearnedVocabActivity"
             android:exported="false"
             android:label="Learned words" />

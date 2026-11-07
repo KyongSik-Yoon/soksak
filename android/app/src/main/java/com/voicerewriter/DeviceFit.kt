@@ -194,6 +194,7 @@ object DeviceFit {
     private fun sttBytes(id: String): Long = when {
         id == "small" -> 488L * 1024 * 1024
         id == WhisperModelManager.SMALL_ACFT_MODEL -> 264L * 1024 * 1024
+        id == WhisperModelManager.TURBO_ACFT_MODEL -> 550L * 1024 * 1024
         id == "base" -> 142L * 1024 * 1024
         else -> 75L * 1024 * 1024
     }

@@ -46,7 +46,7 @@ object LocalWhisperStt {
         val tLoaded = System.nanoTime()
         // transcribeData runs on whisper's own single-thread dispatcher internally.
         val lang = DictationLanguage.normalize(settings.sttLanguage)
-        val prompt = biasPrompt?.ifBlank { null }?.let { localizeGlossary(it, lang) }
+        val prompt = buildPrompt(biasPrompt?.ifBlank { null }?.let { localizeGlossary(it, lang) }, settings.promptExample)
         // Non-English dictation is code-switched speech in practice: Korean full of English
         // tech terms ("worktree 만들고 MR 올려") decoded with a Korean language token, where
         // greedy decoding at each ambiguous step drifts into English. Beam search (5) and
@@ -104,6 +104,15 @@ object LocalWhisperStt {
     }
 
     private const val GLOSSARY_PREFIX = "Glossary: "
+
+    /**
+     * Glossary first, style example last: whisper.cpp keeps the *end* of an over-long prompt,
+     * and the text right before the audio is what the decoder imitates most.
+     */
+    internal fun buildPrompt(glossary: String?, example: String?): String? =
+        listOfNotNull(glossary?.trim()?.ifBlank { null }, example?.trim()?.ifBlank { null })
+            .joinToString(" ")
+            .ifBlank { null }
 
     /** Strip whisper's bracketed non-speech markers (e.g. [BLANK_AUDIO], [Music]). */
     private fun cleanTranscript(s: String): String =

@@ -112,6 +112,10 @@ object VocabCorrector {
                 ) {
                     i++; continue
                 }
+                // Korean particle first: a long alias plus a one-syllable particle is close
+                // enough to pass the fuzzy test, which would swallow the particle with it.
+                val particle = particleHit(window, t)
+                if (particle != null) { hits.add(particle); i++; continue }
                 val score = matchScore(window.map { it.norm }, t.tokens)
                 // Snippets and contacts fire on an exact match only; deliberate names fuzzy.
                 val ok = if (t.fuzzy) score >= FUZZY_THRESHOLD else score >= 0.999
@@ -152,7 +156,10 @@ object VocabCorrector {
             if (a in COMMON_WORDS || a.length < MIN_FUZZY_LEN || b.length < MIN_FUZZY_LEN) return 0.0
             val dist = levenshtein(a, b)
             val editSim = 1.0 - dist.toDouble() / max(a.length, b.length)
-            val s = if (soundex(a) == soundex(b)) 0.7 + 0.3 * editSim else editSim
+            // Soundex only reads Latin letters; for Hangul both sides code to "0000" and the
+            // bonus would make any two same-length Korean words look alike.
+            val latin = a.any { it in 'a'..'z' } && b.any { it in 'a'..'z' }
+            val s = if (latin && soundex(a) == soundex(b)) 0.7 + 0.3 * editSim else editSim
             if (s < FUZZY_THRESHOLD) return 0.0
             sum += s
         }
@@ -234,6 +241,36 @@ object VocabCorrector {
      * Only consulted when the caller asks (see `guardRomanizedHindi`), so English dictation
      * is unaffected.
      */
+    /**
+     * Korean glues particles and verb endings onto the word: an alias "워크트리" never matches
+     * the token "워크트리를" exactly, so the commonest case in Korean dictation — an English
+     * term heard as Hangul, then used in a sentence — slipped through. Match when every token
+     * is exact except the last, which is the alias followed by a particle or a 하다 ending,
+     * and replace only the alias part: "워크트리를" -> "worktree를", "커밋해줘" -> "commit해줘".
+     * Exact only (no fuzzy), and only for Hangul aliases, so English text is unaffected.
+     */
+    private fun particleHit(window: List<Tok>, t: Target): Hit? {
+        val lastAlias = t.tokens.last()
+        if (lastAlias.none { it in '\uAC00'..'\uD7A3' }) return null
+        for (k in 0 until window.size - 1) if (window[k].norm != t.tokens[k]) return null
+        val last = window.last()
+        if (!last.norm.startsWith(lastAlias) || last.norm.length == lastAlias.length) return null
+        val rest = last.norm.substring(lastAlias.length)
+        if (rest !in KOREAN_PARTICLES && rest.first() !in KOREAN_HADA_STARTS) return null
+        return Hit(window.first().start, last.start + lastAlias.length, t.replacement, 1.0, window.size)
+    }
+
+    private val KOREAN_PARTICLES = setOf(
+        "은", "는", "이", "가", "을", "를", "의", "에", "에서", "에게", "한테", "께", "으로", "로",
+        "와", "과", "도", "만", "랑", "이랑", "까지", "부터", "처럼", "보다", "이나", "나", "이든", "든",
+        "이라", "라", "이라고", "라고", "이란", "란", "이야", "야", "이에요", "예요", "이다", "다",
+        "에도", "에는", "으로는", "로는", "에서는", "에서도", "으로도", "로도", "들", "들을", "들이", "들은",
+        "이랑은", "만은", "이고", "고", "인데", "인", "인지", "이면", "면",
+    )
+
+    /** First syllables of 하다 forms glued to a noun: 해/해줘/했다/하고/한/할/합니다/함. */
+    private val KOREAN_HADA_STARTS = setOf('하', '해', '했', '한', '할', '합', '함', '됐', '돼', '되', '된', '될')
+
     private val HINDI_FUNCTION_WORDS = setOf(
         // pronouns and demonstratives
         // "mani" is not a spelling anyone chooses, but it is what the recogniser hands us

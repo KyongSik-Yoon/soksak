@@ -30,6 +30,13 @@ data class Settings(
      */
     val headlessRecording: Boolean = true,
     /**
+     * A sentence in the user's own dictation style, fed to Whisper as preceding context after
+     * the glossary. Whisper continues the style of its prompt, so a mixed Korean/English dev
+     * sentence nudges it to keep English terms in Latin script and to punctuate the same way.
+     * Blank disables it.
+     */
+    val promptExample: String = DEFAULT_PROMPT_EXAMPLE,
+    /**
      * Show the result and wait before inserting it. Off by default: the field the user is
      * already looking at is a better place to read new text than a sheet showing it out of
      * context, and the review step cost every dictation 2-6s. On restores the old flow.
@@ -65,6 +72,7 @@ class SettingsRepository(private val context: Context) {
         val STT_LANGUAGE = stringPreferencesKey("sttLanguage")
         val VAD_AUTO_STOP = booleanPreferencesKey("vadAutoStop")
         val HEADLESS_RECORDING = booleanPreferencesKey("headlessRecording")
+        val PROMPT_EXAMPLE = stringPreferencesKey("promptExample")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("hasCompletedOnboarding")
@@ -91,6 +99,7 @@ class SettingsRepository(private val context: Context) {
             sttLanguage = DictationLanguage.normalize(p[Keys.STT_LANGUAGE] ?: defaults.sttLanguage),
             vadAutoStop = p[Keys.VAD_AUTO_STOP] ?: defaults.vadAutoStop,
             headlessRecording = p[Keys.HEADLESS_RECORDING] ?: defaults.headlessRecording,
+            promptExample = p[Keys.PROMPT_EXAMPLE] ?: defaults.promptExample,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
             hasCompletedOnboarding = p[Keys.HAS_COMPLETED_ONBOARDING] ?: defaults.hasCompletedOnboarding,
@@ -108,6 +117,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.STT_LANGUAGE] = DictationLanguage.normalize(s.sttLanguage)
             p[Keys.VAD_AUTO_STOP] = s.vadAutoStop
             p[Keys.HEADLESS_RECORDING] = s.headlessRecording
+            p[Keys.PROMPT_EXAMPLE] = s.promptExample
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields
             p[Keys.HAS_COMPLETED_ONBOARDING] = s.hasCompletedOnboarding
@@ -122,3 +132,6 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.HAS_COMPLETED_ONBOARDING] = complete }
     }
 }
+
+/** Default style example: Korean dictation with English dev terms kept in Latin script. */
+const val DEFAULT_PROMPT_EXAMPLE = "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘."
