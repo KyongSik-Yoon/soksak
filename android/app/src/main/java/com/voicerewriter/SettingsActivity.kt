@@ -795,9 +795,13 @@ private fun ModelRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = cs.onSurface)
-                    if (recommended) Badge("Recommended", Color(0xFF3E8E5A), Color(0xFFE7F3EA))
+                // Name and badge on separate lines: side by side, a long name ("Small ACFT
+                // (FUTO)") squeezed the badge to one character wide and it wrapped vertically.
+                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = cs.onSurface)
+                if (recommended) {
+                    Spacer(Modifier.height(4.dp))
+                    Badge("Recommended", Color(0xFF3E8E5A), Color(0xFFE7F3EA))
+                    Spacer(Modifier.height(4.dp))
                 }
                 Text(meta, style = MonoEyebrow, fontSize = 11.sp, color = cs.onSurfaceVariant)
             }
@@ -832,7 +836,7 @@ private fun ModelRow(
 @Composable
 private fun Badge(text: String, fg: Color, bg: Color) {
     Box(Modifier.clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 10.dp, vertical = 5.dp)) {
-        Text(text.uppercase(), style = MonoEyebrow, fontSize = 10.sp, color = fg)
+        Text(text.uppercase(), style = MonoEyebrow, fontSize = 10.sp, color = fg, maxLines = 1, softWrap = false)
     }
 }
 
