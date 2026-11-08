@@ -48,7 +48,7 @@ jobs:
         working-directory: android
         run: |
           mkdir -p app/libs
-          curl -fSL --retry 3 -o app/libs/sherpa-onnx-static-link-onnxruntime-2.0.1.aar \
+          curl -fSL --retry 8 --retry-all-errors --retry-delay 10 -o app/libs/sherpa-onnx-static-link-onnxruntime-2.0.1.aar \
             https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-static-link-onnxruntime-2.0.1.aar
 
       - name: Build signed release APK + AAB
