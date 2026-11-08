@@ -39,6 +39,8 @@ object WhisperModelManager {
         val releaseTag: String? = null,
         /** Which runtime decodes it. Non-Whisper models are sherpa-onnx bundles (a directory). */
         val engine: SpeechEngine = SpeechEngine.WHISPER,
+        /** One or two letters drawn on the floating bubble so the active model is visible there. */
+        val badge: String = label.take(1),
     ) {
         val githubHosted: Boolean get() = releaseTag != null
         /** No download at all: the file can only be imported from the phone. */
@@ -54,9 +56,9 @@ object WhisperModelManager {
     private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
 
     val MODELS = listOf(
-        WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB"),
-        WhisperModel("base", "Base (balanced)", "ggml-base.bin", hf("ggml-base.bin"), "~142MB"),
-        WhisperModel("small", "Small (most accurate)", "ggml-small.bin", hf("ggml-small.bin"), "~488MB"),
+        WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB", badge = "Ti"),
+        WhisperModel("base", "Base (balanced)", "ggml-base.bin", hf("ggml-base.bin"), "~142MB", badge = "B"),
+        WhisperModel("small", "Small (most accurate)", "ggml-small.bin", hf("ggml-small.bin"), "~488MB", badge = "S"),
         // FUTO's audio-context fine-tune of multilingual whisper-small (Apache 2.0,
         // github.com/futo-org/whisper-acft) — the same weights FUTO Voice Input ships. jni.c
         // shrinks audio_ctx to the clip length (768 floor) for speed; stock Whisper was never
@@ -68,6 +70,7 @@ object WhisperModelManager {
             url = "https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin",
             sizeLabel = "~264MB · tuned for short clips",
             acft = true,
+            badge = "SA",
         ),
         // Non-Whisper engines via sherpa-onnx, much lighter on a phone (heat, latency). Bundles from
         // sherpa-onnx's public asr-models release; fileName is the unpacked directory.
@@ -80,6 +83,7 @@ object WhisperModelManager {
             url = "$SHERPA_ASR/sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27.tar.bz2",
             sizeLabel = "~49MB · Korean only · fastest",
             engine = SpeechEngine.MOONSHINE,
+            badge = "M",
         ),
         // SenseVoice-Small int8 (zh/en/ja/ko/yue). The 2024-07-17 export: the 2025-09-09 one is a
         // Cantonese-tuned refresh that turned Korean test audio into mixed Chinese in testing.
@@ -90,6 +94,7 @@ object WhisperModelManager {
             url = "$SHERPA_ASR/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
             sizeLabel = "~163MB · ko/en/ja/zh · fast",
             engine = SpeechEngine.SENSE_VOICE,
+            badge = "SV",
         ),
         // whisper-large-v3-turbo with FUTO's audio-context fine-tune, by Mahmoud Ashraf
         // (Apache 2.0, huggingface.co/MahmoudAshraf/acft-whisper-large-v3-turbo). Stock turbo
@@ -107,6 +112,7 @@ object WhisperModelManager {
             sizeLabel = "~450MB · largest, slower",
             acft = true,
             releaseTag = "model-acft-large-v3-turbo-q4_0",
+            badge = "T",
         ),
     )
 

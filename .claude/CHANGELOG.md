@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — 플로팅 버튼에서 모델 전환
+- 사용자 선택: 위로 휙 밀기로 메뉴 열기(탭·길게 누르기는 그대로), 버블에 모델 약자 배지.
+- `ModelPicker.kt`(오버레이 카드), `BubbleService.showModelPicker/pickModel/watchModelBadge`, `BubbleView.badge`.
+
 ## 2026-11-08 — GPU(Vulkan) 가속 시도 후 제거
 - build-30에서 whisper.cpp 1.8.7 + ggml Vulkan을 별도 `libwhisper_gpu.so`로 넣고 설정 토글로 제공했다.
 - 사용자 폰에서 "엄청나게 느리고 폰이 죽으려 함" → 커밋 8c79ef3을 통째로 revert. CI도 ~4.5분으로 복귀.

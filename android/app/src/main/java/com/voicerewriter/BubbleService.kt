@@ -29,7 +29,12 @@ import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -137,6 +142,12 @@ class BubbleService : Service() {
     private var overDismiss = false
     private var morph: ValueAnimator? = null
 
+    /** Lives as long as the service; cancelled in [onDestroy]. */
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Speech-model menu, opened by flicking the bubble up. */
+    private var picker: ModelPicker? = null
+
     /** Which edge the bubble is docked to. Persisted indirectly, via the saved x. */
     private var dockedLeft = false
 
@@ -165,6 +176,7 @@ class BubbleService : Service() {
             runBlocking { SettingsRepository(applicationContext).get().bubbleOnlyOnFields }
         } catch (_: Exception) { true }
         addBubble()
+        watchModelBadge()
         isRunning = true
         instance = this
         // If gated, start hidden until the accessibility service reports a focused field.
@@ -188,6 +200,66 @@ class BubbleService : Service() {
                 }
             } catch (e: Exception) {
                 android.util.Log.w("BubbleService", "warmup skipped", e)
+            }
+        }
+    }
+
+    /** Keep the bubble's model tab in step with the setting, wherever it gets changed. */
+    private fun watchModelBadge() {
+        serviceScope.launch {
+            SettingsRepository(applicationContext).settings
+                .map { it.sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL } }
+                .distinctUntilChanged()
+                .collect { id ->
+                    bubble?.badge = WhisperModelManager.MODELS.firstOrNull { it.id == id }?.badge
+                }
+        }
+    }
+
+    /**
+     * The model menu, beside the bubble. Lists downloaded models only; picking one saves it as
+     * the speech model and loads it in the background so the next dictation doesn't wait.
+     */
+    private fun showModelPicker() {
+        val v = bubble ?: return
+        serviceScope.launch {
+            val settings = SettingsRepository(applicationContext).get()
+            val items = withContext(Dispatchers.IO) {
+                WhisperModelManager.MODELS
+                    .filter { WhisperModelManager.isReady(applicationContext, it.id) }
+                    .map { ModelPicker.Item(it.id, it.label, it.badge) }
+            }
+            val p = picker ?: ModelPicker(this@BubbleService, wm, overlayType).also { picker = it }
+            val cw = params.width - 2 * pad()
+            val left = params.x + pad()
+            p.show(
+                items = items,
+                currentId = settings.sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL },
+                dark = v.dark,
+                anchorLeft = left - dp(4f),
+                anchorRight = left + cw + dp(4f),
+                anchorCy = contentCenter().second.toInt(),
+                dockedLeft = dockedLeft,
+                screenW = screenW(),
+                screenH = screenH(),
+                onPick = { id -> pickModel(id) },
+                onMore = {
+                    startActivity(Intent(this@BubbleService, SettingsActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                },
+            )
+        }
+    }
+
+    private fun pickModel(id: String) {
+        hapticStart()
+        bubble?.badge = WhisperModelManager.MODELS.firstOrNull { it.id == id }?.badge
+        serviceScope.launch {
+            val repo = SettingsRepository(applicationContext)
+            repo.save(repo.get().copy(sttModel = id))
+            withContext(Dispatchers.IO) {
+                runCatching { OnDeviceStt.warm(applicationContext, id) }
+                    .onFailure { android.util.Log.w("BubbleService", "warm $id failed", it) }
             }
         }
     }
@@ -390,6 +462,17 @@ class BubbleService : Service() {
         }
 
         /**
+         * Short, fast and mostly vertical upward travel. A deliberate drag to reposition is
+         * slower than this, so moving the bubble up still works when done at a normal pace.
+         */
+        fun isFlickUp(e: MotionEvent): Boolean {
+            val dx = e.rawX - downRawX
+            val dy = e.rawY - downRawY
+            return e.eventTime - e.downTime <= FLICK_MAX_MS &&
+                dy <= -dp(FLICK_MIN_DP) && abs(dy) >= 1.5f * abs(dx)
+        }
+
+        /**
          * End of a hold-to-talk. The recording lives in RewriteActivity, which is still
          * launching when a quick release lands, so [recordingStopper] may not exist yet.
          * Clearing [holdingToTalk] covers that: the activity checks it once the recorder is
@@ -403,6 +486,7 @@ class BubbleService : Service() {
         view.setOnTouchListener { _, e ->
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    picker?.dismiss() // touching the bubble again closes the menu
                     wake(animate = false) // full size under the finger before anything else
                     downRawX = e.rawX
                     downRawY = e.rawY
@@ -462,6 +546,19 @@ class BubbleService : Service() {
                         // leave a recording running with nothing able to stop it.
                         hapticEnd()
                         endHold()
+                        return@setOnTouchListener true
+                    }
+                    if (moved && !overDismiss && recordingStopper == null && isFlickUp(e)) {
+                        // A quick upward flick isn't a move: put the bubble back where it was
+                        // and open the model menu instead.
+                        hideDismiss()
+                        hideRails()
+                        params.x = startX
+                        params.y = startY
+                        bubble?.let { wm.updateViewLayout(it, params) }
+                        if (view.state == BubbleView.State.LIFTED) view.state = BubbleView.State.IDLE
+                        hapticThreshold()
+                        showModelPicker()
                         return@setOnTouchListener true
                     }
                     if (moved && overDismiss) {
@@ -874,6 +971,7 @@ class BubbleService : Service() {
                         else c.visibility = View.GONE
                     }.start()
             } else { c.alpha = 0f; c.visibility = View.GONE }
+            picker?.dismiss()
         }
     }
 
@@ -961,6 +1059,9 @@ class BubbleService : Service() {
         super.onDestroy()
         morph?.cancel()
         morph = null
+        picker?.dismiss()
+        picker = null
+        serviceScope.cancel()
         mainHandler.removeCallbacksAndMessages(null)
         bubble?.let { v -> try { wm.removeView(v) } catch (_: Exception) {} }
         dismissView?.let { v -> try { wm.removeView(v) } catch (_: Exception) {} }
@@ -978,6 +1079,10 @@ class BubbleService : Service() {
         if (instance === this) instance = null
     }
 }
+
+/** Flick-up to open the model menu: at most this long, at least this far. */
+private const val FLICK_MAX_MS = 250L
+private const val FLICK_MIN_DP = 36f
 
 /** Rail colours, from the design's OKLCH values. */
 private const val RAIL_ON = 0xFFE1815B.toInt()

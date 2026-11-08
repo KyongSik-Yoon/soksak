@@ -182,6 +182,20 @@ class BubbleView(context: Context) : View(context) {
     var dim: Boolean = true
         set(value) { if (field != value) { field = value; invalidate() } }
 
+    /**
+     * Short name of the active speech model ("T", "SA", "M"), drawn as a small tab at the bottom
+     * of the resting bubble. Null hides it. Only resting/lifted states show it: while listening or
+     * working the bubble is saying something more important.
+     */
+    var badge: String? = null
+        set(value) { if (field != value) { field = value; invalidate() } }
+
+    private val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = dp(9f)
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
     private var enteredAt = SystemClock.uptimeMillis()
     private val bars = FloatArray(BAR_COUNT)
 
@@ -263,7 +277,24 @@ class BubbleView(context: Context) : View(context) {
         scratch.inset(dp(0.5f), dp(0.5f))
         roundRect(canvas, scratch, edgePaint)
         drawMark(canvas, markColor())
+        drawBadge(canvas)
         canvas.restoreToCount(layer)
+    }
+
+    /** The model tab: a small coral pill straddling the bottom edge of the disc. */
+    private fun drawBadge(canvas: Canvas) {
+        val text = badge?.takeIf { it.isNotBlank() } ?: return
+        val h = dp(14f)
+        val w = max(h, badgePaint.measureText(text) + dp(8f))
+        val cy = content.bottom - dp(1f)
+        scratch.set(content.centerX() - w / 2f, cy - h / 2f, content.centerX() + w / 2f, cy + h / 2f)
+        fillPaint.shader = null
+        fillPaint.clearShadowLayer()
+        fillPaint.color = markColor()
+        roundRect(canvas, scratch, fillPaint)
+        badgePaint.color = surface()
+        val fm = badgePaint.fontMetrics
+        canvas.drawText(text, scratch.centerX(), scratch.centerY() - (fm.ascent + fm.descent) / 2f, badgePaint)
     }
 
     /**
@@ -284,6 +315,7 @@ class BubbleView(context: Context) : View(context) {
         scratch.inset(dp(0.75f), dp(0.75f))
         roundRect(canvas, scratch, edgePaint)
         drawMark(canvas, markColor())
+        drawBadge(canvas)
         canvas.restoreToCount(save)
     }
 
