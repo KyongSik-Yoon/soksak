@@ -58,6 +58,7 @@ jobs:
           set -e
           D="$RUNNER_TEMP/gpu-deps"; mkdir -p "$D/opencl/lib"
           git clone -q --depth 1 --branch v1.8.7 https://github.com/ggml-org/whisper.cpp "$D/whisper.cpp"
+          python3 scripts/patch-whisper-gpu.py "$D/whisper.cpp/src/whisper.cpp"
           git clone -q --depth 1 --branch v2026.05.29 https://github.com/KhronosGroup/OpenCL-Headers "$D/OpenCL-Headers"
           git clone -q --depth 1 --branch v2026.05.29 https://github.com/KhronosGroup/OpenCL-ICD-Loader "$D/OpenCL-ICD-Loader"
           mkdir -p "$D/opencl/include" && cp -r "$D/OpenCL-Headers/CL" "$D/opencl/include/"

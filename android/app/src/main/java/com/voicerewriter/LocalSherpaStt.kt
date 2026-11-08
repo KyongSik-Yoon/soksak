@@ -31,25 +31,25 @@ object LocalSherpaStt {
 
     private const val TAG = "LocalSherpaStt"
 
-    /** Files a bundle must contain to be usable, per engine. */
-    fun requiredFiles(engine: SpeechEngine): List<String> = when (engine) {
+    /** Files a bundle must contain to be usable. */
+    fun requiredFiles(m: WhisperModelManager.WhisperModel): List<String> = when (m.engine) {
         SpeechEngine.MOONSHINE -> listOf("encoder_model.ort", "decoder_model_merged.ort", "tokens.txt")
-        SpeechEngine.SENSE_VOICE -> listOf("model.int8.onnx", "tokens.txt")
+        SpeechEngine.SENSE_VOICE -> listOf(m.onnxFile, "tokens.txt")
         SpeechEngine.WHISPER -> emptyList()
     }
 
-    fun isReady(dir: File, engine: SpeechEngine): Boolean =
-        dir.isDirectory && requiredFiles(engine).all { File(dir, it).let { f -> f.isFile && f.length() > 0 } }
+    fun isReady(dir: File, m: WhisperModelManager.WhisperModel): Boolean =
+        dir.isDirectory && requiredFiles(m).all { File(dir, it).let { f -> f.isFile && f.length() > 0 } }
 
     fun archiveFile(dir: File): File = File(dir.parentFile, "${dir.name}.tar.bz2")
 
-    /** Download the bundle tarball and unpack the files [engine] needs. Progress: 0..0.9 fetch, 0.9..1 unpack. */
-    suspend fun download(url: String, dir: File, engine: SpeechEngine, onProgress: (Float) -> Unit) =
+    /** Download the bundle tarball and unpack the files [m] needs. Progress: 0..0.9 fetch, 0.9..1 unpack. */
+    suspend fun download(url: String, dir: File, m: WhisperModelManager.WhisperModel, onProgress: (Float) -> Unit) =
         withContext(Dispatchers.IO) {
             val archive = archiveFile(dir)
             ModelDownloader.fetch(url, archive) { p -> onProgress(p * 0.9f) }
             val tmp = File(dir.parentFile, "${dir.name}.unpack").apply { deleteRecursively(); mkdirs() }
-            val wanted = requiredFiles(engine).toSet()
+            val wanted = requiredFiles(m).toSet()
             try {
                 TarArchiveInputStream(BZip2CompressorInputStream(BufferedInputStream(archive.inputStream(), 1 shl 16))).use { tar ->
                     while (true) {
@@ -59,7 +59,7 @@ object LocalSherpaStt {
                         File(tmp, name).outputStream().use { tar.copyTo(it, 1 shl 16) }
                     }
                 }
-                check(isReady(tmp, engine)) { "The model archive is missing files." }
+                check(isReady(tmp, m)) { "The model archive is missing files." }
                 dir.deleteRecursively()
                 check(tmp.renameTo(dir)) { "Couldn't save the model." }
                 archive.delete()
@@ -81,8 +81,8 @@ object LocalSherpaStt {
     @Volatile private var recognizer: OfflineRecognizer? = null
     @Volatile private var loadedId: String? = null
 
-    private fun build(dir: File, engine: SpeechEngine, language: String): OfflineRecognizer {
-        val model = when (engine) {
+    private fun build(dir: File, m: WhisperModelManager.WhisperModel, language: String): OfflineRecognizer {
+        val model = when (m.engine) {
             SpeechEngine.MOONSHINE -> OfflineModelConfig(
                 moonshine = OfflineMoonshineModelConfig(
                     encoder = File(dir, "encoder_model.ort").absolutePath,
@@ -93,7 +93,7 @@ object LocalSherpaStt {
             )
             SpeechEngine.SENSE_VOICE -> OfflineModelConfig(
                 senseVoice = OfflineSenseVoiceModelConfig(
-                    model = File(dir, "model.int8.onnx").absolutePath,
+                    model = File(dir, m.onnxFile).absolutePath,
                     // SenseVoice knows zh/en/ja/ko/yue; anything else lets it detect.
                     language = language.takeIf { it in setOf("zh", "en", "ja", "ko", "yue") } ?: "auto",
                     useInverseTextNormalization = true,
@@ -115,9 +115,9 @@ object LocalSherpaStt {
         recognizer = null
         val m = WhisperModelManager.model(id)
         val dir = WhisperModelManager.modelFile(context, id)
-        check(isReady(dir, m.engine)) { "${m.label} isn't downloaded yet." }
+        check(isReady(dir, m)) { "${m.label} isn't downloaded yet." }
         val t0 = System.currentTimeMillis()
-        return build(dir, m.engine, language).also {
+        return build(dir, m, language).also {
             recognizer = it
             loadedId = key
             Log.i(TAG, "loaded $id in ${System.currentTimeMillis() - t0}ms")

@@ -255,7 +255,7 @@ object ModelDownloader {
     }
 
     /** Parakeet's sherpa-onnx bundle directory. */
-    private val RETIRED_DIRS = listOf("parakeet")
+    private val RETIRED_DIRS = listOf("parakeet", "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27")
 
     /** On-device LLM GGUFs, the Hinglish Whisper fine-tune, and the dropped turbo q5_0. */
     private val RETIRED_FILES = listOf(

@@ -1,0 +1,113 @@
+# Packages Moonshine Base Korean as a sherpa-onnx bundle and attaches it to a pre-release of this
+# repo, like convert-model.yml does for Turbo. sherpa-onnx's public asr-models release has only
+# the tiny Korean model.
+#
+# Moonshine's own CDN serves base-ko already quantized and in ORT format, with the same file names
+# sherpa-onnx's Moonshine v2 loader takes (encoder_model.ort + decoder_model_merged.ort). sherpa
+# also needs tokens.txt ("<base64 of token bytes> <id>" per line), built here from the model's
+# tokenizer.json. The recipe is checked by rebuilding tiny-ko's tokens.txt and comparing it with
+# sherpa's own, and the bundle by decoding sherpa's Korean test clip with sherpa-onnx.
+#
+# License: Moonshine Community License (non-commercial). Fine for this private, personal build.
+name: Package Moonshine Base Korean
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/package-moonshine.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      NAME: sherpa-onnx-moonshine-base-ko-quantized
+      TAG: model-moonshine-base-ko
+      SHERPA_TINY: sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install -q sherpa-onnx==2.0.1 soundfile numpy huggingface_hub
+
+      - name: Fetch model files
+        run: |
+          set -e
+          mkdir -p "$NAME"
+          for f in encoder_model.ort decoder_model_merged.ort; do
+            curl -fsSL -o "$NAME/$f" "https://download.moonshine.ai/model/base-ko/quantized/base-ko/$f" || \
+            python -c "import shutil,sys; from huggingface_hub import hf_hub_download as d; shutil.copy(d('moonshine-ai/moonshine-voice-assets', 'model/base-ko/quantized/base-ko/$f'), '$NAME/$f')"
+          done
+          ls -la "$NAME"
+          # sherpa's tiny-ko bundle: its tokens.txt checks our recipe; its test clip checks the result.
+          curl -fsSL "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$SHERPA_TINY.tar.bz2" | tar xj
+
+      - name: Build tokens.txt
+        run: |
+          cat > tokens.py <<'EOF'
+          import base64, json, re, sys
+          from huggingface_hub import hf_hub_download
+
+          def tokens(repo):
+              tok = json.load(open(hf_hub_download(repo, "tokenizer.json")))
+              vocab = tok["model"]["vocab"]
+              pairs = vocab.items() if isinstance(vocab, dict) else ((t, i) for i, (t, _) in enumerate(vocab))
+              by_id = {i: t for t, i in pairs}
+              for a in tok.get("added_tokens", []):
+                  by_id[a["id"]] = a["content"]
+              out = []
+              for i in range(max(by_id) + 1):
+                  t = by_id.get(i, "")
+                  m = re.fullmatch(r"<0x([0-9A-Fa-f]{2})>", t)
+                  raw = bytes([int(m.group(1), 16)]) if m else t.encode("utf-8")
+                  out.append(f"{base64.b64encode(raw).decode()} {i}")
+              return out
+
+          tiny = tokens("UsefulSensors/moonshine-tiny-ko")
+          ref = open(sys.argv[1] + "/tokens.txt").read().splitlines()
+          diff = sum(1 for a, b in zip(tiny, ref) if a != b) + abs(len(tiny) - len(ref))
+          print(f"recipe check: {len(tiny)} tokens, {diff} differ from sherpa's tiny-ko tokens.txt")
+          assert diff == 0, "tokens.txt recipe doesn't match sherpa's"
+          base = tokens("UsefulSensors/moonshine-base-ko")
+          open(sys.argv[2] + "/tokens.txt", "w").write("\n".join(base) + "\n")
+          print(f"base-ko: {len(base)} tokens, same as tiny-ko: {base == tiny}")
+          EOF
+          python tokens.py "$SHERPA_TINY" "$NAME"
+
+      - name: Decode the test clip
+        run: |
+          cat > check.py <<'EOF'
+          import sys, time, numpy as np, soundfile as sf, sherpa_onnx
+          wav, sr = sf.read(sys.argv[3] + "/test_wavs/0.wav", dtype="float32")
+          for d in sys.argv[1:3]:
+              r = sherpa_onnx.OfflineRecognizer.from_moonshine_v2(
+                  encoder=f"{d}/encoder_model.ort", decoder=f"{d}/decoder_model_merged.ort",
+                  tokens=f"{d}/tokens.txt", num_threads=2)
+              x = np.concatenate([wav, np.zeros(8000, np.float32), wav, np.zeros(8000, np.float32), wav])
+              for name, a in [("short", wav), ("long", x)]:
+                  s = r.create_stream(); s.accept_waveform(sr, a); t = time.time(); r.decode_stream(s)
+                  print(f"{d} {name} {len(a)/sr:.1f}s -> {time.time()-t:.2f}s: {s.result.text}")
+                  assert s.result.text.strip(), "empty result"
+          EOF
+          python check.py "$SHERPA_TINY" "$NAME" "$SHERPA_TINY"
+
+      - name: Pack and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          cat > "$NAME/LICENSE" <<'EOF'
+          UsefulSensors/moonshine-base-ko, from download.moonshine.ai (quantized ORT).
+          Moonshine Community License (non-commercial). See https://huggingface.co/UsefulSensors/moonshine-base-ko
+          EOF
+          tar cjf "$NAME.tar.bz2" "$NAME"
+          ls -la "$NAME" "$NAME.tar.bz2"
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --title "Moonshine Base Korean (sherpa-onnx)" \
+              --notes "Moonshine base-ko packaged for sherpa-onnx. Built by package-moonshine.yml."
+          gh release upload "$TAG" "$NAME.tar.bz2" -R "$GITHUB_REPOSITORY" --clobber

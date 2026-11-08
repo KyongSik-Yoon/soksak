@@ -34,11 +34,15 @@
 - 앱 ID: 디버그는 `com.voicerewriter.dev` (Play 원본과 공존).
 
 ## 모델
-- 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `moonshine-ko`, `sensevoice-small`,
-  `turbo-acft-q4`(Large v3 Turbo ACFT q4_0). `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
+- 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `moonshine-base-ko`, `sensevoice-small`(int8),
+  `sensevoice-small-fp32`(비교용 비양자화), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0). `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
 - sherpa 모델(`LocalSherpaStt.kt`): sherpa-onnx 공개 Release `asr-models`의 tar.bz2를 받아 `models/<bundle>/`에 필요한 파일만 풀고
   압축본은 지운다(commons-compress). AAR `sherpa-onnx-static-link-onnxruntime-2.0.1`은 CI가 `app/libs`에 받는다(gitignore).
-  Moonshine-ko는 `encoder_model.ort` + `decoder_model_merged.ort`(v2, `mergedDecoder`), 출력의 `▁` 제거.
+  Moonshine은 `encoder_model.ort` + `decoder_model_merged.ort`(v2, `mergedDecoder`), 출력의 `▁` 제거.
+  **Moonshine Base Korean**(61M, 2026-11-08 tiny-ko 27M을 대체)은 sherpa 공개 Release에 없어 `.github/workflows/package-moonshine.yml`이
+  Moonshine CDN의 양자화 ORT + tokenizer.json으로 만든 tokens.txt를 묶어 이 저장소 Release `model-moonshine-base-ko`에 올린다
+  (토큰 다운로드, `releaseTag`). tokens.txt 생성법은 tiny-ko의 sherpa tokens.txt를 재현해 검증한다. 라이선스: Moonshine Community(비상업).
+  SenseVoice 파일은 모델별 `onnxFile`(int8: `model.int8.onnx`, fp32: `model.onnx`).
   SenseVoice는 **2024-07-17** int8을 쓴다 — 2025-09-09판은 광둥어 튜닝이라 한국어 테스트 음성을 중국어 섞인 결과로 냈다.
   두 엔진 모두 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
   - 1.x AAR은 Moonshine v2가 ~7초 넘는 입력에서 빈 결과를 낸다(encoder_attention_mask 버그, sherpa-onnx #3976, 2.0.0에서 수정). AAR을 2.0 미만으로 내리지 말 것.
@@ -74,7 +78,7 @@
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.
-  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA M SV T)를 표시. 느린 끌기는 그대로 위치 이동.
+  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA M SV SF T)를 표시. 느린 끌기는 그대로 위치 이동.
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.
 
 ## 앱 내 업데이트
@@ -96,7 +100,8 @@
 - 공개 저장소/공개 리소스 생성은 자동 승인되지 않는다 — 비공개 Release + 토큰 다운로드 방식을 쓴다.
 
 ## 백로그
-- GPU(OpenCL): 폰에서 속도·발열 확인 결과에 따라 유지 또는 제거.
+- GPU(OpenCL): build-36에서 Turbo 로드 중 네이티브 크래시(마지막 로그 n_langs=100). 64의 배수가 아닌 양자화 가중치
+  (토큰 임베딩 51866행)를 CPU에 두는 `scripts/patch-whisper-gpu.py`로 재시도 중. 결과에 따라 유지 또는 제거.
 - 자동 중지 대기 시간(현재 1.6초 고정, `AudioRecorder.HANGOVER_SAMPLES`)을 설정에서 1.6/3/5초로 선택.
 - Compare models 결과로 기본 모델 확정 후 안 쓰는 모델 정리.
 - (보류) Nemotron 3.5 스트리밍: sherpa-onnx가 다시 들어왔으니 지원 여부만 확인하면 시도 가능.

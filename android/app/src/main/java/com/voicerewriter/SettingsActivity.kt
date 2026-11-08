@@ -292,7 +292,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     }
 
     fun needsImport(id: String): Boolean = WhisperModelManager.model(id).let {
-        it.importOnly || (it.githubHosted && githubToken.isBlank())
+        it.importOnly || (it.githubHosted && githubToken.isBlank() && it.engine == SpeechEngine.WHISPER)
     }
 
     fun downloadStt(id: String) {

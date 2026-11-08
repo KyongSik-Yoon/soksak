@@ -3,6 +3,14 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — Moonshine Base Korean, SenseVoice full, GPU 로드 크래시 대응
+- 사용자: moonshine-base-ko와 SenseVoice-Small 비교, 기존 문샤인(tiny-ko) 제거, SenseVoice는 더 큰 걸로.
+  SenseVoice-Small은 원래 234M 하나뿐이고 기존 것은 그 int8 → 비양자화(fp32, ~900MB)를 비교용으로 추가.
+- base-ko는 sherpa 공개 번들이 없어 `package-moonshine.yml`로 직접 번들링(이 저장소 pre-release). tiny-ko 디렉터리는 RETIRED_DIRS로 정리.
+- GPU: 설정에 크래시 보고가 떴다 — "native crash", 로그는 whisper_model_load n_langs=100에서 끊김(가중치 업로드 중).
+  ggml-opencl의 양자화 변환 커널이 work group 64 고정·경계 검사 없음 → 51866행 토큰 임베딩이 의심. whisper.cpp 패치로 그런 가중치는 CPU 버퍼에.
+  네이티브 크래시면 tombstone에서 ggml/whisper 프레임 이름을 뽑아 보고에 같이 보여준다.
+
 ## 2026-11-08 — GPU 토글 시 앱 강제 종료 → 진단·복구
 - build-33에서 GPU를 켜자 앱이 닫힘. ggml OpenCL 백엔드는 커널 컴파일 실패·미지원 GPU에서 로그만 남기고 `exit(1)`을 부른다.
 - 복구: Settings가 열릴 때 크래시 흔적(`GpuGuard` busy 플래그)이 있으면 드라이버를 건드리기 전에 설정을 끈다

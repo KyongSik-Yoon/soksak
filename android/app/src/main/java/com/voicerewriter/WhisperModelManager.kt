@@ -41,6 +41,8 @@ object WhisperModelManager {
         val engine: SpeechEngine = SpeechEngine.WHISPER,
         /** One or two letters drawn on the floating bubble so the active model is visible there. */
         val badge: String = label.take(1),
+        /** SenseVoice only: which ONNX file of the bundle to unpack and load. */
+        val onnxFile: String = "model.int8.onnx",
     ) {
         val githubHosted: Boolean get() = releaseTag != null
         /** No download at all: the file can only be imported from the phone. */
@@ -51,8 +53,9 @@ object WhisperModelManager {
 
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
-    const val MOONSHINE_KO_MODEL = "moonshine-ko"
+    const val MOONSHINE_KO_MODEL = "moonshine-base-ko"
     const val SENSE_VOICE_MODEL = "sensevoice-small"
+    const val SENSE_VOICE_FULL_MODEL = "sensevoice-small-fp32"
     private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
 
     val MODELS = listOf(
@@ -74,15 +77,18 @@ object WhisperModelManager {
         ),
         // Non-Whisper engines via sherpa-onnx, much lighter on a phone (heat, latency). Bundles from
         // sherpa-onnx's public asr-models release; fileName is the unpacked directory.
-        // Moonshine "Flavors" tiny, Korean-only (MIT). ~27M params; ~0.4s for 7s of speech on
-        // two desktop threads in testing, accurate on Korean samples. No prompt biasing.
+        // Moonshine Base, Korean fine-tune (UsefulSensors/moonshine-base-ko, 61M params; Moonshine
+        // Community License, non-commercial — fine for this personal build). Replaces the tiny
+        // Korean model (27M). sherpa-onnx doesn't publish it, so package-moonshine.yml repackages
+        // Moonshine's own quantized ORT files as a sherpa bundle on this repo's releases.
         WhisperModel(
             id = MOONSHINE_KO_MODEL,
-            label = "Moonshine Korean",
-            fileName = "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27",
-            url = "$SHERPA_ASR/sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27.tar.bz2",
-            sizeLabel = "~49MB · Korean only · fastest",
+            label = "Moonshine Base Korean",
+            fileName = "sherpa-onnx-moonshine-base-ko-quantized",
+            url = "",
+            sizeLabel = "~100MB · Korean only · fast",
             engine = SpeechEngine.MOONSHINE,
+            releaseTag = "model-moonshine-base-ko",
             badge = "M",
         ),
         // SenseVoice-Small int8 (zh/en/ja/ko/yue). The 2024-07-17 export: the 2025-09-09 one is a
@@ -95,6 +101,18 @@ object WhisperModelManager {
             sizeLabel = "~163MB · ko/en/ja/zh · fast",
             engine = SpeechEngine.SENSE_VOICE,
             badge = "SV",
+        ),
+        // The same SenseVoice-Small (234M params) without int8 quantization: ~4x the size, for
+        // comparing whether quantization costs Korean accuracy. Same bundle date as above.
+        WhisperModel(
+            id = SENSE_VOICE_FULL_MODEL,
+            label = "SenseVoice Small (full precision)",
+            fileName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+            url = "$SHERPA_ASR/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+            sizeLabel = "~1GB download · ~900MB · slower",
+            engine = SpeechEngine.SENSE_VOICE,
+            badge = "SF",
+            onnxFile = "model.onnx",
         ),
         // whisper-large-v3-turbo with FUTO's audio-context fine-tune, by Mahmoud Ashraf
         // (Apache 2.0, huggingface.co/MahmoudAshraf/acft-whisper-large-v3-turbo). Stock turbo
@@ -130,7 +148,7 @@ object WhisperModelManager {
         val m = model(id)
         val f = modelFile(context, id)
         return if (m.engine == SpeechEngine.WHISPER) f.isFile && f.length() > MIN_VALID_BYTES
-        else LocalSherpaStt.isReady(f, m.engine)
+        else LocalSherpaStt.isReady(f, m)
     }
 
     /**
@@ -197,7 +215,11 @@ object WhisperModelManager {
             if (isReady(context, id)) { onProgress(1f); return@withContext }
             val m = model(id)
             if (m.engine != SpeechEngine.WHISPER) {
-                LocalSherpaStt.download(m.url, modelFile(context, id), m.engine, onProgress)
+                val url = if (m.githubHosted) {
+                    val token = SettingsRepository(context.applicationContext).get().githubToken
+                    AppUpdater.releaseAssetUrl(token, m.releaseTag!!, "${m.fileName}.tar.bz2")
+                } else m.url
+                LocalSherpaStt.download(url, modelFile(context, id), m, onProgress)
                 return@withContext
             }
             if (m.importOnly) throw IllegalStateException("${m.label} has no download; import its file instead.")

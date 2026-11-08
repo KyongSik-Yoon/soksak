@@ -56,6 +56,20 @@ object GpuGuard {
         } else false
     }
 
+    /**
+     * The crashing frames, from the tombstone Android keeps for a native crash (a protobuf on
+     * Android 12+). No parser needed: function and library names sit in it as plain strings,
+     * so keep the ones that say where it died.
+     */
+    private fun backtrace(e: ApplicationExitInfo): String? = runCatching {
+        val bytes = e.traceInputStream?.use { it.readBytes() } ?: return null
+        val strings = Regex("[\\x20-\\x7e]{6,}").findAll(String(bytes, Charsets.ISO_8859_1)).map { it.value.trim() }
+        val keep = listOf("ggml", "whisper", "opencl", "OpenCL", "libGLES", "Adreno", "SIG", "abort", "Abort", "assert")
+        strings.filter { s -> keep.any { s.contains(it) } }
+            .map { it.substringAfterLast('/').take(120) }
+            .distinct().take(8).joinToString("\n").ifBlank { null }
+    }.getOrNull()
+
     /** What the last GPU crash left behind, for Settings to show. */
     fun lastReport(context: Context): String? = prefs(context).getString(KEY_REPORT, null)?.ifBlank { null }
 
@@ -75,7 +89,8 @@ object GpuGuard {
                     ApplicationExitInfo.REASON_ANR -> "not responding"
                     else -> "reason ${e.reason}"
                 }
-                why + (e.description?.let { d -> ": $d" } ?: "")
+                why + (e.description?.let { d -> ": $d" } ?: "") +
+                    (if (e.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) backtrace(e)?.let { "\n$it" } ?: "" else "")
             }
         }.getOrNull() else null
         val lines = runCatching { logFile(context).readLines() }.getOrDefault(emptyList())
