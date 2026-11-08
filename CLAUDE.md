@@ -28,6 +28,8 @@
    versionCode = `1000 + run`, versionName = `1.6.0-dev.<run>` (`android/app/build.gradle.kts`).
   설정 화면에는 `1.6.0 · build N`으로 보인다. `1.6.0`은 원본 기반 버전 그대로 두기로 결정(2026-11-08) — 바꾸지 않는다.
 3. 폰의 앱이 Home 진입 시 새 빌드를 감지해 업데이트 창을 띄운다 (`UpdatePrompt.kt`, `AppUpdater.kt`).
+- 의존성: `settings.gradle.kts`가 Google의 Maven Central 미러를 Central보다 먼저 쓴다. Central은 Kotlin 컴파일러 jar를 GitHub
+  릴리스 다운로드로 넘기는데, 그게 504를 내던 2026-11-08 저녁 내내 CI가 실패했다. sherpa AAR도 `gh release download`(토큰)로 받는다.
 - 상태 확인: `scripts/ci-wait.sh` (커밋 SHA의 CI를 기다려 결과·APK 링크·실패 로그 출력).
 - 서명: 디버그 빌드는 커밋된 고정 키 `android/app/debug.keystore`(pw `android`)로 서명 → 덮어 설치 가능.
   저장소가 비공개라 키도 비공개. 키를 바꾸면 폰에서 한 번 삭제 후 재설치해야 한다.
