@@ -31,6 +31,12 @@ class OpenWisprAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "OpenWisprA11y"
+        private const val DIAG_PREFS = "insert_diag"
+        private const val KEY_LAST_FALLBACK = "last_fallback"
+
+        /** "MM-dd HH:mm · why" for the last dictation that ended on the clipboard, or null. */
+        fun lastFallback(context: Context): String? =
+            context.getSharedPreferences(DIAG_PREFS, Context.MODE_PRIVATE).getString(KEY_LAST_FALLBACK, null)
 
         @Volatile
         private var instance: OpenWisprAccessibilityService? = null
@@ -233,6 +239,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         // clipboard, so a successful dictation no longer clobbers what the user had copied.
         // The clipboard is only used as a fallback (see attemptInsert / the give-up branch).
         pendingText = text
+        lastAttempt = null
         main.removeCallbacksAndMessages(null)
         // Backstop retries in case the focus event doesn't arrive.
         for (delay in retryDelays) main.postDelayed({ attemptInsert() }, delay)
@@ -242,6 +249,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             if (t != null) {
                 pendingText = null
                 setClipboard(t)
+                recordFallback(lastAttempt ?: "no editable field found")
                 // Say what happened. Reaching here means accessibility is running and we still
                 // couldn't find an editable node to write into — which is the normal outcome in
                 // apps that don't expose their composer (#78), not something the user did.
@@ -262,12 +270,16 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     }
 
     /** Try once to insert into the host app's focused editable field. */
+    /** What the last insert attempt ran into; shown in Settings when the clipboard fallback fires. */
+    @Volatile private var lastAttempt: String? = null
+
     private fun attemptInsert() {
         val text = pendingText ?: return
         var refocus = false
         val node = findHostFocusedEditable()
             ?: rememberedEditable()?.also { refocus = true }
-            ?: return
+            ?: run { lastAttempt = "no editable field found"; return }
+        val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
         var viaPaste = false
         val ok = try {
             if (refocus) {
@@ -280,13 +292,18 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                 node.refresh()
             }
             // Prefer a clipboard-free splice at the cursor; fall back to paste only when
-            // we can't determine the cursor (e.g. some WebView fields).
-            insertAtCursor(node, text) || run { viaPaste = true; pasteViaClipboard(node, text) }
+            // we can't determine the cursor (e.g. some WebView fields). Last resort, which used to end in the clipboard: append at the end of the field.
+            // Web fields (a browser's search box) often report neither a cursor nor a usable
+            // paste, but do take SET_TEXT, and the end is where the cursor almost always is.
+            insertAtCursor(node, text) ||
+                run { viaPaste = true; pasteViaClipboard(node, text) } ||
+                run { viaPaste = false; appendAtEnd(node, text) }
         } catch (e: Exception) {
             Log.e(TAG, "insert action failed", e); false
         } finally {
             @Suppress("DEPRECATION") node.recycle()
         }
+        if (!ok) lastAttempt = "field $where refused set-text, paste and append"
         if (ok) {
             // Worth distinguishing: the paste path leaves the dictation on the clipboard,
             // overwriting whatever the user had copied, and on Android 13+ the system shows
@@ -316,8 +333,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         // An empty field can report its placeholder ("Ask Gemini") as its text, with no cursor.
         // Read that as non-empty and every first dictation into it took the clipboard paste
         // path (seen in the Gemini app). The hint is not content: treat the field as empty.
-        val showingHint = Build.VERSION.SDK_INT >= 26 && node.isShowingHintText
-        val current = if (showingHint) "" else node.text?.toString() ?: ""
+        val current = currentText(node)
         val selA = node.textSelectionStart
         val selB = node.textSelectionEnd
         val (start, end) = when {
@@ -338,6 +354,49 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         }
         node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selArgs)
         return true
+    }
+
+    /**
+     * The field's real content. An empty field can report its placeholder as its text: native
+     * fields flag that (isShowingHintText; seen in Gemini), web fields often don't and just
+     * repeat the placeholder ("검색어를 입력해 주세요." in Naver's search box), so text equal to
+     * the hint counts as empty too.
+     */
+    private fun currentText(node: AccessibilityNodeInfo): String {
+        val text = node.text?.toString() ?: return ""
+        if (Build.VERSION.SDK_INT >= 26) {
+            if (node.isShowingHintText) return ""
+            val hint = node.hintText?.toString()
+            if (!hint.isNullOrEmpty() && text == hint) return ""
+        }
+        return text
+    }
+
+    /** Last resort: SET_TEXT with the dictation appended to whatever the field holds. */
+    private fun appendAtEnd(node: AccessibilityNodeInfo, insert: String): Boolean {
+        node.refresh()
+        val current = currentText(node)
+        val sep = if (current.isNotEmpty() && !current.endsWith(" ") && !current.endsWith("\n")) " " else ""
+        val newText = current + sep + insert
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+        }
+        if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return false
+        val sel = Bundle().apply {
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, newText.length)
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, newText.length)
+        }
+        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, sel)
+        return true
+    }
+
+    /** Remember why the last dictation ended on the clipboard, for Settings → Reliability. */
+    private fun recordFallback(reason: String) {
+        val stamp = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
+        getSharedPreferences(DIAG_PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_LAST_FALLBACK, "$stamp · $reason").apply()
+        Log.w(TAG, "clipboard fallback: $reason")
+        lastAttempt = null
     }
 
     /** Fallback insert: stage on the clipboard and paste. Honors cursor position, but the
@@ -370,6 +429,18 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         if (focused != null && focused.isEditable) return focused
         @Suppress("DEPRECATION") focused?.recycle()
+        // The "active" window isn't always the one holding input focus (a browser's toolbar or
+        // an in-app overlay can be active while the page's field has focus). Same scan as
+        // evaluateFieldFocus: any non-IME window of another app with a focused editable.
+        val wins = try { windows } catch (_: Exception) { null } ?: return null
+        for (w in wins) {
+            if (w.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) continue
+            val r = w.root ?: continue
+            if (r.packageName == packageName) continue
+            val f = r.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: continue
+            if (f.isEditable) return f
+            @Suppress("DEPRECATION") f.recycle()
+        }
         return null
     }
 

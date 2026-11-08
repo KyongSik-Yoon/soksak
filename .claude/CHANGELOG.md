@@ -3,6 +3,13 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — 브라우저 검색창(네이버)에서 클립보드로만 복사됨
+- 증상: m.naver.com 검색창(웹 입력) 활성 상태에서 받아쓰기 → 버블 "Copied"(give-up 분기).
+- 추정: 웹 입력은 placeholder를 text로 내고 isShowingHintText를 안 세움 → 비어있지 않은 필드+커서 불명 → paste 경로 → paste 실패 → 재시도 끝 클립보드.
+- 수정: text == hintText면 빈 칸으로 취급(`currentText`), paste도 실패하면 SET_TEXT로 끝에 덧붙이기(`appendAtEnd`),
+  포커스된 입력창을 active window뿐 아니라 모든 창에서 찾기. 그래도 클립보드로 가면 이유를 Settings → Reliability
+  "Last clipboard fallback"에 남긴다(`recordFallback`).
+
 ## 2026-11-08 — 모델 벤치마크, Moonshine "audiotext" 대응, 버블 다시 커지기
 - 벤치(FLEURS ko 40문장): Turbo 3.3% CER, Moonshine Base 5.0%, Small ACFT 5.7%, SenseVoice int8 7.1%, fp32 7.3%, Moonshine tiny 7.7%.
   속도는 Moonshine Base가 Turbo의 ~12배. SenseVoice fp32는 이득 없어 제거(받아둔 파일은 RETIRED_DIRS로 정리).

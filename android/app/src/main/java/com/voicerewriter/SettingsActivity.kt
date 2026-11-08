@@ -557,6 +557,12 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             // ---------------- RELIABILITY ----------------
             Section("Reliability") {
                 Card {
+                    // Why the last dictation went to the clipboard instead of the field, so a
+                    // screenshot of Settings is enough to diagnose it.
+                    OpenWisprAccessibilityService.lastFallback(context)?.let { last ->
+                        NavRow("Last clipboard fallback", last) {}
+                        Divider()
+                    }
                     NavRow("Auto-start helper", "For Samsung, Xiaomi, OnePlus, Oppo") {
                         val intent = SetupUtils.oemAutoStartIntents().firstOrNull { it.resolveActivity(context.packageManager) != null }
                             ?: SetupUtils.appInfoIntent(context)
