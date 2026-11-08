@@ -3,12 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
-## 2026-11-08 — Whisper GPU 가속(Vulkan) 옵션
-- 사용자: Turbo 품질이 제일 좋지만 15초 녹음에 10초. q4_0 이하 양자화는 품질 손해 → GPU로 시도하기로.
-- 설정 Voice → "GPU acceleration (experimental)", 기본 꺼짐. 켜면 Whisper 모델이 `libwhisper_gpu.so`(whisper.cpp 1.8.7 + Vulkan)로 돈다.
-  장치명 표시("Using …"), 실패 시 CPU 폴백, 크래시 후 자동 꺼짐(`GpuGuard`). Moonshine/SenseVoice는 CPU 그대로.
-- Compare: GPU가 켜져 있으면 Whisper 모델을 CPU/GPU로 각각 실행, 로드 시간 별도 표시.
-- CI 실패 2회: API-24 libvulkan 스텁 링크 오류 → API-33 스텁 / shader 생성기 fork ENOMEM → vfork 패치.
+## 2026-11-08 — GPU(Vulkan) 가속 시도 후 제거
+- build-30에서 whisper.cpp 1.8.7 + ggml Vulkan을 별도 `libwhisper_gpu.so`로 넣고 설정 토글로 제공했다.
+- 사용자 폰에서 "엄청나게 느리고 폰이 죽으려 함" → 커밋 8c79ef3을 통째로 revert. CI도 ~4.5분으로 복귀.
+- 참고(다시 시도할 일은 없지만): NDK API-24 libvulkan 스텁에 1.1+ 함수 없음, Gradle 안에서 shader 생성기 fork ENOMEM(vfork 패치 필요).
 
 ## 2026-11-08 — Moonshine 긴 음성 빈 결과 수정 (AAR 2.0.1)
 - 폰 Compare에서 17초 녹음이 Moonshine Korean만 `(empty)`(0.6초)로 나옴.

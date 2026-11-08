@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.whispercpp.whisper.WhisperContext
 import com.whispercpp.whisper.WhisperCpuConfig
-import com.whispercpp.whisper.WhisperGpu
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,7 +20,7 @@ object LocalWhisperStt {
 
     private val loadLock = Mutex()
     @Volatile private var ctx: WhisperContext? = null
-    @Volatile private var loadedKey: String? = null
+    @Volatile private var loadedId: String? = null
 
     /**
      * Transcribe [samples] (16 kHz mono, normalized -1..1). Suspends on heavy CPU work.
@@ -34,7 +33,16 @@ object LocalWhisperStt {
         }
         val seconds = samples.size / AudioRecorder.SAMPLE_RATE.toFloat()
         val t0 = System.nanoTime()
-        val whisper = loadContext(context, id, wantGpu(context, settings))
+        val whisper = loadLock.withLock {
+            if (ctx == null || loadedId != id) {
+                ctx?.let { runCatching { it.release() } }
+                ctx = withContext(Dispatchers.IO) {
+                    WhisperContext.createContextFromFile(WhisperModelManager.modelFile(context, id).absolutePath)
+                }
+                loadedId = id
+            }
+            ctx!!
+        }
         val tLoaded = System.nanoTime()
         // transcribeData runs on whisper's own single-thread dispatcher internally.
         val lang = DictationLanguage.normalize(settings.sttLanguage)
@@ -46,7 +54,7 @@ object LocalWhisperStt {
         // (~+344ms on a 9s clip, measured). English keeps greedy + single-segment.
         val codeSwitched = !DictationLanguage.isEnglish(lang)
         val beamSize = if (codeSwitched) 5 else 1
-        val decode: suspend () -> String = { whisper.transcribeData(
+        val raw = whisper.transcribeData(
             samples,
             printTimestamp = false,
             prompt = prompt,
@@ -55,16 +63,13 @@ object LocalWhisperStt {
             singleSegment = !codeSwitched,
             // ACFT weights tolerate a context sized to the clip; 128 keeps a small margin.
             audioCtxFloor = if (WhisperModelManager.model(id).acft) 128 else 768,
-        ) }
-        val raw = if (whisper.gpu) GpuGuard.run(context, decode) else decode()
+        )
         val tDone = System.nanoTime()
-        lastLoadMs = (tLoaded - t0) / 1_000_000
-        lastInferMs = (tDone - tLoaded) / 1_000_000
         Log.i(
             "LocalWhisperStt",
             "model=$id audio=${"%.1f".format(seconds)}s " +
                 "load=${(tLoaded - t0) / 1_000_000}ms infer=${(tDone - tLoaded) / 1_000_000}ms " +
-                "threads=${WhisperCpuConfig.preferredThreadCount} backend=$lastBackend",
+                "threads=${WhisperCpuConfig.preferredThreadCount}",
         )
         return cleanTranscript(raw)
     }
@@ -72,77 +77,22 @@ object LocalWhisperStt {
     /**
      * Preload the model context ahead of the first dictation (e.g. on service start) so
      * the first transcription doesn't pay the createContextFromFile cost. Best-effort:
-     * returns quietly if the model isn't downloaded. Reuses the same cached context
+     * returns quietly if the model isn't downloaded. Reuses the same cached ctx/loadedId
      * as [transcribe], so a warmed context is used directly by the next call.
      */
     suspend fun warm(context: Context, modelId: String) {
         val id = modelId.ifBlank { WhisperModelManager.DEFAULT_MODEL }
         if (!WhisperModelManager.isReady(context, id)) return
-        val settings = SettingsRepository(context.applicationContext).get()
-        val t0 = System.nanoTime()
-        loadContext(context, id, wantGpu(context, settings))
-        Log.i("LocalWhisperStt", "warm model=$id backend=$lastBackend load=${(System.nanoTime() - t0) / 1_000_000}ms")
-    }
-
-    /** Timings of the last [transcribe]: loading the model (0 when cached) and the decode itself. */
-    @Volatile var lastLoadMs: Long = 0
-        private set
-    @Volatile var lastInferMs: Long = 0
-        private set
-
-    /** What the last loaded context runs on, for logs and Compare ("GPU · Adreno 750", "CPU"). */
-    @Volatile var lastBackend: String = "CPU"
-        private set
-
-    /**
-     * GPU only when asked for, built in, and the last GPU call didn't take the process down.
-     * After such a crash the setting is switched off for good (the user can turn it back on).
-     */
-    private suspend fun wantGpu(context: Context, settings: Settings): Boolean {
-        if (!settings.whisperGpu) return false
-        if (GpuGuard.consumeCrash(context)) {
-            Log.w("LocalWhisperStt", "previous GPU run crashed; GPU turned off")
-            val repo = SettingsRepository(context.applicationContext)
-            repo.save(repo.get().copy(whisperGpu = false))
-            return false
-        }
-        return WhisperGpu.available
-    }
-
-    /**
-     * The cached context for ([id], [gpu]), loading it if needed. A GPU context that fails to
-     * load (no Vulkan device, out of GPU memory) falls back to the CPU build for this model.
-     */
-    private suspend fun loadContext(context: Context, id: String, gpu: Boolean): WhisperContext = loadLock.withLock {
-        val key = "$id|$gpu"
-        ctx?.let { if (loadedKey == key) return@withLock it }
-        ctx?.let { runCatching { it.release() } }
-        ctx = null
-        val path = WhisperModelManager.modelFile(context, id).absolutePath
-        val loaded = withContext(Dispatchers.IO) {
-            if (gpu) {
-                try {
-                    GpuGuard.run(context) {
-                        // Without a Vulkan device the GPU build quietly runs whisper on its own CPU
-                        // backend; say so rather than labelling that "GPU".
-                        val device = WhisperGpu.deviceName
-                        WhisperContext.createGpuContextFromFile(path).also {
-                            lastBackend = device?.let { n -> "GPU · $n" } ?: "CPU (no Vulkan GPU)"
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w("LocalWhisperStt", "GPU context failed, using CPU", e)
-                    lastBackend = "CPU (GPU failed: ${e.message})"
-                    WhisperContext.createContextFromFile(path)
-                }
-            } else {
-                lastBackend = "CPU"
-                WhisperContext.createContextFromFile(path)
+        loadLock.withLock {
+            if (ctx != null && loadedId == id) return  // already warm
+            val t0 = System.nanoTime()
+            ctx?.let { runCatching { it.release() } }
+            ctx = withContext(Dispatchers.IO) {
+                WhisperContext.createContextFromFile(WhisperModelManager.modelFile(context, id).absolutePath)
             }
+            loadedId = id
+            Log.i("LocalWhisperStt", "warm model=$id load=${(System.nanoTime() - t0) / 1_000_000}ms")
         }
-        ctx = loaded
-        loadedKey = key
-        loaded
     }
 
     /**

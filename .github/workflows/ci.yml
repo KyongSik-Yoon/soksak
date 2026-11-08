@@ -49,25 +49,6 @@ jobs:
           curl -fSL --retry 3 -o app/libs/sherpa-onnx-static-link-onnxruntime-2.0.1.aar \
             https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-static-link-onnxruntime-2.0.1.aar
 
-      # libwhisper_gpu.so (Settings → GPU acceleration): upstream whisper.cpp with ggml's Vulkan
-      # backend. The NDK has Vulkan's C headers but not vulkan.hpp, no SPIRV headers, and a 2022
-      # glslc, so those come from Khronos/Ubuntu. Pinned; bump together.
-      - name: Fetch GPU (Vulkan) build deps
-        run: |
-          set -e
-          D="$RUNNER_TEMP/gpu-deps"; mkdir -p "$D"
-          sudo apt-get update -qq && sudo apt-get install -y -qq glslc ninja-build >/dev/null
-          git clone -q --depth 1 --branch v1.8.7 https://github.com/ggml-org/whisper.cpp "$D/whisper.cpp"
-          python3 scripts/patch-vk-shaders-gen.py "$D/whisper.cpp/ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp"
-          git clone -q --depth 1 --branch vulkan-sdk-1.4.350.1 https://github.com/KhronosGroup/Vulkan-Headers "$D/Vulkan-Headers"
-          git clone -q --depth 1 --branch vulkan-sdk-1.4.350.1 https://github.com/KhronosGroup/SPIRV-Headers "$D/spirv-src"
-          cmake -S "$D/spirv-src" -B "$D/spirv-build" -DCMAKE_INSTALL_PREFIX="$D/spirv" -DSPIRV_HEADERS_ENABLE_TESTS=OFF >/dev/null
-          cmake --install "$D/spirv-build" >/dev/null
-          ls "$D/spirv/share/cmake/SPIRV-Headers" "$D/spirv/include/spirv/unified1/spirv.hpp"
-          glslc --version | head -1
-          echo "OPENWISPR_GPU_DEPS=$D" >> "$GITHUB_ENV"
-          echo "OPENWISPR_GLSLC=$(command -v glslc)" >> "$GITHUB_ENV"
-
       - name: Assemble debug + run unit tests
         working-directory: android
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon
