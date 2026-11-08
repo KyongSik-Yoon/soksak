@@ -15,8 +15,8 @@
   플로팅 버튼 사용성을 **로컬 Whisper**로 구현한다. 앱스토어 배포 없음, 개인용.
 - 원본: RohitAg13/openWispr (MIT). 포크 네트워크에서 분리(detach)했고 비공개. 원본 업데이트는 `upstream` remote로 수동 반영.
 - 확정된 결정
-  - 음성 인식: Whisper(whisper.cpp, `android/lib`) + **Moonshine Korean, SenseVoice Small**(sherpa-onnx, 2026-11-08 사용자 요청으로
-    추가 — 발열·반응속도). Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
+  - 음성 인식: Whisper(whisper.cpp, `android/lib`) + **SenseVoice Small**(sherpa-onnx). Moonshine(tiny→Base Korean)은
+    2026-11-08 추가했다가 2026-11-09 제거 — 라우팅 벤치에서 소음에 매우 약하고(0dB 97% CER) 다른 모델 대비 장점이 없었다. Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
   - 기본 언어 한국어. 한국어+영어 개발 용어가 섞인 발화가 주 사용 사례.
   - Turbo q5_0은 느리고 이득이 없어 제거, q4_0만 유지.
   - GPU 가속은 Vulkan, OpenCL 모두 CPU보다 느려 제거(아래 GPU 절). 다시 시도하지 않는다.
@@ -37,23 +37,18 @@
 - 앱 ID: 디버그는 `com.voicerewriter.dev` (Play 원본과 공존).
 
 ## 모델
-- 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `moonshine-base-ko`, `sensevoice-small`(int8),
+- 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `sensevoice-small`(int8),
   `turbo-acft-q4`(Large v3 Turbo ACFT q4_0).
+- 라우팅 벤치(`route-bench.yml`, 깨끗함/카페소음 10dB/0dB/아주 작은 소리, CER): Turbo 12.0/15.2/63.2/12.7%,
+  Small ACFT 13.1/19.5/56.4/16.3%(Turbo의 1/5 시간), SenseVoice 20.6/27.8/51.7/21.4%(가장 빠름), Moonshine Base 21.4/40.9/97.5/38.7%.
+  소리 크기·SNR 기반 자동 선택은 아직 검증 안 됨(첫 규칙은 SNR 기준값이 틀려 발동 안 함). 사용자 경험: 속삭임은 Whisper(Small ACFT)가 잘 들음.
 - 벤치마크: `.github/workflows/bench-models.yml` + `scripts/bench_models.py` — FLEURS ko_kr test 40문장(539초)을 앱과 같은 설정으로.
   2026-11-08 결과(CER / x86 4스레드 RTF): Turbo 3.3%/2.43, Moonshine Base 5.0%/0.20, Small ACFT 5.7%/0.53, SenseVoice int8 7.1%/0.14,
   SenseVoice fp32 7.3%/0.17(→ 제거), Moonshine tiny 7.7%/0.13. 낭독체라 개발 용어 섞인 발화는 반영 못 함. 속도 비율만 폰에 옮겨진다. `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
 - sherpa 모델(`LocalSherpaStt.kt`): sherpa-onnx 공개 Release `asr-models`의 tar.bz2를 받아 `models/<bundle>/`에 필요한 파일만 풀고
   압축본은 지운다(commons-compress). AAR `sherpa-onnx-static-link-onnxruntime-2.0.1`은 CI가 `app/libs`에 받는다(gitignore).
-  Moonshine은 `encoder_model.ort` + `decoder_model_merged.ort`(v2, `mergedDecoder`), 출력의 `▁` 제거.
-  **Moonshine Base Korean**(61M, 2026-11-08 tiny-ko 27M을 대체)은 sherpa 공개 Release에 없어 `.github/workflows/package-moonshine.yml`이
-  Moonshine CDN의 양자화 ORT + tokenizer.json으로 만든 tokens.txt를 묶어 이 저장소 Release `model-moonshine-base-ko`에 올린다
-  (토큰 다운로드, `releaseTag`). tokens.txt 생성법은 tiny-ko의 sherpa tokens.txt를 재현해 검증한다. 라이선스: Moonshine Community(비상업).
-  SenseVoice 파일은 모델별 `onnxFile`(기본 int8 `model.int8.onnx`).
-  - Moonshine Base Korean은 짧은 클립(~1–3초)의 약 1/4에서 "audiotext"라는 영어 자리표시자를 낸다(tiny는 안 그럼; 트림·패딩·게인·디더로 못 막음).
-    `OnDeviceStt.isMoonshineMiss`가 감지해 SenseVoice → Small ACFT → Turbo 중 받아둔 모델로 다시 돌린다(`lastFallback`, Compare에 "→ 모델" 표시).
   SenseVoice는 **2024-07-17** int8을 쓴다 — 2025-09-09판은 광둥어 튜닝이라 한국어 테스트 음성을 중국어 섞인 결과로 냈다.
-  두 엔진 모두 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
-  - 1.x AAR은 Moonshine v2가 ~7초 넘는 입력에서 빈 결과를 낸다(encoder_attention_mask 버그, sherpa-onnx #3976, 2.0.0에서 수정). AAR을 2.0 미만으로 내리지 말 것.
+  SenseVoice는 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
 - ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후
@@ -64,7 +59,7 @@
 - Vulkan(build-30): 사용자 폰(스냅드래곤)에서 CPU보다 훨씬 느리고 발열 → 제거.
 - OpenCL + Adreno 커널(build-35~39): 크래시 2건(토큰 임베딩 51866행 업로드, 지연 초기화 전 get_alignment)과 빈 결과(flash attention)를
   고쳐 동작까지 갔으나 CPU보다 느림 → 제거. 경위와 패치는 `.claude/CHANGELOG.md`와 커밋 e4c51c4~b71a8b8에 있다.
-- 결론: 이 앱의 Whisper는 CPU만. 속도는 모델 선택(Moonshine Base Korean, SenseVoice)으로 해결한다.
+- 결론: 이 앱의 Whisper는 CPU만. 속도는 모델 선택(Small ACFT, SenseVoice)으로 해결한다.
 
 ## 인식 품질 관련 장치
 - 비영어 디코딩: beam 5 + 자연 분할 (`LocalWhisperStt.kt`).
@@ -80,7 +75,7 @@
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.
-  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA M SV T)를 표시. 느린 끌기는 그대로 위치 이동.
+  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA SV T)를 표시. 느린 끌기는 그대로 위치 이동.
 - 버블 축소: 3.5초 무활동이면 작아지고(`scheduleShrink`), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, Whisper 모델만, 헤드리스 경로만):

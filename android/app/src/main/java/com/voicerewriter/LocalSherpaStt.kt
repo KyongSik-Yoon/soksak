@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
-import com.k2fsa.sherpa.onnx.OfflineMoonshineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineSenseVoiceModelConfig
@@ -19,10 +18,9 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 
 /**
- * On-device STT through sherpa-onnx for the non-Whisper engines: Moonshine (Korean "Flavors of
- * Moonshine" tiny, v2 merged decoder) and SenseVoice-Small. Both are much lighter than Whisper
- * on a phone — Moonshine-ko decodes ~7s of speech in ~0.4s on two desktop threads — at the
- * cost of no prompt/glossary biasing (the dictionary still applies after decoding).
+ * On-device STT through sherpa-onnx for SenseVoice-Small: much lighter than Whisper on a phone,
+ * at the cost of no prompt/glossary biasing (the dictionary still applies after decoding).
+ * (Moonshine Korean ran here too until 2026-11-09; removed for being weak in noise.)
  *
  * Models ship from sherpa-onnx's public `asr-models` release as tar.bz2 bundles: downloaded
  * with [ModelDownloader] (resume, size check), unpacked into `models/<bundle>/`, archive deleted.
@@ -33,7 +31,6 @@ object LocalSherpaStt {
 
     /** Files a bundle must contain to be usable. */
     fun requiredFiles(m: WhisperModelManager.WhisperModel): List<String> = when (m.engine) {
-        SpeechEngine.MOONSHINE -> listOf("encoder_model.ort", "decoder_model_merged.ort", "tokens.txt")
         SpeechEngine.SENSE_VOICE -> listOf(m.onnxFile, "tokens.txt")
         SpeechEngine.WHISPER -> emptyList()
     }
@@ -83,14 +80,6 @@ object LocalSherpaStt {
 
     private fun build(dir: File, m: WhisperModelManager.WhisperModel, language: String): OfflineRecognizer {
         val model = when (m.engine) {
-            SpeechEngine.MOONSHINE -> OfflineModelConfig(
-                moonshine = OfflineMoonshineModelConfig(
-                    encoder = File(dir, "encoder_model.ort").absolutePath,
-                    mergedDecoder = File(dir, "decoder_model_merged.ort").absolutePath,
-                ),
-                tokens = File(dir, "tokens.txt").absolutePath,
-                numThreads = WhisperCpuConfig.preferredThreadCount,
-            )
             SpeechEngine.SENSE_VOICE -> OfflineModelConfig(
                 senseVoice = OfflineSenseVoiceModelConfig(
                     model = File(dir, m.onnxFile).absolutePath,
@@ -145,8 +134,8 @@ object LocalSherpaStt {
     }
 
     /**
-     * Moonshine-ko leaves SentencePiece word markers ("▁조국이 …") in its output; SenseVoice can
-     * leave a stray language/emotion tag. Neither belongs in a text field.
+     * SentencePiece word markers ("▁조국이 …") and SenseVoice's stray language/emotion tags
+     * don't belong in a text field.
      */
     internal fun clean(raw: String): String =
         raw.replace('▁', ' ')

@@ -256,6 +256,9 @@ object ModelDownloader {
 
     /** Parakeet's sherpa-onnx bundle directory. */
     private val RETIRED_DIRS = listOf("parakeet", "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27",
+        // Moonshine Base Korean: no advantage over SenseVoice / Small ACFT in the routing
+        // benchmark, and very weak in noise (97% CER at 0 dB SNR). Removed 2026-11-09.
+        "sherpa-onnx-moonshine-base-ko-quantized",
         // SenseVoice full precision: benchmarked no better than int8 on Korean (7.3% vs 7.1% CER), ~900MB.
         "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17")
 

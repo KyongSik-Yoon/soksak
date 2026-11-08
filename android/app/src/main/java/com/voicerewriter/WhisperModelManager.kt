@@ -53,7 +53,6 @@ object WhisperModelManager {
 
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
-    const val MOONSHINE_KO_MODEL = "moonshine-base-ko"
     const val SENSE_VOICE_MODEL = "sensevoice-small"
     private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
 
@@ -76,20 +75,6 @@ object WhisperModelManager {
         ),
         // Non-Whisper engines via sherpa-onnx, much lighter on a phone (heat, latency). Bundles from
         // sherpa-onnx's public asr-models release; fileName is the unpacked directory.
-        // Moonshine Base, Korean fine-tune (UsefulSensors/moonshine-base-ko, 61M params; Moonshine
-        // Community License, non-commercial — fine for this personal build). Replaces the tiny
-        // Korean model (27M). sherpa-onnx doesn't publish it, so package-moonshine.yml repackages
-        // Moonshine's own quantized ORT files as a sherpa bundle on this repo's releases.
-        WhisperModel(
-            id = MOONSHINE_KO_MODEL,
-            label = "Moonshine Base Korean",
-            fileName = "sherpa-onnx-moonshine-base-ko-quantized",
-            url = "",
-            sizeLabel = "~100MB · Korean only · fast",
-            engine = SpeechEngine.MOONSHINE,
-            releaseTag = "model-moonshine-base-ko",
-            badge = "M",
-        ),
         // SenseVoice-Small int8 (zh/en/ja/ko/yue). The 2024-07-17 export: the 2025-09-09 one is a
         // Cantonese-tuned refresh that turned Korean test audio into mixed Chinese in testing.
         WhisperModel(
@@ -250,4 +235,4 @@ object WhisperModelManager {
 }
 
 /** The runtime a speech model needs. */
-enum class SpeechEngine { WHISPER, MOONSHINE, SENSE_VOICE }
+enum class SpeechEngine { WHISPER, SENSE_VOICE }

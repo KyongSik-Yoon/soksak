@@ -5,7 +5,7 @@ import org.junit.Test
 
 class SherpaCleanTest {
     @Test
-    fun moonshineWordMarkersBecomeSpaces() {
+    fun wordMarkersBecomeSpaces() {
         assertEquals("조국이 당신을 위해", LocalSherpaStt.clean("▁조국이 당신을▁위해"))
     }
 

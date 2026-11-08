@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — Moonshine Base Korean 제거
+- 라우팅 벤치 결과를 보고 사용자 결정: "장점이 없다". 모델·MOONSHINE 엔진 코드·audiotext 대체 로직·package-moonshine.yml 제거,
+  받아둔 파일은 RETIRED_DIRS로 정리. (Release `model-moonshine-base-ko`는 저장소에 남아 있음, 벤치 스크립트가 참조.)
+
 ## 2026-11-09 — 설정 화면 한국어
 - 사용자: Shizuku 무확인 업데이트로 build-58 잘 받음. 다음: 설정 화면 한국어 지원.
 - `I18n.kt`(영어 키 → 한국어 맵, `tr`/`trf`), SettingsActivity의 문자열 ~110개 감쌈, General → Language(휴대폰/한국어/English).

@@ -23,7 +23,7 @@ import kotlin.math.sqrt
  * pause-y takes (whole-clip decoding dropped entire sentences past ~30s: 45% vs 14% CER on real
  * speech), and ~3s instead of ~20s of waiting after stop.
  *
- * Only for Whisper models; Moonshine and SenseVoice decode a whole take in about a second.
+ * Only for Whisper models; SenseVoice decodes a whole take in about a second.
  * Saved recordings (Retry, Compare) still decode whole.
  */
 class StreamingWhisper(
