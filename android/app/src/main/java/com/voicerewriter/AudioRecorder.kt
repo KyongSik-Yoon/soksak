@@ -57,7 +57,7 @@ class AudioRecorder(private val context: Context) {
          * reason auto-stop felt broken on a phone. Tap is now the long-form gesture, so this
          * leans patient; hold-to-talk covers the case where you want to end it instantly.
          */
-        private const val HANGOVER_SAMPLES = (1.6 * SAMPLE_RATE).toInt()
+        private const val DEFAULT_HANGOVER_S = 1.6
 
         /**
          * Speech that must accumulate before auto-stop can arm at all. Without this, one
@@ -86,6 +86,7 @@ class AudioRecorder(private val context: Context) {
 
     // VAD state (only used when a Silero model is available + enabled)
     private var vad: SileroVad? = null
+    private var hangoverSamples = (DEFAULT_HANGOVER_S * SAMPLE_RATE).toInt()
     private var totalSamples = 0
     private var speechStarted = false
     private var firstSpeechSample = 0
@@ -122,8 +123,9 @@ class AudioRecorder(private val context: Context) {
      * trimmed from the result.
      */
     @SuppressLint("MissingPermission")
-    fun start(vadAutoStop: Boolean = false, onAutoStop: (() -> Unit)? = null) {
+    fun start(vadAutoStop: Boolean = false, hangoverSeconds: Double = DEFAULT_HANGOVER_S, onAutoStop: (() -> Unit)? = null) {
         if (recording) return
+        hangoverSamples = (hangoverSeconds.coerceIn(0.5, 10.0) * SAMPLE_RATE).toInt()
         chunks.clear()
         synchronized(pcmLock) { pcmLen = 0 }
         lastPeak = 0
@@ -197,7 +199,7 @@ class AudioRecorder(private val context: Context) {
         // enough to arm the auto-stop. Trimming still keys off speechStarted, so a short blip
         // that never arms this can't lose the audio around it either.
         if (speechSamples >= MIN_SPEECH_SAMPLES && !autoStopFired && prob < SPEECH_END_PROB) {
-            if (endSample - lastSpeechSample >= HANGOVER_SAMPLES) {
+            if (endSample - lastSpeechSample >= hangoverSamples) {
                 autoStopFired = true
                 onAutoStop?.let { cb -> mainHandler.post { cb() } }
             }

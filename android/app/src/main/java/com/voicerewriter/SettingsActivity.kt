@@ -116,6 +116,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var sttModel by remember { mutableStateOf("") }
     var sttLanguage by remember { mutableStateOf(DictationLanguage.DEFAULT) }
     var vadAutoStop by remember { mutableStateOf(true) }
+    var autoStopSeconds by remember { mutableStateOf(AUTO_STOP_CHOICES.first()) }
     var headlessRecording by remember { mutableStateOf(true) }
     var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
     var pipelinedWhisper by remember { mutableStateOf(true) }
@@ -162,7 +163,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
         notifOn = SetupUtils.notificationsGranted(context)
@@ -213,7 +214,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -471,6 +472,15 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     ) { pipelinedWhisper = it; persist() }
                     Divider()
                     ToggleRow("Auto-stop on pause", "End recording when you stop talking", vadAutoStop) { vadAutoStop = it; persist() }
+                    if (vadAutoStop) {
+                        Divider()
+                        // Tap cycles 1.6s → 3s → 5s.
+                        NavRow("Auto-stop wait", "Stops after ${"%.1f".format(autoStopSeconds).removeSuffix(".0")}s of silence · tap to change") {
+                            val i = AUTO_STOP_CHOICES.indexOf(autoStopSeconds)
+                            autoStopSeconds = AUTO_STOP_CHOICES[(i + 1).mod(AUTO_STOP_CHOICES.size)]
+                            persist()
+                        }
+                    }
                     Divider()
                     ToggleRow(
                         "Record without the sheet",

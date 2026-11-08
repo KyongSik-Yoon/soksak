@@ -23,6 +23,8 @@ data class Settings(
     val sttLanguage: String = DictationLanguage.DEFAULT,
     // --- Dictation behavior ---
     val vadAutoStop: Boolean = true, // Silero VAD: auto-stop when the speaker pauses
+    /** Silence before auto-stop ends the take: one of [AUTO_STOP_CHOICES]. */
+    val autoStopSeconds: Double = AUTO_STOP_CHOICES.first(),
     /**
      * Record from the bubble's foreground service instead of opening the dictation sheet, so
      * the app being typed into keeps focus and its keyboard. Needs on-device STT and
@@ -75,6 +77,7 @@ class SettingsRepository(private val context: Context) {
         val STT_MODEL = stringPreferencesKey("sttModel")
         val STT_LANGUAGE = stringPreferencesKey("sttLanguage")
         val VAD_AUTO_STOP = booleanPreferencesKey("vadAutoStop")
+        val AUTO_STOP_SECONDS = doublePreferencesKey("autoStopSeconds")
         val HEADLESS_RECORDING = booleanPreferencesKey("headlessRecording")
         val PROMPT_EXAMPLE = stringPreferencesKey("promptExample")
         val PIPELINED_WHISPER = booleanPreferencesKey("pipelinedWhisper")
@@ -104,6 +107,7 @@ class SettingsRepository(private val context: Context) {
             sttModel = p[Keys.STT_MODEL] ?: defaults.sttModel,
             sttLanguage = DictationLanguage.normalize(p[Keys.STT_LANGUAGE] ?: defaults.sttLanguage),
             vadAutoStop = p[Keys.VAD_AUTO_STOP] ?: defaults.vadAutoStop,
+            autoStopSeconds = p[Keys.AUTO_STOP_SECONDS] ?: defaults.autoStopSeconds,
             headlessRecording = p[Keys.HEADLESS_RECORDING] ?: defaults.headlessRecording,
             promptExample = p[Keys.PROMPT_EXAMPLE] ?: defaults.promptExample,
             pipelinedWhisper = p[Keys.PIPELINED_WHISPER] ?: defaults.pipelinedWhisper,
@@ -124,6 +128,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.STT_MODEL] = s.sttModel
             p[Keys.STT_LANGUAGE] = DictationLanguage.normalize(s.sttLanguage)
             p[Keys.VAD_AUTO_STOP] = s.vadAutoStop
+            p[Keys.AUTO_STOP_SECONDS] = s.autoStopSeconds
             p[Keys.HEADLESS_RECORDING] = s.headlessRecording
             p[Keys.PROMPT_EXAMPLE] = s.promptExample
             p[Keys.PIPELINED_WHISPER] = s.pipelinedWhisper
@@ -144,4 +149,10 @@ class SettingsRepository(private val context: Context) {
 }
 
 /** Default style example: Korean dictation with English dev terms kept in Latin script. */
+/**
+ * Auto-stop waits, shortest first. 1.6s was the only option and cut people off while they
+ * thought mid-dictation; longer waits suit long, considered prompts.
+ */
+val AUTO_STOP_CHOICES = listOf(1.6, 3.0, 5.0)
+
 const val DEFAULT_PROMPT_EXAMPLE = "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘."
