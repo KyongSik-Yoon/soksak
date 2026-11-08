@@ -12,6 +12,7 @@ on:
       - ".github/workflows/bench-models.yml"
       - ".github/workflows/chunk-bench.yml"
       - ".github/workflows/route-bench.yml"
+      - ".github/workflows/npu-bench.yml"
   pull_request:
   workflow_dispatch:
 

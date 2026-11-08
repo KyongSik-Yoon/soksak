@@ -1,0 +1,82 @@
+# Would a Qualcomm-NPU model be accurate enough? sherpa-onnx ships NPU (QNN) builds of OpenAI
+# Whisper small/medium; turbo would need our own export. Scores their ONNX exports (same accuracy
+# as on the NPU) against the app's models on the routing-benchmark clips. See scripts/npu_bench_*.py.
+name: Bench NPU candidates
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/npu-bench.yml, scripts/npu_bench_*.py]
+
+permissions:
+  contents: read
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get install -y -qq ffmpeg >/dev/null && pip install -q edge-tts soundfile numpy huggingface_hub
+      - run: python scripts/route_bench_data.py audio
+      - uses: actions/upload-artifact@v4
+        with: { name: audio, path: "audio/*.wav\naudio/clips.json" }
+
+  run:
+    needs: data
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [turbo, turbo-orig, medium, small, small-orig, sensevoice]
+        cond: [clean, babble10, babble0, quiet]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q sherpa-onnx==2.0.1 soundfile numpy huggingface_hub
+      - uses: actions/download-artifact@v4
+        with: { name: audio, path: audio }
+      - name: Build whisper-cli (v1.7.4, as vendored in the app)
+        if: matrix.model == 'small' || matrix.model == 'turbo'
+        run: |
+          git clone -q --depth 1 --branch v1.7.4 https://github.com/ggml-org/whisper.cpp wcpp
+          cmake -S wcpp -B wcpp/build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=ON -DWHISPER_BUILD_TESTS=OFF >/dev/null
+          cmake --build wcpp/build -j4 --target whisper-cli >/dev/null
+      - name: Fetch model
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -e; mkdir -p models; cd models
+          case "${{ matrix.model }}" in
+            sensevoice) b=sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17
+                        gh release download asr-models -R k2-fsa/sherpa-onnx -p "$b.tar.bz2"; tar xjf "$b.tar.bz2" ;;
+            small) curl -fsSL --retry 5 --retry-all-errors -o small_acft_q8_0.bin https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin ;;
+            turbo) gh release download model-acft-large-v3-turbo-q4_0 -R "$GITHUB_REPOSITORY" -p '*.bin' ;;
+            *) case "${{ matrix.model }}" in medium) n=medium ;; small-orig) n=small ;; turbo-orig) n=turbo ;; esac
+               # float32 export (the NPU runs float); GitHub only carries int8 for turbo.
+               python - "$n" <<'PY'
+          import sys
+          from huggingface_hub import snapshot_download
+          n = sys.argv[1]
+          snapshot_download(f"csukuangfj/sherpa-onnx-whisper-{n}", local_dir=f"sherpa-onnx-whisper-{n}",
+              allow_patterns=["*-encoder.onnx", "*-encoder.weights", "*-decoder.onnx", "*-decoder.weights", "*-tokens.txt"])
+          PY
+               ;;
+          esac
+          ls -la . */ 2>/dev/null | head -30
+      - run: python scripts/npu_bench_run.py audio models wcpp/build/bin/whisper-cli ${{ matrix.model }} ${{ matrix.cond }} ${{ matrix.model }}-${{ matrix.cond }}.json
+      - uses: actions/upload-artifact@v4
+        with: { name: "res-${{ matrix.model }}-${{ matrix.cond }}", path: "${{ matrix.model }}-${{ matrix.cond }}.json" }
+
+  report:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: results, pattern: "res-*" }
+      - run: python3 scripts/npu_bench_report.py results
