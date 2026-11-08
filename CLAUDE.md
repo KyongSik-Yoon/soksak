@@ -20,7 +20,8 @@
   - 기본 언어 한국어. 한국어+영어 개발 용어가 섞인 발화가 주 사용 사례.
   - Turbo q5_0은 느리고 이득이 없어 제거, q4_0만 유지.
   - GPU 가속은 Vulkan, OpenCL 모두 CPU보다 느려 제거(아래 GPU 절). 다시 시도하지 않는다.
-  - macOS 코드(`macos/`)는 건드리지 않는다. CI의 macOS 잡이 취소/실패해도 무시.
+  - macOS 코드(`macos/`)는 건드리지 않는다. CI의 macOS 잡은 이 계정에서 macos-14 러너를 못 써서 매번 취소되며
+    알림만 만들어 ci.yml에서 뺐다(2026-11-08). 벤치·모델 패키징 워크플로 변경은 CI를 돌리지 않는다(paths-ignore).
 
 ## 빌드·배포 흐름 (로컬 Android SDK 없음 → CI가 컴파일러)
 1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
