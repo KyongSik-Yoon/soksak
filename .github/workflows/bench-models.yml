@@ -40,9 +40,12 @@ jobs:
         run: |
           set -e
           mkdir -p "$W/models" && cd "$W/models"
-          S=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models
           for b in sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27 sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17 sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17; do
-            curl -fsSL --retry 5 --retry-all-errors -o "$b.tar.bz2" "$S/$b.tar.bz2" && tar xjf "$b.tar.bz2" && rm "$b.tar.bz2"
+            # gh (authenticated) rather than curl: anonymous downloads of the 1GB bundle failed twice.
+            gh release download asr-models -R k2-fsa/sherpa-onnx -p "$b.tar.bz2" --clobber
+            tar xjf "$b.tar.bz2"
+            rm "$b.tar.bz2"
+            test -d "$b"
           done
           gh release download model-moonshine-base-ko -R "$GITHUB_REPOSITORY" -p '*.tar.bz2' && tar xjf sherpa-onnx-moonshine-base-ko-quantized.tar.bz2
           gh release download model-acft-large-v3-turbo-q4_0 -R "$GITHUB_REPOSITORY" -p '*.bin'
