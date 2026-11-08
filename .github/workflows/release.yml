@@ -46,10 +46,17 @@ jobs:
 
       - name: Fetch vendored sherpa-onnx AAR (Moonshine / SenseVoice; gitignored binary)
         working-directory: android
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p app/libs
-          curl -fSL --retry 8 --retry-all-errors --retry-delay 10 -o app/libs/sherpa-onnx-static-link-onnxruntime-2.0.1.aar \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-static-link-onnxruntime-2.0.1.aar
+          # Through the API with the job token first: anonymous release downloads from k2-fsa
+          # returned 504 for a while (2026-11-08); the plain URL stays as a fallback.
+          AAR=sherpa-onnx-static-link-onnxruntime-2.0.1.aar
+          gh release download v2.0.1 -R k2-fsa/sherpa-onnx -p "$AAR" -D app/libs --clobber || \
+            curl -fSL --retry 8 --retry-all-errors --retry-delay 10 -o "app/libs/$AAR" \
+              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$AAR"
+          ls -la app/libs
 
       - name: Build signed release APK + AAB
         working-directory: android
