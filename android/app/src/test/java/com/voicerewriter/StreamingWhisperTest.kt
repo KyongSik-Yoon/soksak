@@ -32,4 +32,22 @@ class StreamingWhisperTest {
         val e = List(100) { it / 100f }
         assertEquals(0.94f, StreamingWhisper.level(e), 1e-6f)
     }
+
+    @Test fun tailDropsTheAutoStopSilence() {
+        // Piece starts at 6s: 2s speech then 3s of auto-stop silence.
+        val e = frames(6.0, 0.1f) + frames(2.0, 0.1f) + frames(3.0, 0.001f)
+        val start = 6 * 16000
+        val end = StreamingWhisper.tailEnd(e, start, e.size * frame, 0.1f)
+        assertEquals(8 * 16000 + (StreamingWhisper.TAIL_MARGIN_S * 16000).toInt(), end)
+    }
+
+    @Test fun tailWithoutVoiceKeepsEverything() {
+        val e = frames(6.0, 0.1f) + frames(2.0, 0.001f)
+        assertEquals(e.size * frame, StreamingWhisper.tailEnd(e, 6 * 16000, e.size * frame, 0.1f))
+    }
+
+    @Test fun tailNeverRunsPastTheRecording() {
+        val e = frames(3.0, 0.1f)
+        assertEquals(e.size * frame, StreamingWhisper.tailEnd(e, 0, e.size * frame, 0.1f))
+    }
 }

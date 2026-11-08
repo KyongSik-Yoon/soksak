@@ -66,6 +66,8 @@
 - 프롬프트 = 단어장(한국어면 `용어:` 접두) + 사용자 "Style example" 문장 (`buildPrompt`, `localizeGlossary`). 단어장 상한 320자.
 - 단어장 별칭: 한글 별칭에 조사/하다 어미가 붙어도 교체하고 어미는 보존 (`textproc/VocabCorrector.kt`의 `particleHit`).
   한글에는 Soundex 가산점을 주지 않는다.
+- 환각 거르기(`textproc/HallucinationFilter.kt`, 모든 Whisper 결과): 거의 빈 클립에서 Whisper가 프롬프트(Style example·단어장)
+  끝을 그대로 내거나 "이 시각 세계였습니다" 같은 방송 상투구를 낸다 → 프롬프트 조각(6자 이상)이면 버리고 상투구 문장은 지운다.
 - 모델 비교: 설정 → Compare models (`CompareActivity.kt`), 저장된 녹음(`PendingAudio`)을 모든 모델로 재실행.
 
 ## 녹음·입력 구조
@@ -83,7 +85,7 @@
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, Whisper 모델만, 헤드리스 경로만):
   녹음 중 0.5초 쉼에서(조각 5초 이상일 때) 잘라 바로 디코드하고, 앞 텍스트 끝 200자를 프롬프트 끝에 붙인다(`buildPrompt`의 previous).
-  멈추면 꼬리만 디코드. 소리 0.3초 미만 조각은 건너뜀. 조각 하나라도 실패하면 전체를 통째로 다시 디코드.
+  멈추면 꼬리만 디코드(자동 중지 무음은 잘라 마지막 소리 뒤 0.4초까지, `tailEnd`). 소리 0.3초 미만 조각은 건너뜀. 조각 하나라도 실패하면 전체를 통째로 다시 디코드.
   근거: `chunk-bench.yml` — 15초 코드스위칭 CER 22.6→23.8%(동급), 30초+ 및 쉼 많은 실음성은 통째 디코드가 문장을 통째로 빠뜨림
   (45→14%), 멈춘 뒤 대기 ~20초→~3초. Retry/Compare는 여전히 통째로. 녹음 원본은 `AudioRecorder.rawCopy`.
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.

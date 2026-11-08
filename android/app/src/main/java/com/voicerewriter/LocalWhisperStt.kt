@@ -2,6 +2,7 @@ package com.voicerewriter
 
 import android.content.Context
 import android.util.Log
+import com.voicerewriter.textproc.HallucinationFilter
 import com.whispercpp.whisper.WhisperContext
 import com.whispercpp.whisper.WhisperCpuConfig
 import kotlinx.coroutines.Dispatchers
@@ -81,7 +82,12 @@ object LocalWhisperStt {
                 "load=${(tLoaded - t0) / 1_000_000}ms infer=${(tDone - tLoaded) / 1_000_000}ms " +
                 "threads=${WhisperCpuConfig.preferredThreadCount}",
         )
-        return cleanTranscript(raw)
+        // Near-empty clips: Whisper echoes its prompt or recites a stock TV/YouTube line.
+        return HallucinationFilter.clean(
+            cleanTranscript(raw),
+            settings.promptExample,
+            biasPrompt?.ifBlank { null }?.let { localizeGlossary(it, lang) },
+        )
     }
 
     /**

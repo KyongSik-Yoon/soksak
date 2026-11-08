@@ -47,6 +47,25 @@ class StreamingWhisper(
             s.pipelinedWhisper &&
                 WhisperModelManager.model(OnDeviceStt.resolveModel(context, s.sttModel)).engine == SpeechEngine.WHISPER
 
+        const val TAIL_MARGIN_S = 0.4
+
+        /**
+         * End sample for the last piece: [TAIL_MARGIN_S] after the last voiced frame at or after
+         * [pieceStart], never past [rawEnd]. Voiced is the same test the pieces use (10% of the
+         * speech level). With no voiced frame, [rawEnd] — the voiced-length check skips it then.
+         */
+        internal fun tailEnd(e: List<Float>, pieceStart: Int, rawEnd: Int, lvl: Float): Int {
+            val thr = maxOf(lvl * 0.1f, 1e-4f)
+            val first = pieceStart / FRAME
+            var last = -1
+            for (i in e.indices.reversed()) {
+                if (i < first) break
+                if (e[i] > thr) { last = i; break }
+            }
+            if (last < 0) return rawEnd
+            return minOf(rawEnd, (last + 1) * FRAME + (TAIL_MARGIN_S * SR).toInt())
+        }
+
         /** RMS of [a][from, to), normalized to 0..1. */
         internal fun rms(a: ShortArray, from: Int = 0, to: Int = a.size): Float {
             if (to <= from) return 0f
@@ -162,7 +181,10 @@ class StreamingWhisper(
         scanner?.cancel()
         scanner?.join()
         scan()
-        val end = recorder.rawLength()
+        // The take ends with the auto-stop wait (1.6–5s of silence). Encoder time grows with clip
+        // length, so decoding that silence was most of the wait after stop on Turbo, and silence
+        // is where Whisper invents text. Keep a short margin after the last voiced frame.
+        val end = tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel)
         if (end > pieceStart) queue.trySend(pieceStart until end)
         queue.close()
         val t0 = System.nanoTime()
