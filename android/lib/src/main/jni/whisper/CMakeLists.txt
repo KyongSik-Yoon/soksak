@@ -76,6 +76,17 @@ function(build_library target_name)
 
 endfunction()
 
+# Optional second library, libwhisper_gpu.so: upstream whisper.cpp with the OpenCL backend.
+# Its sources and build tools are not vendored; CI fetches them (see ci.yml) and passes
+# OPENWISPR_GPU_DEPS. Without it the app builds CPU-only and the GPU setting reports
+# "not in this build". Added before the include_directories() below so the 1.7.4 headers
+# don't leak into it.
+if (OPENWISPR_GPU_DEPS AND EXISTS "${OPENWISPR_GPU_DEPS}/whisper.cpp/src/whisper.cpp" AND ${ANDROID_ABI} STREQUAL "arm64-v8a")
+    add_subdirectory(${CMAKE_SOURCE_DIR}/../whisper-gpu ${CMAKE_BINARY_DIR}/whisper-gpu)
+else()
+    message(STATUS "OpenWispr: GPU (OpenCL) library not built (OPENWISPR_GPU_DEPS unset)")
+endif()
+
 if (${ANDROID_ABI} STREQUAL "arm64-v8a")
     build_library("whisper_v8fp16_va")
 elseif (${ANDROID_ABI} STREQUAL "armeabi-v7a")

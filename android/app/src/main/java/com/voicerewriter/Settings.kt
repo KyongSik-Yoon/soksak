@@ -36,6 +36,11 @@ data class Settings(
      * Blank disables it.
      */
     val promptExample: String = DEFAULT_PROMPT_EXAMPLE,
+    /**
+     * Run Whisper models on the GPU (whisper.cpp's OpenCL backend, libwhisper_gpu.so). Off by
+     * default: experimental, and a driver crash takes the app down ([GpuGuard] then turns it off).
+     */
+    val whisperGpu: Boolean = false,
     /** Read-only GitHub token for in-app updates from the private fork ([AppUpdater]). */
     val githubToken: String = "",
     /**
@@ -75,6 +80,7 @@ class SettingsRepository(private val context: Context) {
         val VAD_AUTO_STOP = booleanPreferencesKey("vadAutoStop")
         val HEADLESS_RECORDING = booleanPreferencesKey("headlessRecording")
         val PROMPT_EXAMPLE = stringPreferencesKey("promptExample")
+        val WHISPER_GPU = booleanPreferencesKey("whisperGpu")
         val GITHUB_TOKEN = stringPreferencesKey("githubToken")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
@@ -103,6 +109,7 @@ class SettingsRepository(private val context: Context) {
             vadAutoStop = p[Keys.VAD_AUTO_STOP] ?: defaults.vadAutoStop,
             headlessRecording = p[Keys.HEADLESS_RECORDING] ?: defaults.headlessRecording,
             promptExample = p[Keys.PROMPT_EXAMPLE] ?: defaults.promptExample,
+            whisperGpu = p[Keys.WHISPER_GPU] ?: defaults.whisperGpu,
             githubToken = p[Keys.GITHUB_TOKEN] ?: defaults.githubToken,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
@@ -122,6 +129,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.VAD_AUTO_STOP] = s.vadAutoStop
             p[Keys.HEADLESS_RECORDING] = s.headlessRecording
             p[Keys.PROMPT_EXAMPLE] = s.promptExample
+            p[Keys.WHISPER_GPU] = s.whisperGpu
             p[Keys.GITHUB_TOKEN] = s.githubToken
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields

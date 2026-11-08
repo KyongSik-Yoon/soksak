@@ -94,6 +94,10 @@ android {
             // with com.microsoft.onnxruntime's at merge time (before abiFilters strips x86).
             // arm64 has only the Microsoft copy, so either pick is correct.
             pickFirsts += "**/libonnxruntime.so"
+            // libwhisper_gpu.so links a Khronos ICD loader named libOpenCL.so only to resolve
+            // symbols. Packaged, it would shadow the phone's real driver (/vendor/lib64/libOpenCL.so)
+            // and find no GPU, so it must stay out of the APK.
+            excludes += "**/libOpenCL.so"
         }
     }
     testOptions {

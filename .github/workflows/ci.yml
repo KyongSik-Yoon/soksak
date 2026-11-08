@@ -49,6 +49,30 @@ jobs:
           curl -fSL --retry 3 -o app/libs/sherpa-onnx-static-link-onnxruntime-2.0.1.aar \
             https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-static-link-onnxruntime-2.0.1.aar
 
+      # libwhisper_gpu.so (Settings → GPU acceleration): upstream whisper.cpp with ggml's OpenCL
+      # backend (Adreno kernels). Needs the Khronos OpenCL headers, and a libOpenCL.so to link
+      # against: the Khronos ICD loader built with the NDK. That .so is link-time only; on the phone
+      # the vendor's libOpenCL.so is used (see whisper-gpu/CMakeLists.txt). Pinned; bump together.
+      - name: Fetch GPU (OpenCL) build deps
+        run: |
+          set -e
+          D="$RUNNER_TEMP/gpu-deps"; mkdir -p "$D/opencl/lib"
+          git clone -q --depth 1 --branch v1.8.7 https://github.com/ggml-org/whisper.cpp "$D/whisper.cpp"
+          git clone -q --depth 1 --branch v2026.05.29 https://github.com/KhronosGroup/OpenCL-Headers "$D/OpenCL-Headers"
+          git clone -q --depth 1 --branch v2026.05.29 https://github.com/KhronosGroup/OpenCL-ICD-Loader "$D/OpenCL-ICD-Loader"
+          mkdir -p "$D/opencl/include" && cp -r "$D/OpenCL-Headers/CL" "$D/opencl/include/"
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          cmake -S "$D/OpenCL-ICD-Loader" -B "$D/icd-build" \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=24 -DANDROID_STL=c++_shared \
+            -DOPENCL_ICD_LOADER_HEADERS_DIR="$D/opencl/include" -DBUILD_TESTING=OFF \
+            -DCMAKE_BUILD_TYPE=Release >/dev/null
+          cmake --build "$D/icd-build" -j4 >/dev/null
+          cp "$D/icd-build/libOpenCL.so" "$D/opencl/lib/"
+          ls -la "$D/opencl/lib"
+          "$NDK"/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf -d "$D/opencl/lib/libOpenCL.so" | grep SONAME
+          echo "OPENWISPR_GPU_DEPS=$D" >> "$GITHUB_ENV"
+
       - name: Assemble debug + run unit tests
         working-directory: android
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon

@@ -10,7 +10,11 @@ import java.util.concurrent.Executors
 
 private const val LOG_TAG = "LibWhisper"
 
-class WhisperContext private constructor(private var ptr: Long) {
+/**
+ * [gpu] contexts live in libwhisper_gpu.so (upstream whisper.cpp + OpenCL, see [WhisperGpu]);
+ * the others in the vendored CPU build. Each call goes to the library that made the context.
+ */
+class WhisperContext private constructor(private var ptr: Long, val gpu: Boolean = false) {
     // Meet Whisper C++ constraint: Don't access from more than one thread at a time.
     private val scope: CoroutineScope = CoroutineScope(
         Executors.newSingleThreadExecutor().asCoroutineDispatcher()
@@ -34,20 +38,25 @@ class WhisperContext private constructor(private var ptr: Long) {
         require(ptr != 0L)
         val numThreads = WhisperCpuConfig.preferredThreadCount
         Log.d(LOG_TAG, "Selecting $numThreads threads")
-        WhisperLib.fullTranscribe(ptr, numThreads, data, prompt, language, beamSize, singleSegment, audioCtxFloor)
-        val textCount = WhisperLib.getTextSegmentCount(ptr)
+        if (gpu) WhisperLibGpu.fullTranscribe(ptr, numThreads, data, prompt, language, beamSize, singleSegment, audioCtxFloor)
+        else WhisperLib.fullTranscribe(ptr, numThreads, data, prompt, language, beamSize, singleSegment, audioCtxFloor)
+        val textCount = if (gpu) WhisperLibGpu.getTextSegmentCount(ptr) else WhisperLib.getTextSegmentCount(ptr)
         return@withContext buildString {
             for (i in 0 until textCount) {
                 if (printTimestamp) {
-                    val textTimestamp = "[${toTimestamp(WhisperLib.getTextSegmentT0(ptr, i))} --> ${toTimestamp(WhisperLib.getTextSegmentT1(ptr, i))}]"
-                    val textSegment = WhisperLib.getTextSegment(ptr, i)
+                    val textTimestamp = "[${toTimestamp(segT0(i))} --> ${toTimestamp(segT1(i))}]"
+                    val textSegment = seg(i)
                     append("$textTimestamp: $textSegment\n")
                 } else {
-                    append(WhisperLib.getTextSegment(ptr, i))
+                    append(seg(i))
                 }
             }
         }
     }
+
+    private fun seg(i: Int) = if (gpu) WhisperLibGpu.getTextSegment(ptr, i) else WhisperLib.getTextSegment(ptr, i)
+    private fun segT0(i: Int) = if (gpu) WhisperLibGpu.getTextSegmentT0(ptr, i) else WhisperLib.getTextSegmentT0(ptr, i)
+    private fun segT1(i: Int) = if (gpu) WhisperLibGpu.getTextSegmentT1(ptr, i) else WhisperLib.getTextSegmentT1(ptr, i)
 
     suspend fun benchMemory(nthreads: Int): String = withContext(scope.coroutineContext) {
         return@withContext WhisperLib.benchMemcpy(nthreads)
@@ -59,7 +68,7 @@ class WhisperContext private constructor(private var ptr: Long) {
 
     suspend fun release() = withContext(scope.coroutineContext) {
         if (ptr != 0L) {
-            WhisperLib.freeContext(ptr)
+            if (gpu) WhisperLibGpu.freeContext(ptr) else WhisperLib.freeContext(ptr)
             ptr = 0
         }
     }
@@ -77,6 +86,16 @@ class WhisperContext private constructor(private var ptr: Long) {
                 throw java.lang.RuntimeException("Couldn't create context with path $filePath")
             }
             return WhisperContext(ptr)
+        }
+
+        /** Load [filePath] on the GPU build. Throws if the library or the context isn't available. */
+        fun createGpuContextFromFile(filePath: String): WhisperContext {
+            check(WhisperGpu.available) { "GPU library unavailable: ${WhisperGpu.loadError}" }
+            val ptr = WhisperLibGpu.initContext(filePath)
+            if (ptr == 0L) {
+                throw java.lang.RuntimeException("Couldn't create GPU context with path $filePath")
+            }
+            return WhisperContext(ptr, gpu = true)
         }
 
         fun createContextFromInputStream(stream: InputStream): WhisperContext {
@@ -165,6 +184,54 @@ private class WhisperLib {
         external fun getSystemInfo(): String
         external fun benchMemcpy(nthread: Int): String
         external fun benchGgmlMulMat(nthread: Int): String
+    }
+}
+
+/**
+ * libwhisper_gpu.so: whisper.cpp with ggml's OpenCL backend, built only when CI fetched its
+ * dependencies. Loading it is cheap; [deviceName] initialises the OpenCL driver (the first call that
+ * talks to the GPU driver), so callers guard it like a GPU run.
+ */
+object WhisperGpu {
+    @Volatile var loadError: String? = null
+        private set
+
+    val available: Boolean by lazy {
+        try {
+            System.loadLibrary("whisper_gpu")
+            true
+        } catch (t: Throwable) {
+            loadError = t.message ?: t.toString()
+            Log.i(LOG_TAG, "GPU library not loaded: $loadError")
+            false
+        }
+    }
+
+    /** The OpenCL GPU whisper would use, or null if none (or no GPU library). */
+    val deviceName: String? by lazy {
+        if (!available) null else runCatching { WhisperLibGpu.gpuDevice() }.getOrNull()?.ifBlank { null }
+    }
+}
+
+private class WhisperLibGpu {
+    companion object {
+        external fun initContext(modelPath: String): Long
+        external fun freeContext(contextPtr: Long)
+        external fun fullTranscribe(
+            contextPtr: Long,
+            numThreads: Int,
+            audioData: FloatArray,
+            prompt: String?,
+            language: String,
+            beamSize: Int,
+            singleSegment: Boolean,
+            audioCtxFloor: Int,
+        )
+        external fun getTextSegmentCount(contextPtr: Long): Int
+        external fun getTextSegment(contextPtr: Long, index: Int): String
+        external fun getTextSegmentT0(contextPtr: Long, index: Int): Long
+        external fun getTextSegmentT1(contextPtr: Long, index: Int): Long
+        external fun gpuDevice(): String
     }
 }
 
