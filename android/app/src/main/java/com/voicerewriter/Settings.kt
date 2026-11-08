@@ -40,6 +40,8 @@ data class Settings(
     val promptExample: String = DEFAULT_PROMPT_EXAMPLE,
     /** Decode Whisper dictations in pieces at pauses while still recording ([StreamingWhisper]). */
     val pipelinedWhisper: Boolean = true,
+    /** Settings screen language: "auto" (phone), "ko" or "en". See [I18n]. */
+    val uiLanguage: String = "auto",
     /** Read-only GitHub token for in-app updates from the private fork ([AppUpdater]). */
     val githubToken: String = "",
     /**
@@ -81,6 +83,7 @@ class SettingsRepository(private val context: Context) {
         val HEADLESS_RECORDING = booleanPreferencesKey("headlessRecording")
         val PROMPT_EXAMPLE = stringPreferencesKey("promptExample")
         val PIPELINED_WHISPER = booleanPreferencesKey("pipelinedWhisper")
+        val UI_LANGUAGE = stringPreferencesKey("uiLanguage")
         val GITHUB_TOKEN = stringPreferencesKey("githubToken")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
@@ -111,6 +114,7 @@ class SettingsRepository(private val context: Context) {
             headlessRecording = p[Keys.HEADLESS_RECORDING] ?: defaults.headlessRecording,
             promptExample = p[Keys.PROMPT_EXAMPLE] ?: defaults.promptExample,
             pipelinedWhisper = p[Keys.PIPELINED_WHISPER] ?: defaults.pipelinedWhisper,
+            uiLanguage = p[Keys.UI_LANGUAGE] ?: defaults.uiLanguage,
             githubToken = p[Keys.GITHUB_TOKEN] ?: defaults.githubToken,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
@@ -132,6 +136,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.HEADLESS_RECORDING] = s.headlessRecording
             p[Keys.PROMPT_EXAMPLE] = s.promptExample
             p[Keys.PIPELINED_WHISPER] = s.pipelinedWhisper
+            p[Keys.UI_LANGUAGE] = s.uiLanguage
             p[Keys.GITHUB_TOKEN] = s.githubToken
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields

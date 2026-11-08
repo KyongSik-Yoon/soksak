@@ -103,6 +103,12 @@
   `Shizuku.newProcess`는 13.x에서 private이라 리플렉션으로 호출. 매니페스트에 ShizukuProvider와 `<queries>`.
   `setRequestUpdateOwnership`/USER_ACTION_NOT_REQUIRED 세션은 위의 self update 차단 때문에 이 폰에서 해법이 아니다.
 
+## 언어
+- 설정 화면은 한국어 지원(`I18n.kt`): 호출부는 영어 그대로 두고 `tr("English")`/`trf("…%s…", x)`로 감싼다. 한국어는
+  `I18n.KO` 맵에서 영어 문장을 키로 찾고, 없으면 영어. 템플릿은 `%s`만(위치 인자 `%1$s`는 Kotlin 템플릿과 충돌).
+  언어: 휴대폰 따름/한국어/English(설정 → General → Language, `Settings.uiLanguage`). 다른 화면(홈, 온보딩 등)은 아직 영어.
+  설정 문자열을 추가하면 `I18n.KO`에도 넣는다(`I18nTest`가 자리표시자 수를 검사).
+
 ## 작업 규칙
 - 커밋 작성자: `-c user.name="Sam" -c user.email="sam@jennifersoft.com"`. 세션이 요구하는 attribution 줄을 메시지 끝에 붙인다.
 - push 전에 제거·이름변경한 심볼을 `grep -rn`으로 전부 확인 (CI 한 번이 ~5분).

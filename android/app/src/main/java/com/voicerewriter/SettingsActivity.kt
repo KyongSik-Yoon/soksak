@@ -120,6 +120,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var headlessRecording by remember { mutableStateOf(true) }
     var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
     var pipelinedWhisper by remember { mutableStateOf(true) }
+    var uiLanguage by remember { mutableStateOf(I18n.mode) }
     var githubToken by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
     var latestBuild by remember { mutableStateOf<AppUpdater.Release?>(null) }
@@ -136,7 +137,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
 
     val overlayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (android.provider.Settings.canDrawOverlays(context)) { SetupUtils.startBubble(context); bubbleOn = true }
-        else Toast.makeText(context, "Permission needed to show the bubble", Toast.LENGTH_SHORT).show()
+        else Toast.makeText(context, tr("Permission needed to show the bubble"), Toast.LENGTH_SHORT).show()
     }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> notifOn = granted }
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> micGranted = granted }
@@ -165,6 +166,13 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
         vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
+        uiLanguage = s.uiLanguage
+        // The screen was composed with whatever language was active before the setting was
+        // read; redraw it once if the saved choice differs.
+        if (I18n.mode != s.uiLanguage) {
+            I18n.mode = s.uiLanguage
+            (context as? android.app.Activity)?.recreate()
+        }
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
         notifOn = SetupUtils.notificationsGranted(context)
         micGranted = SetupUtils.micGranted(context)
@@ -214,7 +222,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -246,27 +254,27 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                 sttModel = id; dlId = null; modelsRev++; persist()
             } catch (e: Exception) {
                 dlId = null
-                Toast.makeText(context, e.message ?: "Import failed", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, e.message ?: tr("Import failed"), Toast.LENGTH_LONG).show()
             }
         }
     }
 
     fun checkUpdate() {
-        updateStatus = "Checking…"; latestBuild = null
+        updateStatus = tr("Checking…"); latestBuild = null
         AppUpdater.lastResult.value = null // a stale "Installer opened" must not hide the answer
         launch {
             updateStatus = try {
                 val r = AppUpdater.latest(githubToken)
                 val cur = AppUpdater.installedVersionCode(context)
-                if (r.versionCode > cur) { latestBuild = r; "Build ${r.run} is available." }
-                else "Up to date (build ${r.run})."
-            } catch (e: Exception) { e.message ?: "Check failed." }
+                if (r.versionCode > cur) { latestBuild = r; trf("Build %s is available.", r.run) }
+                else trf("Up to date (build %s).", r.run)
+            } catch (e: Exception) { e.message ?: tr("Check failed.") }
         }
     }
 
     fun installUpdate(r: AppUpdater.Release) {
         if (!AppUpdater.canInstall(context)) {
-            updateStatus = "Allow OpenWispr to install updates, then tap Update again."
+            updateStatus = tr("Allow OpenWispr to install updates, then tap Update again.")
             context.startActivity(AppUpdater.installPermissionIntent(context))
             return
         }
@@ -274,9 +282,9 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         launch {
             try {
                 AppUpdater.downloadAndInstall(context, githubToken, r) { p -> updateProgress = p }
-                updateStatus = "Installing… confirm if Android asks."
+                updateStatus = tr("Installing… confirm if Android asks.")
             } catch (e: Exception) {
-                updateStatus = e.message ?: "Update failed."
+                updateStatus = e.message ?: tr("Update failed.")
             } finally {
                 updateProgress = null
             }
@@ -299,7 +307,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                 WhisperModelManager.download(context, id) { p -> dlProgress = p }
                 sttModel = id; dlId = null; modelsRev++; persist()
             } catch (e: Exception) {
-                dlId = null; Toast.makeText(context, e.message ?: "Download failed", Toast.LENGTH_LONG).show()
+                dlId = null; Toast.makeText(context, e.message ?: tr("Download failed"), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -315,7 +323,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             val mb = freed / (1024 * 1024)
             Toast.makeText(
                 context,
-                if (mb > 0) "Deleted ${target.label} — ${mb}MB freed" else "Deleted ${target.label}",
+                if (mb > 0) trf("Deleted %s — %sMB freed", target.label, mb) else trf("Deleted %s", target.label),
                 Toast.LENGTH_SHORT,
             ).show()
         }
@@ -332,14 +340,14 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             val setupComplete = bubbleOn && a11yEnabled && micGranted
             SetupStatusCard(setupComplete) {
                 if (!setupComplete) {
-                    StatusRow("Microphone", if (micGranted) "On" else "Needed to hear you", micGranted) {
-                        if (!micGranted) PillButton("Enable") { micLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+                    StatusRow(tr("Microphone"), if (micGranted) tr("On") else tr("Needed to hear you"), micGranted) {
+                        if (!micGranted) PillButton(tr("Enable")) { micLauncher.launch(Manifest.permission.RECORD_AUDIO) }
                     }
-                    StatusRow("Floating bubble", if (bubbleOn) "On" else "Tap-to-talk over any app", bubbleOn) {
-                        if (!bubbleOn) PillButton("Enable") { enableBubble() }
+                    StatusRow(tr("Floating bubble"), if (bubbleOn) tr("On") else tr("Tap-to-talk over any app"), bubbleOn) {
+                        if (!bubbleOn) PillButton(tr("Enable")) { enableBubble() }
                     }
-                    StatusRow("Auto-insert", if (a11yEnabled) "On" else "Types text into the field you're in", a11yEnabled) {
-                        PillButton(if (a11yEnabled) "Manage" else "Enable") {
+                    StatusRow(tr("Auto-insert"), if (a11yEnabled) tr("On") else tr("Types text into the field you're in"), a11yEnabled) {
+                        PillButton(if (a11yEnabled) tr("Manage") else tr("Enable")) {
                             // Enabling is a first-time grant → show the required disclosure first.
                             // "Manage" (already enabled) goes straight to system settings.
                             if (a11yEnabled) openA11ySettings() else showA11yConsent = true
@@ -380,13 +388,13 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             }
 
             // ---------------- VOICE · TRANSCRIPTION ----------------
-            Section("Voice · transcription") {
+            Section(tr("Voice · transcription")) {
                 Card {
                     Padded {
-                        Label("Engine")
+                        Label(tr("Engine"))
                         Spacer(Modifier.height(12.dp))
                         Segment(
-                            options = listOf("local" to "On-device", "groq" to "Groq", "openai" to "OpenAI", "custom" to "Custom"),
+                            options = listOf("local" to tr("On-device"), "groq" to "Groq", "openai" to "OpenAI", "custom" to tr("Custom")),
                             selected = sttProvider,
                             onSelect = {
                                 sttProvider = it
@@ -401,7 +409,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     if (sttProvider == "local") {
                         Divider()
                         Padded {
-                            Text("Models download once, then run fully offline.",
+                            Text(tr("Models download once, then run fully offline."),
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(6.dp))
                             // Which model suits *this* phone, not which is biggest. The list
@@ -418,7 +426,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                                     state = sttModelState(m.id), progress = dlProgress,
                                     // A GitHub-hosted model downloads like the rest once a token is
                                     // set; without one, importing the file is the way in.
-                                    getLabel = if (needsImport(m.id)) "Import" else "Get",
+                                    getLabel = if (needsImport(m.id)) tr("Import") else tr("Get"),
                                     onGet = {
                                         if (needsImport(m.id)) {
                                             importTarget = m.id
@@ -436,20 +444,20 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     } else {
                         Divider()
                         Padded {
-                            Label("API key")
+                            Label(tr("API key"))
                             Spacer(Modifier.height(8.dp))
-                            KeyField(sttKey, Defaults.STT_PROVIDERS[sttProvider]?.let { keyPlaceholder(sttProvider) } ?: "key") { sttKey = it; persist() }
+                            KeyField(sttKey, Defaults.STT_PROVIDERS[sttProvider]?.let { keyPlaceholder(sttProvider) } ?: tr("key")) { sttKey = it; persist() }
                             if (sttProvider == "custom") {
                                 Spacer(Modifier.height(10.dp))
-                                KeyField(sttEndpoint, "Transcription endpoint URL") { sttEndpoint = it; persist() }
+                                KeyField(sttEndpoint, tr("Transcription endpoint URL")) { sttEndpoint = it; persist() }
                                 Spacer(Modifier.height(10.dp))
-                                KeyField(sttModel, "Model id") { sttModel = it; persist() }
+                                KeyField(sttModel, tr("Model id")) { sttModel = it; persist() }
                             }
                             Spacer(Modifier.height(10.dp))
                             InfoNote(buildString {
-                                append("Audio is sent to ")
-                                append(if (sttProvider == "groq") "Groq" else if (sttProvider == "openai") "OpenAI" else "your provider")
-                                append(" for transcription.")
+                                append(tr("Audio is sent to "))
+                                append(if (sttProvider == "groq") "Groq" else if (sttProvider == "openai") "OpenAI" else tr("your provider"))
+                                append(tr(" for transcription."))
                             }) { sttProvider = "local"; persist() }
                         }
                     }
@@ -457,25 +465,25 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     LanguageRow(current = sttLanguage) { pickingLanguage = true }
                     Divider()
                     Padded {
-                        Label("Style example")
+                        Label(tr("Style example"))
                         Spacer(Modifier.height(6.dp))
-                        Text("A sentence the way you usually dictate. Whisper copies its style: English terms stay in English, punctuation matches. Leave blank to turn off.",
+                        Text(tr("A sentence the way you usually dictate. Whisper copies its style: English terms stay in English, punctuation matches. Leave blank to turn off."),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
-                        KeyField(promptExample, "e.g. GitLab에 MR 올려줘.") { promptExample = it; persist() }
+                        KeyField(promptExample, tr("e.g. GitLab에 MR 올려줘.")) { promptExample = it; persist() }
                     }
                     Divider()
                     ToggleRow(
-                        "Transcribe while you talk",
-                        "Whisper models start on what you've said at each pause, so only the last few seconds are left when you stop. Also keeps long dictations from losing sentences.",
+                        tr("Transcribe while you talk"),
+                        tr("Whisper models start on what you've said at each pause, so only the last few seconds are left when you stop. Also keeps long dictations from losing sentences."),
                         pipelinedWhisper,
                     ) { pipelinedWhisper = it; persist() }
                     Divider()
-                    ToggleRow("Auto-stop on pause", "End recording when you stop talking", vadAutoStop) { vadAutoStop = it; persist() }
+                    ToggleRow(tr("Auto-stop on pause"), tr("End recording when you stop talking"), vadAutoStop) { vadAutoStop = it; persist() }
                     if (vadAutoStop) {
                         Divider()
                         // Tap cycles 1.6s → 3s → 5s.
-                        NavRow("Auto-stop wait", "Stops after ${"%.1f".format(autoStopSeconds).removeSuffix(".0")}s of silence · tap to change") {
+                        NavRow(tr("Auto-stop wait"), trf("Stops after %ss of silence · tap to change", "%.1f".format(autoStopSeconds).removeSuffix(".0"))) {
                             val i = AUTO_STOP_CHOICES.indexOf(autoStopSeconds)
                             autoStopSeconds = AUTO_STOP_CHOICES[(i + 1).mod(AUTO_STOP_CHOICES.size)]
                             persist()
@@ -483,23 +491,23 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     }
                     Divider()
                     ToggleRow(
-                        "Record without the sheet",
-                        "Keep the app you're typing in focused. On-device only; open OpenWispr once after a reboot",
+                        tr("Record without the sheet"),
+                        tr("Keep the app you're typing in focused. On-device only; open OpenWispr once after a reboot"),
                         headlessRecording,
                     ) { headlessRecording = it; persist() }
                     Divider()
                     ToggleRow(
-                        "Review before inserting",
-                        "Show the text and wait, instead of typing it straight into the field",
+                        tr("Review before inserting"),
+                        tr("Show the text and wait, instead of typing it straight into the field"),
                         reviewBeforeInsert,
                     ) { reviewBeforeInsert = it; persist() }
                 }
             }
 
             // ---------------- BUBBLE ----------------
-            Section("Bubble") {
+            Section(tr("Bubble")) {
                 Card {
-                    ToggleRow("Show bubble", "The floating tap-to-talk button", bubbleOn) { want ->
+                    ToggleRow(tr("Show bubble"), tr("The floating tap-to-talk button"), bubbleOn) { want ->
                         if (want) enableBubble() else { SetupUtils.stopBubble(context); bubbleOn = false }
                     }
                     Divider()
@@ -508,18 +516,18 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     // reading "on" while the bubble is in fact always visible, which looks like the
                     // setting broke. Say so instead.
                     ToggleRow(
-                        "Only on text fields",
-                        if (bubbleOnlyOnFields && !a11yEnabled) "Needs auto-insert. The bubble stays visible until you turn it back on."
-                        else "Appear only when you can type",
+                        tr("Only on text fields"),
+                        if (bubbleOnlyOnFields && !a11yEnabled) tr("Needs auto-insert. The bubble stays visible until you turn it back on.")
+                        else tr("Appear only when you can type"),
                         bubbleOnlyOnFields,
                     ) { bubbleOnlyOnFields = it; persist() }
                 }
             }
 
             // ---------------- PRIVACY ----------------
-            Section("Privacy") {
+            Section(tr("Privacy")) {
                 Card {
-                    ToggleRow("Keep history", "Stored on this device · powers personalization", keepHistory) {
+                    ToggleRow(tr("Keep history"), tr("Stored on this device · powers personalization"), keepHistory) {
                         keepHistory = it
                         DictationHistory.setKeepHistory(context, it)
                         // "Nothing is saved to disk" has to include the audio, so turning
@@ -529,16 +537,15 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     if (keepHistory) {
                         Divider()
                         Padded {
-                            Label("Keep audio")
+                            Label(tr("Keep audio"))
                             Text(
-                                "Recordings stay on this device so a dictation that fails can be run " +
-                                    "again. Never uploaded.",
+                                tr("Recordings stay on this device so a dictation that fails can be run again. Never uploaded."),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Spacer(Modifier.height(11.dp))
                             Segment(
-                                options = listOf("7" to "7 days", "30" to "30 days", "90" to "90 days", "0" to "Forever"),
+                                options = listOf("7" to tr("7 days"), "30" to tr("30 days"), "90" to tr("90 days"), "0" to tr("Forever")),
                                 selected = audioKeepDays.toString(),
                                 onSelect = { d ->
                                     audioKeepDays = d.toInt()
@@ -548,39 +555,39 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         }
                     }
                     Divider()
-                    NavRow("Clear all data", danger = true, icon = Icons.Default.Delete) {
+                    NavRow(tr("Clear all data"), danger = true, icon = Icons.Default.Delete) {
                         launch {
                             DictationHistory.all(context).forEach { DictationHistory.delete(context, it.id) }
                             PendingAudio.purgeAll(context)
                         }
-                        Toast.makeText(context, "On-device history cleared", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, tr("On-device history cleared"), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
 
             // ---------------- PERSONALIZATION ----------------
-            Section("Personalization") {
+            Section(tr("Personalization")) {
                 Card {
-                    NavRow("Personal dictionary", "Names & terms you taught it") { context.startActivity(Intent(context, VocabActivity::class.java)) }
+                    NavRow(tr("Personal dictionary"), tr("Names & terms you taught it")) { context.startActivity(Intent(context, VocabActivity::class.java)) }
                     Divider()
-                    NavRow("Compare models", "Re-run a recent dictation on every model") { context.startActivity(Intent(context, CompareActivity::class.java)) }
+                    NavRow(tr("Compare models"), tr("Re-run a recent dictation on every model")) { context.startActivity(Intent(context, CompareActivity::class.java)) }
                     Divider()
-                    NavRow("Learned from edits", "Corrections it remembered") { context.startActivity(Intent(context, LearnedVocabActivity::class.java)) }
+                    NavRow(tr("Learned from edits"), tr("Corrections it remembered")) { context.startActivity(Intent(context, LearnedVocabActivity::class.java)) }
                     Divider()
-                    NavRow("Import from contacts", "Matched on-device · never uploaded") { context.startActivity(Intent(context, ContactsImportActivity::class.java)) }
+                    NavRow(tr("Import from contacts"), tr("Matched on-device · never uploaded")) { context.startActivity(Intent(context, ContactsImportActivity::class.java)) }
                 }
             }
 
             // ---------------- RELIABILITY ----------------
-            Section("Reliability") {
+            Section(tr("Reliability")) {
                 Card {
                     // Why the last dictation went to the clipboard instead of the field, so a
                     // screenshot of Settings is enough to diagnose it.
                     OpenWisprAccessibilityService.lastFallback(context)?.let { last ->
-                        NavRow("Last clipboard fallback", last) {}
+                        NavRow(tr("Last clipboard fallback"), last) {}
                         Divider()
                     }
-                    NavRow("Auto-start helper", "For Samsung, Xiaomi, OnePlus, Oppo") {
+                    NavRow(tr("Auto-start helper"), tr("For Samsung, Xiaomi, OnePlus, Oppo")) {
                         val intent = SetupUtils.oemAutoStartIntents().firstOrNull { it.resolveActivity(context.packageManager) != null }
                             ?: SetupUtils.appInfoIntent(context)
                         runCatching { context.startActivity(intent) }
@@ -594,28 +601,28 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             // Play review, which we can reply to but not ask questions in. Both rows prefill the
             // version/device details and then hand off to the user's own mail app or browser;
             // nothing is transmitted by us.
-            Section("Feedback") {
+            Section(tr("Feedback")) {
                 Card {
-                    NavRow("Send feedback", "Email us. Ideas, bugs, anything.") {
-                        launchOrNotify(context, Feedback.emailIntent(context), "No email app found. Write to ${Feedback.EMAIL}")
+                    NavRow(tr("Send feedback"), tr("Email us. Ideas, bugs, anything.")) {
+                        launchOrNotify(context, Feedback.emailIntent(context), trf("No email app found. Write to %s", Feedback.EMAIL))
                     }
                     Divider()
-                    NavRow("Report a problem", "Open an issue on GitHub") {
-                        launchOrNotify(context, Feedback.issueIntent(context), "Couldn't open a browser.")
+                    NavRow(tr("Report a problem"), tr("Open an issue on GitHub")) {
+                        launchOrNotify(context, Feedback.issueIntent(context), tr("Couldn't open a browser."))
                     }
                     Divider()
-                    NavRow("Rate OpenWispr", "Leave a review on Google Play") {
-                        launchOrNotify(context, Feedback.playListingIntent(context), "Couldn't open Google Play.")
+                    NavRow(tr("Rate OpenWispr"), tr("Leave a review on Google Play")) {
+                        launchOrNotify(context, Feedback.playListingIntent(context), tr("Couldn't open Google Play."))
                     }
                 }
             }
 
-            Section("Updates") {
+            Section(tr("Updates")) {
                 Card {
                     Padded {
-                        Label("GitHub token")
+                        Label(tr("GitHub token"))
                         Spacer(Modifier.height(6.dp))
-                        Text("Fine-grained token with Contents: Read-only on ${AppUpdater.REPO}. Stored only on this phone; used to fetch new builds.",
+                        Text(trf("Fine-grained token with Contents: Read-only on %s. Stored only on this phone; used to fetch new builds.", AppUpdater.REPO),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         KeyField(githubToken, "github_pat_…", secret = true) { githubToken = it; persist() }
@@ -625,17 +632,17 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                             // Newest first: an available build, then the last action's result,
                             // then the check result, then just what's installed.
                             val statusText = latestBuild?.takeIf { updateProgress == null && installResult == null }
-                                ?.let { "Build ${it.run} is available (installed: ${prettyVersion(appVersion(context))})." }
+                                ?.let { trf("Build %s is available (installed: %s).", it.run, prettyVersion(appVersion(context))) }
                                 ?: installResult
-                                ?: updateStatus.ifBlank { "Installed: ${prettyVersion(appVersion(context))}" }
+                                ?: updateStatus.ifBlank { trf("Installed: %s", prettyVersion(appVersion(context))) }
                             Text(statusText,
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f))
                             val avail = latestBuild
                             when {
                                 updateProgress != null -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp)
-                                avail != null -> PillButton("Update") { installUpdate(avail) }
-                                else -> PillOutline("Check") { checkUpdate() }
+                                avail != null -> PillButton(tr("Update")) { installUpdate(avail) }
+                                else -> PillOutline(tr("Check")) { checkUpdate() }
                             }
                         }
                         updateProgress?.let { p ->
@@ -652,14 +659,14 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         while (true) { shizuku = ShizukuInstaller.state(context); kotlinx.coroutines.delay(2000) }
                     }
                     val (shTitle, shSub) = when (shizuku) {
-                        ShizukuInstaller.State.READY -> "Silent updates: on" to
-                            "Shizuku is running. Update installs without the confirmation screens."
-                        ShizukuInstaller.State.NEEDS_PERMISSION -> "Silent updates: allow OpenWispr" to
-                            "Shizuku is running. Tap to let OpenWispr install updates through it."
-                        ShizukuInstaller.State.NOT_RUNNING -> "Silent updates: start Shizuku" to
-                            "Shizuku isn't running (it stops on reboot). Tap to open it and start it with wireless debugging."
-                        ShizukuInstaller.State.NOT_INSTALLED -> "Silent updates (optional)" to
-                            "Install Shizuku to skip the scan and fingerprint screens on every update. Tap to get it."
+                        ShizukuInstaller.State.READY -> tr("Silent updates: on") to
+                            tr("Shizuku is running. Update installs without the confirmation screens.")
+                        ShizukuInstaller.State.NEEDS_PERMISSION -> tr("Silent updates: allow OpenWispr") to
+                            tr("Shizuku is running. Tap to let OpenWispr install updates through it.")
+                        ShizukuInstaller.State.NOT_RUNNING -> tr("Silent updates: start Shizuku") to
+                            tr("Shizuku isn't running (it stops on reboot). Tap to open it and start it with wireless debugging.")
+                        ShizukuInstaller.State.NOT_INSTALLED -> tr("Silent updates (optional)") to
+                            tr("Install Shizuku to skip the scan and fingerprint screens on every update. Tap to get it.")
                     }
                     NavRow(shTitle, shSub) {
                         when (shizuku) {
@@ -671,16 +678,34 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                 }
             }
 
-            Section("General") {
+            Section(tr("General")) {
                 Card {
-                    NavRow("Replay onboarding", "Walk through setup again") { context.startActivity(OnboardingActivity.intent(context)) }
+                    NavRow(tr("Replay onboarding"), tr("Walk through setup again")) { context.startActivity(OnboardingActivity.intent(context)) }
+                    Divider()
+                    // Settings language: phone → 한국어 → English → phone …
+                    val phoneKo = java.util.Locale.getDefault().language == "ko"
+                    val langLabel = when (uiLanguage) {
+                        "ko" -> "한국어"
+                        "en" -> "English"
+                        else -> trf("Follow phone (%s)", if (phoneKo) "한국어" else "English")
+                    }
+                    NavRow(tr("Language"), langLabel + " · " + tr("Tap to change")) {
+                        uiLanguage = when (uiLanguage) { "auto" -> "ko"; "ko" -> "en"; else -> "auto" }
+                        I18n.mode = uiLanguage
+                        // Saved before redrawing: the recreated screen reads the setting back and
+                        // would otherwise switch to the old language again.
+                        launch {
+                            repo.save(snapshot())
+                            (context as? android.app.Activity)?.recreate()
+                        }
+                    }
                     Divider()
                     // remember: this is a binder call into PackageManager, and the version can't
                     // change while the screen is up.
                     val version = remember { appVersion(context) }
                     // Label never wraps ("Versio/n"); the value takes what's left and ellipsizes.
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Version", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface,
+                        Text(tr("Version"), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1, softWrap = false)
                         Spacer(Modifier.width(16.dp))
                         Text(
@@ -708,9 +733,9 @@ private fun LanguageRow(current: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Dictation language", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(tr("Dictation language"), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                "The language you speak while dictating",
+                tr("The language you speak while dictating"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -733,11 +758,11 @@ private fun LanguageRow(current: String, onClick: () -> Unit) {
 private fun LanguageDialog(current: String, onPick: (String) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Dictation language") },
+        title = { Text(tr("Dictation language")) },
         text = {
             Column {
                 Text(
-                    "Speech is transcribed in this language, never translated.",
+                    tr("Speech is transcribed in this language, never translated."),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -756,13 +781,13 @@ private fun LanguageDialog(current: String, onPick: (String) -> Unit, onDismiss:
                                 else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f),
                             )
-                            if (selected) Badge("Selected", Color(0xFF2E6F4E), Color(0xFFDCEFE2))
+                            if (selected) Badge(tr("Selected"), Color(0xFF2E6F4E), Color(0xFFDCEFE2))
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(tr("Done")) } },
     )
 }
 
@@ -783,18 +808,19 @@ private data class DeletableModel(
 private fun DeleteModelDialog(target: DeletableModel, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete ${target.label}?") },
+        title = { Text(trf("Delete %s?", target.label)) },
         text = {
             Text(
-                "This frees ${target.size.removePrefix("~")} on this device. The model stays " +
-                    "available — you can download it again from this screen whenever you want it, " +
-                    "which needs a connection.",
+                trf(
+                    "This frees %s on this device. The model stays available — you can download it again from this screen whenever you want it, which needs a connection.",
+                    target.size.removePrefix("~"),
+                ),
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Delete", color = Color(0xFFB4502E)) }
+            TextButton(onClick = onConfirm) { Text(tr("Delete"), color = Color(0xFFB4502E)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Keep") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Keep")) } },
     )
 }
 
@@ -811,7 +837,7 @@ private fun sttModelOptions(recommendedId: String): List<SttModelOption> =
     WhisperModelManager.MODELS.map { SttModelOption(it.id, it.label, it.sizeLabel, it.id == recommendedId) }
 
 private fun keyPlaceholder(provider: String) = when (provider) {
-    "groq" -> "gsk_..."; "openai" -> "sk-..."; else -> "key or endpoint"
+    "groq" -> "gsk_..."; "openai" -> "sk-..."; else -> tr("key or endpoint")
 }
 
 /* ------------------------ reusable pieces ------------------------ */
@@ -824,7 +850,7 @@ private fun HeroHeader() {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_aperture), null, tint = MarkCream, modifier = Modifier.size(40.dp))
-            Text("Settings", color = MarkCream, style = Wordmark)
+            Text(tr("Settings"), color = MarkCream, style = Wordmark)
         }
     }
 }
@@ -874,8 +900,8 @@ private fun SetupStatusCard(complete: Boolean, content: @Composable androidx.com
                 Icon(Icons.Default.Check, null, tint = Color(0xFF3E8E5A), modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text(if (complete) "You're all set" else "Finish setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                Text(if (complete) "Microphone · Bubble · Auto-insert all active" else "A couple of quick permissions", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (complete) tr("You're all set") else tr("Finish setup"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(if (complete) tr("Microphone · Bubble · Auto-insert all active") else tr("A couple of quick permissions"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         content()
@@ -927,7 +953,7 @@ private fun Segment(options: List<Pair<String, String>>, selected: String, onSel
 @Composable
 private fun ModelRow(
     name: String, meta: String, recommended: Boolean, state: String, progress: Float,
-    onGet: () -> Unit, onUse: () -> Unit, onDelete: (() -> Unit)? = null, getLabel: String = "Get",
+    onGet: () -> Unit, onUse: () -> Unit, onDelete: (() -> Unit)? = null, getLabel: String = tr("Get"),
 ) {
     val cs = MaterialTheme.colorScheme
     Column(
@@ -940,25 +966,25 @@ private fun ModelRow(
                 Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = cs.onSurface)
                 if (recommended) {
                     Spacer(Modifier.height(4.dp))
-                    Badge("Recommended", Color(0xFF3E8E5A), Color(0xFFE7F3EA))
+                    Badge(tr("Recommended"), Color(0xFF3E8E5A), Color(0xFFE7F3EA))
                     Spacer(Modifier.height(4.dp))
                 }
                 Text(meta, style = MonoEyebrow, fontSize = 11.sp, color = cs.onSurfaceVariant)
             }
             when (state) {
-                "active" -> Badge("Active", Color(0xFF3E8E5A), Color(0xFFE7F3EA))
+                "active" -> Badge(tr("Active"), Color(0xFF3E8E5A), Color(0xFFE7F3EA))
                 "downloaded" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (onDelete != null) {
                         IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 Icons.Filled.Delete,
-                                contentDescription = "Delete $name",
+                                contentDescription = trf("Delete %s", name),
                                 tint = cs.onSurfaceVariant,
                                 modifier = Modifier.size(19.dp),
                             )
                         }
                     }
-                    PillOutline("Use", onUse)
+                    PillOutline(tr("Use"), onUse)
                 }
                 "downloading" -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp, color = cs.primary)
                 else -> PillButton(getLabel, onGet)
@@ -1009,7 +1035,7 @@ private fun InfoNote(text: String, onSwitch: () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer).padding(12.dp)) {
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(4.dp))
-        Text("Switch to on-device to keep everything private.", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { onSwitch() })
+        Text(tr("Switch to on-device to keep everything private."), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { onSwitch() })
     }
 }
 
