@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        set: [codeswitch, fleurs]
+        set: [cs-long, cs-short, fl-long, fl-short]
         method: [whole, chunked]
     steps:
       - uses: actions/checkout@v4

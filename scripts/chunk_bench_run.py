@@ -45,11 +45,15 @@ def cuts(a):
             out.append(cut); start = cut
     return out
 
-def voiced(a):
+def energies(a):
     n = len(a) // FRAME
-    if n == 0: return 0.0
-    e = np.array([np.sqrt(np.mean(a[i * FRAME:(i + 1) * FRAME] ** 2)) for i in range(n)])
-    return float((e > 0.01).sum()) * FRAME / SR
+    return np.array([np.sqrt(np.mean(a[i * FRAME:(i + 1) * FRAME] ** 2)) for i in range(n)])
+
+def voiced(piece, level):
+    """Seconds of sound in [piece], judged against the speech level heard so far ([level]) —
+    an absolute threshold called quiet real recordings silent and dropped whole sentences."""
+    e = energies(piece)
+    return float((e > max(level * 0.1, 1e-4)).sum()) * FRAME / SR
 
 clips = [c for c in json.load(open(f"{D}/clips.json")) if c["set"] == SET]
 results = []
@@ -65,7 +69,8 @@ for c in clips:
             # The tail after the last cut is often just the trailing silence that ends a
             # recording (the app auto-stops after 1.6s of it). Whisper invents text for silence,
             # so a piece with under 0.3s of sound is skipped, as the app would.
-            if voiced(a[s:e]) < 0.3:
+            level = np.percentile(energies(a[:e]), 95) if e >= FRAME else 0.0
+            if voiced(a[s:e], level) < 0.3:
                 times.append(0.0)
                 continue
             ctx = " ".join(texts)[-200:]

@@ -2,6 +2,7 @@
 """Build the audio for the chunked-vs-whole Turbo benchmark (see chunk-bench.yml).
 
 Two sets, each a list of 20-40s clips with the reference text:
+Sets: cs-long / cs-short (code-switched TTS, 25-44s / ~10-18s), fl-long / fl-short (FLEURS).
 - codeswitch: dictation-style Korean with English dev terms, the way the app is actually used,
   spoken by Microsoft Edge TTS (two Korean voices). Several sentences get a "thinking" pause of
   0.7-1.2s mid-sentence, which is exactly where a pause-based cutter is most likely to split.
@@ -59,26 +60,32 @@ def silence(sec):
     return np.zeros(int(sec * SR), np.float32)
 
 clips = []
-# --- codeswitch: 5 clips per voice, 4-5 sentences each -----------------------------------
-order = SENTENCES[:]
-k = 0
+
+def speak(group, voice):
+    parts, ref = [], []
+    for s in group:
+        for pi, piece in enumerate(s.split("|")):
+            mp3 = f"{OUT}/tmp.mp3"
+            asyncio.run(tts(piece.strip(), voice, mp3))
+            parts.append(load_mp3(mp3))
+            parts.append(silence(rng.uniform(0.7, 1.2) if pi == 0 and "|" in s else rng.uniform(0.4, 0.9)))
+        ref.append(s.replace("|", "").replace("  ", " "))
+    return np.concatenate(parts), " ".join(ref)
+
+def add(set_name, name, audio, ref):
+    sf.write(f"{OUT}/{name}.wav", audio, SR, subtype="PCM_16")
+    clips.append({"set": set_name, "name": name, "ref": ref, "sec": len(audio) / SR})
+
+# --- codeswitch: per voice, 5 long clips (4-5 sentences, 25-44s) and 8 short (2 sentences) ---
 for vi, voice in enumerate(VOICES):
+    order = SENTENCES[:]
     rng.shuffle(order)
-    groups = [order[i:i + 5] for i in range(0, 20, 5)][:4] + [order[20:24]]
-    for gi, group in enumerate(groups):
-        parts, ref = [], []
-        for s in group:
-            for pi, piece in enumerate(s.split("|")):
-                mp3 = f"{OUT}/tmp.mp3"
-                asyncio.run(tts(piece.strip(), voice, mp3))
-                parts.append(load_mp3(mp3))
-                parts.append(silence(rng.uniform(0.7, 1.2) if pi == 0 and "|" in s else rng.uniform(0.4, 0.9)))
-            ref.append(s.replace("|", "").replace("  ", " "))
-        audio = np.concatenate(parts)
-        name = f"cs_{vi}_{gi}"
-        sf.write(f"{OUT}/{name}.wav", audio, SR, subtype="PCM_16")
-        clips.append({"set": "codeswitch", "name": name, "ref": " ".join(ref), "sec": len(audio) / SR})
-        k += 1
+    longs = [order[i:i + 5] for i in range(0, 20, 5)] + [order[20:24]]
+    for gi, group in enumerate(longs):
+        add("cs-long", f"csl_{vi}_{gi}", *speak(group, voice))
+    rng.shuffle(order)
+    for gi in range(8):
+        add("cs-short", f"css_{vi}_{gi}", *speak(order[gi * 2:gi * 2 + 2], voice))
 
 # --- fleurs: 8 clips of 3 utterances --------------------------------------------------------
 from huggingface_hub import hf_hub_download as dl
@@ -93,18 +100,22 @@ for r in csv.reader(open(tsv, encoding="utf-8"), delimiter="\t", quoting=csv.QUO
         continue
     seen.add(r[1]); rows.append((p, r[2]))
 rows = rows[100:]  # not the 40 used by bench_models.py
-for i in range(8):
-    group = rows[i * 3:(i + 1) * 3]
+
+def join(group):
     parts, ref = [], []
     for p, t in group:
         a, sr = sf.read(p, dtype="float32")
         if a.ndim > 1: a = a.mean(axis=1)
         parts += [a, silence(rng.uniform(0.4, 1.0))]
         ref.append(t)
-    audio = np.concatenate(parts)
-    name = f"fl_{i}"
-    sf.write(f"{OUT}/{name}.wav", audio, SR, subtype="PCM_16")
-    clips.append({"set": "fleurs", "name": name, "ref": " ".join(ref), "sec": len(audio) / SR})
+    return np.concatenate(parts), " ".join(ref)
+
+for i in range(8):                       # long: 3 utterances, ~30-45s
+    add("fl-long", f"fll_{i}", *join(rows[i * 3:(i + 1) * 3]))
+rest = rows[24:]
+for i in range(12):                      # short: 1-2 utterances, ~8-22s
+    n = 1 + i % 2
+    add("fl-short", f"fls_{i}", *join(rest[:n])); rest = rest[n:]
 
 json.dump(clips, open(f"{OUT}/clips.json", "w"), ensure_ascii=False, indent=1)
 for c in clips:

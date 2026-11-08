@@ -38,7 +38,7 @@ def wait(res, speed):
 rows = []
 lines = ["| Set | Method | CER | Avg wait after stop (phone est.) | Avg wait (runner) | Avg clip |", "|---|---|---|---|---|---|"]
 for f in sorted(glob.glob(f"{R}/**/*.json", recursive=True)):
-    m = re.search(r"(codeswitch|fleurs)-(whole|chunked)", f)
+    m = re.search(r"((?:cs|fl)-(?:long|short))-(whole|chunked)", f)
     if not m: continue
     res = json.load(open(f))
     e = c = 0
@@ -52,7 +52,7 @@ lines.append("")
 for s, meth, res in rows:
     if meth != "chunked": continue
     whole = next((r for s2, m2, r in rows if s2 == s and m2 == "whole"), None)
-    for i, x in enumerate(res[:3]):
+    for i, x in enumerate(res[:2]):
         lines.append(f"**{s} {x['name']}** ({x['sec']:.0f}s, chunks {[round(c,1) for c in x['chunks']]})  ")
         lines.append(f"- ref: {x['ref']}  ")
         if whole: lines.append(f"- whole: {whole[i]['text']}  ")
