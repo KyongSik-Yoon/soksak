@@ -251,6 +251,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
 
     fun checkUpdate() {
         updateStatus = "Checking…"; latestBuild = null
+        AppUpdater.lastResult.value = null // a stale "Installer opened" must not hide the answer
         launch {
             updateStatus = try {
                 val r = AppUpdater.latest(githubToken)
@@ -278,6 +279,11 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                 updateProgress = null
             }
         }
+    }
+
+    // Check on open, so the card says whether a newer build exists without a tap.
+    LaunchedEffect(loaded) {
+        if (loaded && githubToken.isNotBlank()) checkUpdate()
     }
 
     fun needsImport(id: String): Boolean = WhisperModelManager.model(id).let {
@@ -593,7 +599,13 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val installResult by AppUpdater.lastResult.collectAsState()
-                            Text(installResult ?: updateStatus.ifBlank { "Installed: ${prettyVersion(appVersion(context))}" },
+                            // Newest first: an available build, then the last action's result,
+                            // then the check result, then just what's installed.
+                            val statusText = latestBuild?.takeIf { updateProgress == null && installResult == null }
+                                ?.let { "Build ${it.run} is available (installed: ${prettyVersion(appVersion(context))})." }
+                                ?: installResult
+                                ?: updateStatus.ifBlank { "Installed: ${prettyVersion(appVersion(context))}" }
+                            Text(statusText,
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f))
                             val avail = latestBuild

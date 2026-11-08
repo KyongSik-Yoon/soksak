@@ -38,9 +38,14 @@ object OnDeviceStt {
     suspend fun transcribe(context: Context, settings: Settings, samples: FloatArray, biasPrompt: String? = null): String {
         val id = resolveModel(context, settings.sttModel)
         val s = if (id != settings.sttModel) settings.copy(sttModel = id) else settings
-        return LocalWhisperStt.transcribe(context, s, samples, biasPrompt)
+        return if (WhisperModelManager.model(id).engine == SpeechEngine.WHISPER)
+            LocalWhisperStt.transcribe(context, s, samples, biasPrompt)
+        else LocalSherpaStt.transcribe(context, s, samples) // no prompt; the dictionary still runs after
     }
 
-    suspend fun warm(context: Context, modelId: String) =
-        LocalWhisperStt.warm(context, resolveModel(context, modelId))
+    suspend fun warm(context: Context, modelId: String) {
+        val id = resolveModel(context, modelId)
+        if (WhisperModelManager.model(id).engine == SpeechEngine.WHISPER) LocalWhisperStt.warm(context, id)
+        else LocalSherpaStt.warm(context, SettingsRepository(context.applicationContext).get().copy(sttModel = id))
+    }
 }

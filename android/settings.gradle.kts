@@ -10,6 +10,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Vendored sherpa-onnx AAR (Moonshine / SenseVoice). No official Maven artifact; CI
+        // downloads the release AAR into app/libs (gitignored).
+        flatDir { dirs("app/libs") }
     }
 }
 

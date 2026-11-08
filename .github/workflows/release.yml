@@ -44,6 +44,13 @@ jobs:
           fi
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
+      - name: Fetch vendored sherpa-onnx AAR (Moonshine / SenseVoice; gitignored binary)
+        working-directory: android
+        run: |
+          mkdir -p app/libs
+          curl -fSL --retry 3 -o app/libs/sherpa-onnx-static-link-onnxruntime-1.13.3.aar \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.3/sherpa-onnx-static-link-onnxruntime-1.13.3.aar
+
       - name: Build signed release APK + AAB
         working-directory: android
         env:

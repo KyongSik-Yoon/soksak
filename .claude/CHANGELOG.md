@@ -3,6 +3,13 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — Moonshine Korean, SenseVoice Small 추가
+- sherpa-onnx(AAR 1.13.3) 재도입, `LocalSherpaStt`. 모델 목록에서 Get으로 받기(공개 Release tar.bz2, 압축 해제).
+  작업 환경에서 Python sherpa-onnx로 확인: Moonshine-ko는 한국어 샘플 2개를 정확히, 6.9초 음성을 0.37초에.
+  SenseVoice 2025-09-09는 한국어를 중국어 섞어 출력 → 2024-07-17 사용(한국어 정상, 띄어쓰기가 가끔 과함).
+- Compare models가 엔진별로 분기(`OnDeviceStt.transcribe`).
+- 설정 Updates: 열 때 자동 Check, 새 빌드가 있으면 "Build N is available" 우선 표시(이전엔 "Installed."가 계속 남음).
+
 ## 2026-11-08 — 업데이트를 시스템 설치 관리자로
 - 22→23 앱 내 업데이트가 USER_ACTION_REQUIRED인데도 `Self update is blocked by unknown source package`로 실패.
   패턴: 웹 설치 직후 첫 업데이트는 성공, 앱이 installer of record가 된 다음 업데이트부터 실패.

@@ -15,8 +15,8 @@
   플로팅 버튼 사용성을 **로컬 Whisper**로 구현한다. 앱스토어 배포 없음, 개인용.
 - 원본: RohitAg13/openWispr (MIT). 포크 네트워크에서 분리(detach)했고 비공개. 원본 업데이트는 `upstream` remote로 수동 반영.
 - 확정된 결정
-  - 음성 인식은 **Whisper만** (whisper.cpp, `android/lib`). Parakeet/sherpa-onnx, Hinglish, LLM(AI polish, Rewrite),
-    Smart cleanup(규칙 기반 정리)은 **코드까지 제거**했다. 되살리지 않는다.
+  - 음성 인식: Whisper(whisper.cpp, `android/lib`) + **Moonshine Korean, SenseVoice Small**(sherpa-onnx, 2026-11-08 사용자 요청으로
+    추가 — 발열·반응속도). Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
   - 기본 언어 한국어. 한국어+영어 개발 용어가 섞인 발화가 주 사용 사례.
   - Turbo q5_0은 느리고 이득이 없어 제거, q4_0만 유지.
   - macOS 코드(`macos/`)는 건드리지 않는다. CI의 macOS 잡이 취소/실패해도 무시.
@@ -33,7 +33,13 @@
 - 앱 ID: 디버그는 `com.voicerewriter.dev` (Play 원본과 공존).
 
 ## 모델
-- 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0).
+- 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `moonshine-ko`, `sensevoice-small`,
+  `turbo-acft-q4`(Large v3 Turbo ACFT q4_0). `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
+- sherpa 모델(`LocalSherpaStt.kt`): sherpa-onnx 공개 Release `asr-models`의 tar.bz2를 받아 `models/<bundle>/`에 필요한 파일만 풀고
+  압축본은 지운다(commons-compress). AAR `sherpa-onnx-static-link-onnxruntime-1.13.3`은 CI가 `app/libs`에 받는다(gitignore).
+  Moonshine-ko는 `encoder_model.ort` + `decoder_model_merged.ort`(v2, `mergedDecoder`), 출력의 `▁` 제거.
+  SenseVoice는 **2024-07-17** int8을 쓴다 — 2025-09-09판은 광둥어 튜닝이라 한국어 테스트 음성을 중국어 섞인 결과로 냈다.
+  두 엔진 모두 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
 - ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후
@@ -56,6 +62,7 @@
 ## 앱 내 업데이트
 - `AppUpdater.kt`: Releases API(사용자가 설정에 넣은 fine-grained 토큰, Contents: Read-only) → APK를 캐시에 받고
   FileProvider(`update_paths.xml`) URI로 **시스템 패키지 설치 관리자**를 연다(ACTION_VIEW, 브라우저 다운로드와 같은 경로).
+- 설정 Updates 카드는 열 때 자동으로 Check하고 "Build N is available"을 우선 표시한다.
 - 앱이 직접 PackageInstaller 세션을 만드는 방식은 쓰지 않는다. 사용자 폰(Galaxy)에서 그 방식은 "self update"로 분류돼,
   설치된 앱의 installer of record가 이 앱 자신이면 `INSTALL_FAILED_ABORTED: Self update is blocked by unknown source package`로
   거부됐다(웹 설치 후 첫 업데이트는 성공, 두 번째부터 실패). USER_ACTION_REQUIRED를 명시해도 같았다.
@@ -73,5 +80,5 @@
 ## 백로그
 - 자동 중지 대기 시간(현재 1.6초 고정, `AudioRecorder.HANGOVER_SAMPLES`)을 설정에서 1.6/3/5초로 선택.
 - Compare models 결과로 기본 모델 확정 후 안 쓰는 모델 정리.
-- (보류) Nemotron 3.5 스트리밍: sherpa-onnx 지원 여부 미확인. Whisper만 유지 결정과 충돌하므로 사용자 재결정 필요.
+- (보류) Nemotron 3.5 스트리밍: sherpa-onnx가 다시 들어왔으니 지원 여부만 확인하면 시도 가능.
 - Release `model-acft-large-v3-turbo-q5_0` 삭제 여부 (앱에서는 이미 제거).

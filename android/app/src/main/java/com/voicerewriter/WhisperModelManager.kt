@@ -37,6 +37,8 @@ object WhisperModelManager {
          * workflow), fetched with the user's GitHub token from Settings > Updates.
          */
         val releaseTag: String? = null,
+        /** Which runtime decodes it. Non-Whisper models are sherpa-onnx bundles (a directory). */
+        val engine: SpeechEngine = SpeechEngine.WHISPER,
     ) {
         val githubHosted: Boolean get() = releaseTag != null
         /** No download at all: the file can only be imported from the phone. */
@@ -47,6 +49,9 @@ object WhisperModelManager {
 
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
+    const val MOONSHINE_KO_MODEL = "moonshine-ko"
+    const val SENSE_VOICE_MODEL = "sensevoice-small"
+    private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
 
     val MODELS = listOf(
         WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB"),
@@ -63,6 +68,28 @@ object WhisperModelManager {
             url = "https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin",
             sizeLabel = "~264MB · tuned for short clips",
             acft = true,
+        ),
+        // Non-Whisper engines via sherpa-onnx, much lighter on a phone (heat, latency). Bundles from
+        // sherpa-onnx's public asr-models release; fileName is the unpacked directory.
+        // Moonshine "Flavors" tiny, Korean-only (MIT). ~27M params; ~0.4s for 7s of speech on
+        // two desktop threads in testing, accurate on Korean samples. No prompt biasing.
+        WhisperModel(
+            id = MOONSHINE_KO_MODEL,
+            label = "Moonshine Korean",
+            fileName = "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27",
+            url = "$SHERPA_ASR/sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27.tar.bz2",
+            sizeLabel = "~49MB · Korean only · fastest",
+            engine = SpeechEngine.MOONSHINE,
+        ),
+        // SenseVoice-Small int8 (zh/en/ja/ko/yue). The 2024-07-17 export: the 2025-09-09 one is a
+        // Cantonese-tuned refresh that turned Korean test audio into mixed Chinese in testing.
+        WhisperModel(
+            id = SENSE_VOICE_MODEL,
+            label = "SenseVoice Small",
+            fileName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+            url = "$SHERPA_ASR/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+            sizeLabel = "~163MB · ko/en/ja/zh · fast",
+            engine = SpeechEngine.SENSE_VOICE,
         ),
         // whisper-large-v3-turbo with FUTO's audio-context fine-tune, by Mahmoud Ashraf
         // (Apache 2.0, huggingface.co/MahmoudAshraf/acft-whisper-large-v3-turbo). Stock turbo
@@ -93,8 +120,12 @@ object WhisperModelManager {
     fun modelFile(context: Context, id: String): File =
         File(File(context.filesDir, "models").apply { mkdirs() }, model(id).fileName)
 
-    fun isReady(context: Context, id: String): Boolean =
-        modelFile(context, id).let { it.exists() && it.length() > MIN_VALID_BYTES }
+    fun isReady(context: Context, id: String): Boolean {
+        val m = model(id)
+        val f = modelFile(context, id)
+        return if (m.engine == SpeechEngine.WHISPER) f.isFile && f.length() > MIN_VALID_BYTES
+        else LocalSherpaStt.isReady(f, m.engine)
+    }
 
     /**
      * Delete model [id] from disk, freeing its bytes. Returns bytes reclaimed (0 if it wasn't
@@ -102,7 +133,9 @@ object WhisperModelManager {
      * Settings UI only offers this on a downloaded-but-inactive model, per issue #53.
      */
     suspend fun delete(context: Context, id: String): Long = withContext(Dispatchers.IO) {
-        val freed = ModelDownloader.deleteWithSidecars(modelFile(context, id))
+        val f = modelFile(context, id)
+        val freed = if (model(id).engine == SpeechEngine.WHISPER) ModelDownloader.deleteWithSidecars(f)
+            else LocalSherpaStt.delete(f)
         // The download flows landed in #55, so a stale "done" can now outlive the file it
         // referred to. Clear it here rather than leaving onboarding to trust it.
         if (_downloadState.value == "done") _downloadState.value = "idle"
@@ -157,6 +190,10 @@ object WhisperModelManager {
         withContext(Dispatchers.IO) {
             if (isReady(context, id)) { onProgress(1f); return@withContext }
             val m = model(id)
+            if (m.engine != SpeechEngine.WHISPER) {
+                LocalSherpaStt.download(m.url, modelFile(context, id), m.engine, onProgress)
+                return@withContext
+            }
             if (m.importOnly) throw IllegalStateException("${m.label} has no download; import its file instead.")
             val url = if (m.githubHosted) {
                 val token = SettingsRepository(context.applicationContext).get().githubToken
@@ -196,3 +233,6 @@ object WhisperModelManager {
         }
     }
 }
+
+/** The runtime a speech model needs. */
+enum class SpeechEngine { WHISPER, MOONSHINE, SENSE_VOICE }

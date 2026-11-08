@@ -90,6 +90,10 @@ android {
         // Native libs are extracted on install (matches extractNativeLibs=true).
         jniLibs {
             useLegacyPackaging = true
+            // The sherpa static-link AAR still ships an x86 libonnxruntime.so, which collides
+            // with com.microsoft.onnxruntime's at merge time (before abiFilters strips x86).
+            // arm64 has only the Microsoft copy, so either pick is correct.
+            pickFirsts += "**/libonnxruntime.so"
         }
     }
     testOptions {
@@ -130,4 +134,9 @@ dependencies {
     // both libonnxruntime.so and libonnxruntime4j_jni.so — are 16 KB page aligned; 1.19.2 shipped
     // 4 KB, which Android 16 devices with 16 KB pages can only run in compatibility mode.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
+    // On-device Moonshine (Korean) and SenseVoice STT. Static-link AAR: onnxruntime is baked into
+    // libsherpa-onnx-jni.so, so no collision with the VAD's libonnxruntime.so on arm64.
+    implementation(group = "", name = "sherpa-onnx-static-link-onnxruntime-1.13.3", ext = "aar")
+    // tar.bz2 extraction of the sherpa model bundles.
+    implementation("org.apache.commons:commons-compress:1.27.1")
 }

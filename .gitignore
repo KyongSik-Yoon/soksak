@@ -51,3 +51,6 @@ macos/dist/
 # Vendored sherpa-onnx + onnxruntime xcframeworks for macOS on-device Parakeet STT — large
 # prebuilt binaries, regenerable via macos/SherpaOnnxFramework/fetch-binaries.sh.
 macos/SherpaOnnxFramework/binaries/
+
+# Vendored sherpa-onnx AAR, fetched by CI
+android/app/libs/*.aar

@@ -96,7 +96,7 @@ class CompareActivity : ComponentActivity() {
                     running = m.label
                     val t0 = System.nanoTime()
                     val row = try {
-                        val raw = LocalWhisperStt.transcribe(ctx, base.copy(sttModel = m.id), floats, bias)
+                        val raw = OnDeviceStt.transcribe(ctx, base.copy(sttModel = m.id), floats, bias)
                         val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
                         ModelRun(m.id, m.label, text, (System.nanoTime() - t0) / 1_000_000, null)
                     } catch (e: Exception) {
