@@ -3,6 +3,11 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — GPU: 크래시는 없어졌으나 빈 결과 (build-39)
+- build-38: GPU 켜고 받아쓰기 → 크래시 없이 "Empty transcript". whisper.cpp 1.8 기본 flash_attn=true인데 ggml-opencl FA 커널은
+  LLM 형태 위주 → GPU 컨텍스트는 flash_attn=false(jni.c `OPENWISPR_JNI_GPU`).
+- GPU 결과가 비면 CPU로 다시 돌린다(`lastBackend` = "CPU (GPU returned nothing)"). Compare는 빈 GPU 결과 옆에 gpu.log 끝줄 표시.
+
 ## 2026-11-08 — GPU: 두 번째 크래시(get_alignment) 수정
 - build-37 크래시 보고: SIGSEGV `ggml_backend_opencl_buffer_type_get_alignment` ← `whisper_model_load`.
   "CPU total size = 37.34 MB" = 토큰 임베딩이 CPU로 간 것 → 첫 패치는 의도대로 동작.
