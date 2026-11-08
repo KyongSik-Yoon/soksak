@@ -46,7 +46,7 @@ object LocalWhisperStt {
         // (~+344ms on a 9s clip, measured). English keeps greedy + single-segment.
         val codeSwitched = !DictationLanguage.isEnglish(lang)
         val beamSize = if (codeSwitched) 5 else 1
-        val decode: suspend () -> String = { whisper.transcribeData(
+        val decodeWith: suspend (WhisperContext) -> String = { w -> w.transcribeData(
             samples,
             printTimestamp = false,
             prompt = prompt,
@@ -56,7 +56,14 @@ object LocalWhisperStt {
             // ACFT weights tolerate a context sized to the clip; 128 keeps a small margin.
             audioCtxFloor = if (WhisperModelManager.model(id).acft) 128 else 768,
         ) }
-        val raw = if (whisper.gpu) GpuGuard.run(context, decode) else decode()
+        var raw = if (whisper.gpu) GpuGuard.run(context) { decodeWith(whisper) } else decodeWith(whisper)
+        if (whisper.gpu && raw.isBlank()) {
+            // The GPU ran but produced nothing, which it has done on Adreno. Don't hand the user an
+            // empty dictation for a backend bug: redo it on the CPU, and say so in lastBackend.
+            Log.w("LocalWhisperStt", "GPU returned an empty transcript; redoing on CPU")
+            raw = decodeWith(loadContext(context, id, gpu = false))
+            lastBackend = "CPU (GPU returned nothing)"
+        }
         val tDone = System.nanoTime()
         lastLoadMs = (tLoaded - t0) / 1_000_000
         lastInferMs = (tDone - tLoaded) / 1_000_000

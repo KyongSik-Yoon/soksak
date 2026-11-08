@@ -109,10 +109,12 @@ class CompareActivity : ComponentActivity() {
                         // A GPU run that fell back says so instead of passing off CPU time as GPU.
                         val label = if (whisper && gpu && !LocalWhisperStt.lastBackend.startsWith("GPU"))
                             "${m.label} (${LocalWhisperStt.lastBackend})" else m.label + tag
+                        // An empty GPU result is a GPU problem, not silence: show what the GPU log says.
+                        val shown = if (gpu && text.isBlank()) "(empty)\n" + (GpuGuard.recentLog(ctx) ?: "") else text
                         // Whisper reports load and decode apart: switching CPU/GPU reloads the model
                         // (and the GPU compiles its pipelines), which isn't what a dictation pays.
-                        if (whisper) ModelRun(m.id + tag, label, text, LocalWhisperStt.lastInferMs, null, LocalWhisperStt.lastLoadMs)
-                        else ModelRun(m.id + tag, label, text, (System.nanoTime() - t0) / 1_000_000, null)
+                        if (whisper) ModelRun(m.id + tag, label, shown, LocalWhisperStt.lastInferMs, null, LocalWhisperStt.lastLoadMs)
+                        else ModelRun(m.id + tag, label, shown, (System.nanoTime() - t0) / 1_000_000, null)
                     } catch (e: Exception) {
                         ModelRun(m.id + tag, m.label + tag, null, null, e.message ?: e.toString())
                     }

@@ -70,6 +70,19 @@ object GpuGuard {
             .distinct().take(8).joinToString("\n").ifBlank { null }
     }.getOrNull()
 
+    /**
+     * The GPU log's last meaningful lines from this process, for showing next to a GPU result
+     * that came back wrong (empty) without crashing.
+     */
+    fun recentLog(context: Context, max: Int = 4): String? {
+        val lines = runCatching { logFile(context).readLines() }.getOrDefault(emptyList())
+            .map { it.trim() }.filter { it.isNotEmpty() }
+        val important = lines.filter { l ->
+            listOf("error", "unsupported", "fail", "nan", "warn").any { l.contains(it, ignoreCase = true) }
+        }
+        return important.takeLast(max).ifEmpty { lines.takeLast(max) }.joinToString("\n") { it.take(160) }.ifBlank { null }
+    }
+
     /** What the last GPU crash left behind, for Settings to show. */
     fun lastReport(context: Context): String? = prefs(context).getString(KEY_REPORT, null)?.ifBlank { null }
 

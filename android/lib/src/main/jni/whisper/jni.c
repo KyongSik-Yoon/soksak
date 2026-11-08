@@ -156,7 +156,14 @@ JNI_FN(initContext)(
     UNUSED(thiz);
     struct whisper_context *context = NULL;
     const char *model_path_chars = (*env)->GetStringUTFChars(env, model_path_str, NULL);
-    context = whisper_init_from_file_with_params(model_path_chars, whisper_context_default_params());
+    struct whisper_context_params cparams = whisper_context_default_params();
+#ifdef OPENWISPR_JNI_GPU
+    // whisper.cpp 1.8 turns flash attention on by default. ggml-opencl's flash-attention kernels
+    // are written for LLM shapes; with Whisper on Adreno the GPU build loaded and ran but returned
+    // empty transcripts. Plain attention (mul_mat + softmax) is the well-trodden path.
+    cparams.flash_attn = false;
+#endif
+    context = whisper_init_from_file_with_params(model_path_chars, cparams);
     (*env)->ReleaseStringUTFChars(env, model_path_str, model_path_chars);
     return (jlong) context;
 }
