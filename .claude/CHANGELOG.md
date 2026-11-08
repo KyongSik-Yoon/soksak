@@ -3,6 +3,13 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — GPU 토글 시 앱 강제 종료 → 진단·복구
+- build-33에서 GPU를 켜자 앱이 닫힘. ggml OpenCL 백엔드는 커널 컴파일 실패·미지원 GPU에서 로그만 남기고 `exit(1)`을 부른다.
+- 복구: Settings가 열릴 때 크래시 흔적(`GpuGuard` busy 플래그)이 있으면 드라이버를 건드리기 전에 설정을 끈다
+  (전엔 Settings를 열 때마다 다시 죽을 수 있었다). 라이브러리 로드도 GpuGuard 안에서.
+- 진단: GPU 라이브러리가 ggml 로그와 stderr를 `files/gpu.log`로 보낸다(`gpuDevice(logPath)`). 다음 실행에 종료 사유
+  (ApplicationExitInfo)와 로그의 에러 줄을 설정 토글 아래에 보여준다.
+
 ## 2026-11-08 — GPU 재시도: OpenCL(Adreno), Turbo만
 - 사용자: 스냅드래곤이니 OpenCL로 해보자. Vulkan 때 인프라(설정 토글, GpuGuard, Compare 이중 실행)를 되살리고 백엔드만 OpenCL로.
 - Turbo만 GPU 대상(`GPU_MODELS`). 기본 꺼짐. 설정 문구에 로드 실패 이유(`loadError`)를 그대로 보여 진단에 쓴다.

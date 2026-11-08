@@ -333,19 +333,37 @@ JNI_FN(benchGgmlMulMat)(JNIEnv *env, jobject thiz,
 #ifdef OPENWISPR_JNI_GPU
 #include "ggml-backend.h"
 
-static void log_to_logcat(enum ggml_log_level level, const char * text, void * user_data) {
+#include <stdio.h>
+
+static int log_to_file = 0;
+
+static void log_gpu(enum ggml_log_level level, const char * text, void * user_data) {
     UNUSED(user_data);
     int prio = level == GGML_LOG_LEVEL_ERROR ? ANDROID_LOG_ERROR
              : level == GGML_LOG_LEVEL_WARN  ? ANDROID_LOG_WARN : ANDROID_LOG_INFO;
     __android_log_print(prio, "whisper-gpu", "%s", text);
+    if (log_to_file) fputs(text, stderr); // unbuffered, see gpuDevice
 }
 
-// Name of the GPU whisper would pick ("" if OpenCL found none). Also routes whisper/ggml logs
-// to logcat so "using OpenCL backend" and driver errors are visible.
+// Name of the GPU whisper would pick ("" if OpenCL found none).
+//
+// Also sends every whisper/ggml log line, and the process's stderr, to [log_path]. ggml's OpenCL
+// backend reacts to driver trouble (a kernel that won't compile, an unsupported GPU) by logging
+// the reason and calling exit(1), which closes the app with nothing in the UI. The file survives
+// that, and the app shows its tail on the next start. stderr stays redirected for the process,
+// so a later failure in initContext/fullTranscribe lands there too.
 JNIEXPORT jstring JNICALL
-JNI_FN(gpuDevice)(JNIEnv *env, jobject thiz) {
+JNI_FN(gpuDevice)(JNIEnv *env, jobject thiz, jstring log_path) {
     UNUSED(thiz);
-    whisper_log_set(log_to_logcat, NULL);
+    if (log_path != NULL && !log_to_file) {
+        const char *path = (*env)->GetStringUTFChars(env, log_path, NULL);
+        if (path[0] != 0 && freopen(path, "w", stderr) != NULL) {
+            setvbuf(stderr, NULL, _IONBF, 0);
+            log_to_file = 1;
+        }
+        (*env)->ReleaseStringUTFChars(env, log_path, path);
+    }
+    whisper_log_set(log_gpu, NULL);
     for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
         ggml_backend_dev_t dev = ggml_backend_dev_get(i);
         enum ggml_backend_dev_type t = ggml_backend_dev_type(dev);

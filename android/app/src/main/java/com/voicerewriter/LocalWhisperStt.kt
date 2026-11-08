@@ -112,7 +112,7 @@ object LocalWhisperStt {
             repo.save(repo.get().copy(whisperGpu = false))
             return false
         }
-        return WhisperGpu.available
+        return true // library availability is checked under GpuGuard in loadContext
     }
 
     /**

@@ -472,12 +472,27 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     // first GPU call, so it only happens with the toggle on, off the main thread,
                     // and under GpuGuard like any other GPU call.
                     LaunchedEffect(whisperGpu) {
+                        // A GPU call that took the app down last time: turn the setting off and say
+                        // why, before anything touches the driver again (or opening Settings would
+                        // crash every time).
+                        if (whisperGpu && GpuGuard.consumeCrash(context)) {
+                            whisperGpu = false
+                            persist()
+                            return@LaunchedEffect
+                        }
                         gpuNote = when {
-                            !whisperGpu && GpuGuard.tripped(context) -> "Turned off: the app stopped during a GPU run."
+                            !whisperGpu && GpuGuard.tripped(context) ->
+                                "Turned off: the app closed during a GPU run." +
+                                    (GpuGuard.lastReport(context)?.let { "\n$it\n" } ?: "")
                             !whisperGpu -> null
-                            !WhisperGpu.available -> "Couldn't load the GPU library: ${WhisperGpu.loadError ?: "not in this build"}."
-                            else -> withContext(Dispatchers.Default) { GpuGuard.run(context) { WhisperGpu.deviceName } }
-                                ?.let { "Using $it." } ?: "No OpenCL GPU found. Stays on the CPU."
+                            else -> withContext(Dispatchers.Default) {
+                                GpuGuard.run(context) {
+                                    when {
+                                        !WhisperGpu.available -> "Couldn't load the GPU library: ${WhisperGpu.loadError ?: "not in this build"}."
+                                        else -> WhisperGpu.deviceName?.let { "Using $it." } ?: "No OpenCL GPU found. Stays on the CPU."
+                                    }
+                                }
+                            }
                         }
                     }
                     ToggleRow(

@@ -1,6 +1,11 @@
 package com.voicerewriter
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
+import android.os.Build
+import com.whispercpp.whisper.WhisperGpu
+import java.io.File
 
 /**
  * The GPU path runs inside the vendor OpenCL driver; if that crashes, it takes the process with it
@@ -16,12 +21,16 @@ object GpuGuard {
     private const val PREFS = "gpu_guard"
     private const val KEY_BUSY = "busy"
     private const val KEY_TRIPPED = "tripped"
+    private const val KEY_REPORT = "report"
 
     @Volatile private var inFlight = 0
 
     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private fun logFile(c: Context) = File(c.applicationContext.filesDir, "gpu.log")
+
     suspend fun <T> run(context: Context, block: suspend () -> T): T {
+        WhisperGpu.logPath = logFile(context).absolutePath
         synchronized(this) {
             inFlight++
             prefs(context).edit().putBoolean(KEY_BUSY, true).commit() // commit: must be on disk before the driver runs
@@ -40,9 +49,42 @@ object GpuGuard {
     fun consumeCrash(context: Context): Boolean = synchronized(this) {
         val p = prefs(context)
         if (inFlight == 0 && p.getBoolean(KEY_BUSY, false)) {
-            p.edit().putBoolean(KEY_BUSY, false).putBoolean(KEY_TRIPPED, true).apply()
+            // Capture why now: the next GPU call truncates the log.
+            p.edit().putBoolean(KEY_BUSY, false).putBoolean(KEY_TRIPPED, true)
+                .putString(KEY_REPORT, report(context)).apply()
             true
         } else false
+    }
+
+    /** What the last GPU crash left behind, for Settings to show. */
+    fun lastReport(context: Context): String? = prefs(context).getString(KEY_REPORT, null)?.ifBlank { null }
+
+    /**
+     * How the process ended (Android 11+) plus the GPU log's last meaningful lines. ggml's
+     * OpenCL backend logs the reason and calls exit(1), so the log usually holds the answer.
+     */
+    private fun report(context: Context): String {
+        val exit = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) runCatching {
+            val am = context.getSystemService(ActivityManager::class.java)
+            am.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()?.let { e ->
+                val why = when (e.reason) {
+                    ApplicationExitInfo.REASON_EXIT_SELF -> "exited (status ${e.status})"
+                    ApplicationExitInfo.REASON_CRASH_NATIVE -> "native crash"
+                    ApplicationExitInfo.REASON_CRASH -> "crash"
+                    ApplicationExitInfo.REASON_LOW_MEMORY -> "killed for memory"
+                    ApplicationExitInfo.REASON_ANR -> "not responding"
+                    else -> "reason ${e.reason}"
+                }
+                why + (e.description?.let { d -> ": $d" } ?: "")
+            }
+        }.getOrNull() else null
+        val lines = runCatching { logFile(context).readLines() }.getOrDefault(emptyList())
+            .map { it.trim() }.filter { it.isNotEmpty() }
+        val important = lines.filter { l ->
+            listOf("error", "unsupported", "fail", "abort", "assert").any { l.contains(it, ignoreCase = true) }
+        }
+        val tail = (important.takeLast(4).ifEmpty { lines.takeLast(4) }).joinToString("\n") { it.take(200) }
+        return listOfNotNull(exit, tail.ifBlank { null }).joinToString("\n")
     }
 
     /** The GPU setting was turned off by a crash and the user hasn't turned it back on since. */

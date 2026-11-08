@@ -208,8 +208,14 @@ object WhisperGpu {
     }
 
     /** The OpenCL GPU whisper would use, or null if none (or no GPU library). */
+    /**
+     * Where the GPU library writes its log and stderr (see jni.c gpuDevice). Set by the app
+     * before the first GPU call; read back after a GPU run killed the process.
+     */
+    @Volatile var logPath: String? = null
+
     val deviceName: String? by lazy {
-        if (!available) null else runCatching { WhisperLibGpu.gpuDevice() }.getOrNull()?.ifBlank { null }
+        if (!available) null else runCatching { WhisperLibGpu.gpuDevice(logPath) }.getOrNull()?.ifBlank { null }
     }
 }
 
@@ -231,7 +237,7 @@ private class WhisperLibGpu {
         external fun getTextSegment(contextPtr: Long, index: Int): String
         external fun getTextSegmentT0(contextPtr: Long, index: Int): Long
         external fun getTextSegmentT1(contextPtr: Long, index: Int): Long
-        external fun gpuDevice(): String
+        external fun gpuDevice(logPath: String?): String
     }
 }
 
