@@ -12,6 +12,7 @@ on:
       - ".github/workflows/bench-models.yml"
       - ".github/workflows/chunk-bench.yml"
       - ".github/workflows/package-moonshine.yml"
+      - ".github/workflows/route-bench.yml"
   pull_request:
   workflow_dispatch:
 

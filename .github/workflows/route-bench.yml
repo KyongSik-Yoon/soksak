@@ -1,0 +1,73 @@
+# Which model should an "Auto" setting pick for a given recording? Scores every model and
+# candidate routers on Korean speech (FLEURS + code-switched TTS) clean, in café babble at
+# 10/0 dB SNR, and very quiet. See scripts/route_bench_*.py.
+name: Bench Auto routing
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/route-bench.yml, scripts/route_bench_*.py]
+
+permissions:
+  contents: read
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get install -y -qq ffmpeg >/dev/null && pip install -q edge-tts soundfile numpy huggingface_hub
+      - run: python scripts/route_bench_data.py audio
+      - uses: actions/upload-artifact@v4
+        with: { name: audio, path: "audio/*.wav\naudio/clips.json" }
+
+  run:
+    needs: data
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [moonshine, sensevoice, small, turbo]
+        cond: [clean, babble10, babble0, quiet]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q sherpa-onnx==2.0.1 soundfile numpy
+      - uses: actions/download-artifact@v4
+        with: { name: audio, path: audio }
+      - name: Build whisper-cli (v1.7.4, as vendored in the app)
+        if: matrix.model == 'small' || matrix.model == 'turbo'
+        run: |
+          git clone -q --depth 1 --branch v1.7.4 https://github.com/ggml-org/whisper.cpp wcpp
+          cmake -S wcpp -B wcpp/build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=ON -DWHISPER_BUILD_TESTS=OFF >/dev/null
+          cmake --build wcpp/build -j4 --target whisper-cli >/dev/null
+      - name: Fetch model
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -e; mkdir -p models; cd models
+          case "${{ matrix.model }}" in
+            moonshine) gh release download model-moonshine-base-ko -R "$GITHUB_REPOSITORY" -p '*.tar.bz2'; tar xjf *.tar.bz2 ;;
+            sensevoice) b=sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17
+                        gh release download asr-models -R k2-fsa/sherpa-onnx -p "$b.tar.bz2"; tar xjf "$b.tar.bz2" ;;
+            small) curl -fsSL --retry 5 --retry-all-errors -o small_acft_q8_0.bin https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin ;;
+            turbo) gh release download model-acft-large-v3-turbo-q4_0 -R "$GITHUB_REPOSITORY" -p '*.bin' ;;
+          esac
+          ls
+      - run: python scripts/route_bench_run.py audio models wcpp/build/bin/whisper-cli ${{ matrix.model }} ${{ matrix.cond }} ${{ matrix.model }}-${{ matrix.cond }}.json
+      - uses: actions/upload-artifact@v4
+        with: { name: "res-${{ matrix.model }}-${{ matrix.cond }}", path: "${{ matrix.model }}-${{ matrix.cond }}.json" }
+
+  report:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: results, pattern: "res-*" }
+      - run: python3 scripts/route_bench_report.py results
