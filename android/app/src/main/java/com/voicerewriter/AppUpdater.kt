@@ -119,7 +119,8 @@ object AppUpdater {
     val lastResult = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
     fun canInstall(context: Context): Boolean =
-        Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
+        Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls() ||
+            ShizukuInstaller.state(context) == ShizukuInstaller.State.READY
 
     /** The system screen where the user allows this app to install updates. */
     fun installPermissionIntent(context: Context): Intent =
@@ -170,6 +171,18 @@ object AppUpdater {
             out
         }
         onProgress(1f)
+        // Shizuku running and allowed: install as the shell user, no confirmation screens.
+        // Anything going wrong there falls through to the system installer below.
+        if (ShizukuInstaller.state(app) == ShizukuInstaller.State.READY) {
+            lastResult.value = "Installing via Shizuku… the app restarts when done."
+            try {
+                ShizukuInstaller.install(apk)
+                return // usually not reached: replacing the app kills this process
+            } catch (e: Exception) {
+                android.util.Log.w("AppUpdater", "Shizuku install failed; using the system installer", e)
+                lastResult.value = "Shizuku install failed (${e.message?.take(80)}); opening the installer."
+            }
+        }
         val uri = androidx.core.content.FileProvider.getUriForFile(app, "${app.packageName}.updates", apk)
         val view = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, "application/vnd.android.package-archive")

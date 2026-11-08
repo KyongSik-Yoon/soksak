@@ -633,6 +633,31 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                             LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
                         }
                     }
+                    Divider()
+                    // Silent updates through Shizuku. Polled while Settings is open: Shizuku is
+                    // started and its permission granted in other apps/dialogs, with no callback
+                    // we'd otherwise see here. pingBinder is a cheap IPC.
+                    var shizuku by remember { mutableStateOf(ShizukuInstaller.state(context)) }
+                    LaunchedEffect(Unit) {
+                        while (true) { shizuku = ShizukuInstaller.state(context); kotlinx.coroutines.delay(2000) }
+                    }
+                    val (shTitle, shSub) = when (shizuku) {
+                        ShizukuInstaller.State.READY -> "Silent updates: on" to
+                            "Shizuku is running. Update installs without the confirmation screens."
+                        ShizukuInstaller.State.NEEDS_PERMISSION -> "Silent updates: allow OpenWispr" to
+                            "Shizuku is running. Tap to let OpenWispr install updates through it."
+                        ShizukuInstaller.State.NOT_RUNNING -> "Silent updates: start Shizuku" to
+                            "Shizuku isn't running (it stops on reboot). Tap to open it and start it with wireless debugging."
+                        ShizukuInstaller.State.NOT_INSTALLED -> "Silent updates (optional)" to
+                            "Install Shizuku to skip the scan and fingerprint screens on every update. Tap to get it."
+                    }
+                    NavRow(shTitle, shSub) {
+                        when (shizuku) {
+                            ShizukuInstaller.State.NEEDS_PERMISSION -> ShizukuInstaller.requestPermission()
+                            ShizukuInstaller.State.READY -> {}
+                            else -> ShizukuInstaller.openShizuku(context)
+                        }
+                    }
                 }
             }
 

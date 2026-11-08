@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — Shizuku로 무확인 업데이트
+- 사용자: 말하는 동안 변환 "잘 된다". 업데이트마다 Play 프로텍트 스캔 확인 + 지문이 번거로움.
+- 검토: Play 프로텍트 끄기(설정만), 동적 패치(DexClassLoader — 매니페스트·네이티브 못 바꿔 부적합), setRequestUpdateOwnership
+  (Samsung self update 차단으로 불가), Obtainium+Shizuku(앱 수정 없음). 사용자 선택: 앱 Update 버튼에 Shizuku 연동.
+- 구현: `ShizukuInstaller`(state/requestPermission/install), `AppUpdater.downloadAndInstall`에서 READY면 Shizuku, 실패 시 시스템 설치.
+
 ## 2026-11-08 — 말하는 동안 변환 (Whisper, 쉼에서 조각)
 - 사용자: Turbo가 가장 정확하지만 긴 문장일수록 느림. 측정: 인코더가 클립 길이에 비례, 빔은 거의 무관.
 - 벤치(chunk-bench.yml, TTS 코드스위칭 + FLEURS, 짧은/긴): 조각 방식이 짧은 클립은 동급, 긴/쉼 많은 클립은 훨씬 정확,

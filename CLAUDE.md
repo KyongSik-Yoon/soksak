@@ -96,7 +96,11 @@
 - 앱이 직접 PackageInstaller 세션을 만드는 방식은 쓰지 않는다. 사용자 폰(Galaxy)에서 그 방식은 "self update"로 분류돼,
   설치된 앱의 installer of record가 이 앱 자신이면 `INSTALL_FAILED_ABORTED: Self update is blocked by unknown source package`로
   거부됐다(웹 설치 후 첫 업데이트는 성공, 두 번째부터 실패). USER_ACTION_REQUIRED를 명시해도 같았다.
-- Play 프로텍트 "검사 없이 설치?"와 지문 확인은 OS 보안 단계라 앱에서 우회할 수 없다.
+- Play 프로텍트 "검사 없이 설치?"와 지문 확인은 시스템 설치 관리자 경로의 OS 보안 단계라 그 경로로는 못 없앤다.
+- **Shizuku 무확인 업데이트**(`ShizukuInstaller.kt`): Shizuku가 실행 중이고 권한이 있으면 APK를 stdin으로 `pm install -r -S`
+  (셸 사용자 = ADB 설치)해서 확인 화면 없이 설치. 아니면 위 시스템 설치 관리자로 폴백. 설정 Updates 카드에 상태 행.
+  `Shizuku.newProcess`는 13.x에서 private이라 리플렉션으로 호출. 매니페스트에 ShizukuProvider와 `<queries>`.
+  `setRequestUpdateOwnership`/USER_ACTION_NOT_REQUIRED 세션은 위의 self update 차단 때문에 이 폰에서 해법이 아니다.
 
 ## 작업 규칙
 - 커밋 작성자: `-c user.name="Sam" -c user.email="sam@jennifersoft.com"`. 세션이 요구하는 attribution 줄을 메시지 끝에 붙인다.

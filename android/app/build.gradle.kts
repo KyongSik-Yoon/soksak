@@ -139,4 +139,7 @@ dependencies {
     implementation(group = "", name = "sherpa-onnx-static-link-onnxruntime-2.0.1", ext = "aar")
     // tar.bz2 extraction of the sherpa model bundles.
     implementation("org.apache.commons:commons-compress:1.27.1")
+    // Silent in-app updates through Shizuku (ShizukuInstaller).
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
 }
