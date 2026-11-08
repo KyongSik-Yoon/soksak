@@ -55,7 +55,7 @@ import kotlinx.coroutines.withContext
  */
 class CompareActivity : ComponentActivity() {
 
-    private data class ModelRun(val modelId: String, val label: String, val text: String?, val ms: Long?, val error: String?)
+    private data class ModelRun(val modelId: String, val label: String, val text: String?, val ms: Long?, val error: String?, val loadMs: Long = 0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,15 +92,29 @@ class CompareActivity : ComponentActivity() {
                 val floats = WavIo.toFloats(samples)
                 val models = WhisperModelManager.MODELS.filter { WhisperModelManager.isReady(ctx, it.id) }
                 if (models.isEmpty()) rows.add(ModelRun("", "Models", null, null, "No on-device model is downloaded."))
-                for (m in models) {
-                    running = m.label
+                // With GPU on, each Whisper model runs on both backends so the speedup (and any
+                // quality difference) shows on the same recording.
+                val runs = models.flatMap { m ->
+                    if (m.engine == SpeechEngine.WHISPER && base.whisperGpu) listOf(m to false, m to true)
+                    else listOf(m to base.whisperGpu)
+                }
+                for ((m, gpu) in runs) {
+                    val whisper = m.engine == SpeechEngine.WHISPER
+                    val tag = if (whisper && base.whisperGpu) (if (gpu) " (GPU)" else " (CPU)") else ""
+                    running = m.label + tag
                     val t0 = System.nanoTime()
                     val row = try {
-                        val raw = OnDeviceStt.transcribe(ctx, base.copy(sttModel = m.id), floats, bias)
+                        val raw = OnDeviceStt.transcribe(ctx, base.copy(sttModel = m.id, whisperGpu = gpu), floats, bias)
                         val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
-                        ModelRun(m.id, m.label, text, (System.nanoTime() - t0) / 1_000_000, null)
+                        // A GPU run that fell back says so instead of passing off CPU time as GPU.
+                        val label = if (whisper && gpu && !LocalWhisperStt.lastBackend.startsWith("GPU"))
+                            "${m.label} (${LocalWhisperStt.lastBackend})" else m.label + tag
+                        // Whisper reports load and decode apart: switching CPU/GPU reloads the model
+                        // (and the GPU compiles its pipelines), which isn't what a dictation pays.
+                        if (whisper) ModelRun(m.id + tag, label, text, LocalWhisperStt.lastInferMs, null, LocalWhisperStt.lastLoadMs)
+                        else ModelRun(m.id + tag, label, text, (System.nanoTime() - t0) / 1_000_000, null)
                     } catch (e: Exception) {
-                        ModelRun(m.id, m.label, null, null, e.message ?: e.toString())
+                        ModelRun(m.id + tag, m.label + tag, null, null, e.message ?: e.toString())
                     }
                     rows.add(row)
                 }
@@ -177,7 +191,8 @@ class CompareActivity : ComponentActivity() {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                r.label + (r.ms?.let { " · ${"%.1f".format(it / 1000.0)}s" } ?: ""),
+                r.label + (r.ms?.let { " · ${"%.1f".format(it / 1000.0)}s" } ?: "") +
+                    (if (r.loadMs >= 100) "  (+${"%.1f".format(r.loadMs / 1000.0)}s load)" else ""),
                 style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
             )
             if (r.error != null) {

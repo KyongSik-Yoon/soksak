@@ -11,6 +11,15 @@
 #define UNUSED(x) (void)(x)
 #define TAG "JNI"
 
+// The same glue is compiled twice: into libwhisper*.so (vendored whisper.cpp 1.7.4, CPU) as
+// WhisperLib, and into libwhisper_gpu.so (whisper.cpp built with the Vulkan backend, see
+// ../whisper-gpu) as WhisperLibGpu. Distinct JNI names let both libraries live in one process.
+#ifdef OPENWISPR_JNI_GPU
+#define JNI_FN(name) Java_com_whispercpp_whisper_WhisperLibGpu_00024Companion_##name
+#else
+#define JNI_FN(name) Java_com_whispercpp_whisper_WhisperLib_00024Companion_##name
+#endif
+
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,     TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN,     TAG, __VA_ARGS__)
 
@@ -131,7 +140,7 @@ static struct whisper_context *whisper_init_from_asset(
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_initContextFromAsset(
+JNI_FN(initContextFromAsset)(
         JNIEnv *env, jobject thiz, jobject assetManager, jstring asset_path_str) {
     UNUSED(thiz);
     struct whisper_context *context = NULL;
@@ -142,7 +151,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_initContextFromAsset(
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_initContext(
+JNI_FN(initContext)(
         JNIEnv *env, jobject thiz, jstring model_path_str) {
     UNUSED(thiz);
     struct whisper_context *context = NULL;
@@ -153,7 +162,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_initContext(
 }
 
 JNIEXPORT void JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_freeContext(
+JNI_FN(freeContext)(
         JNIEnv *env, jobject thiz, jlong context_ptr) {
     UNUSED(env);
     UNUSED(thiz);
@@ -162,7 +171,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_freeContext(
 }
 
 JNIEXPORT void JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
+JNI_FN(fullTranscribe)(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data, jstring prompt,
         jstring language, jint beam_size, jboolean single_segment, jint audio_ctx_floor) {
     UNUSED(thiz);
@@ -259,7 +268,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
 }
 
 JNIEXPORT jint JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentCount(
+JNI_FN(getTextSegmentCount)(
         JNIEnv *env, jobject thiz, jlong context_ptr) {
     UNUSED(env);
     UNUSED(thiz);
@@ -268,7 +277,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentCount(
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegment(
+JNI_FN(getTextSegment)(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint index) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
@@ -278,7 +287,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegment(
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentT0(
+JNI_FN(getTextSegmentT0)(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint index) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
@@ -286,7 +295,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentT0(
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentT1(
+JNI_FN(getTextSegmentT1)(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint index) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
@@ -294,7 +303,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentT1(
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_getSystemInfo(
+JNI_FN(getSystemInfo)(
         JNIEnv *env, jobject thiz
 ) {
     UNUSED(thiz);
@@ -304,7 +313,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_getSystemInfo(
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_benchMemcpy(JNIEnv *env, jobject thiz,
+JNI_FN(benchMemcpy)(JNIEnv *env, jobject thiz,
                                                                       jint n_threads) {
     UNUSED(thiz);
     const char *bench_ggml_memcpy = whisper_bench_memcpy_str(n_threads);
@@ -313,10 +322,37 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_benchMemcpy(JNIEnv *env, j
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_whispercpp_whisper_WhisperLib_00024Companion_benchGgmlMulMat(JNIEnv *env, jobject thiz,
+JNI_FN(benchGgmlMulMat)(JNIEnv *env, jobject thiz,
                                                                           jint n_threads) {
     UNUSED(thiz);
     const char *bench_ggml_mul_mat = whisper_bench_ggml_mul_mat_str(n_threads);
     jstring string = (*env)->NewStringUTF(env, bench_ggml_mul_mat);
     return string;
 }
+
+#ifdef OPENWISPR_JNI_GPU
+#include "ggml-backend.h"
+
+static void log_to_logcat(enum ggml_log_level level, const char * text, void * user_data) {
+    UNUSED(user_data);
+    int prio = level == GGML_LOG_LEVEL_ERROR ? ANDROID_LOG_ERROR
+             : level == GGML_LOG_LEVEL_WARN  ? ANDROID_LOG_WARN : ANDROID_LOG_INFO;
+    __android_log_print(prio, "whisper-gpu", "%s", text);
+}
+
+// Name of the GPU whisper would pick ("" if Vulkan found none). Also routes whisper/ggml logs
+// to logcat so "using Vulkan0 backend" and driver errors are visible.
+JNIEXPORT jstring JNICALL
+JNI_FN(gpuDevice)(JNIEnv *env, jobject thiz) {
+    UNUSED(thiz);
+    whisper_log_set(log_to_logcat, NULL);
+    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
+        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        enum ggml_backend_dev_type t = ggml_backend_dev_type(dev);
+        if (t == GGML_BACKEND_DEVICE_TYPE_GPU || t == GGML_BACKEND_DEVICE_TYPE_IGPU) {
+            return (*env)->NewStringUTF(env, ggml_backend_dev_description(dev));
+        }
+    }
+    return (*env)->NewStringUTF(env, "");
+}
+#endif

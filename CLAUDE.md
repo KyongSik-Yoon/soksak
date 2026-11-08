@@ -47,6 +47,20 @@
   이 저장소 Release(`model-*`, pre-release)에 올린다. 앱은 GitHub 토큰으로 받는다(`releaseTag` 필드). 토큰이 없으면 Import.
 - 디바이스 추천: `DeviceFit.kt` (6GB+ → small-acft).
 
+## GPU (Vulkan) — 실험적, 설정 "GPU acceleration"
+- 두 번째 네이티브 라이브러리 `libwhisper_gpu.so`: 업스트림 whisper.cpp **v1.8.7** + ggml Vulkan 백엔드
+  (`android/lib/src/main/jni/whisper-gpu/CMakeLists.txt`). CPU용 `libwhisper*.so`(vendored 1.7.4)는 그대로다.
+  같은 `jni.c`를 `OPENWISPR_JNI_GPU`로 한 번 더 컴파일해 JNI 이름만 `WhisperLibGpu`로 바꾼다(`JNI_FN` 매크로).
+- 소스·도구는 vendoring하지 않고 CI 단계 "Fetch GPU (Vulkan) build deps"가 받는다: whisper.cpp 태그, Vulkan-Headers·SPIRV-Headers
+  (`vulkan-sdk-1.4.350.1`), apt `glslc`. env `OPENWISPR_GPU_DEPS`가 없으면 GPU 라이브러리 없이 빌드된다("Not in this build").
+  버전은 함께 올린다.
+- 함정: NDK API-24 `libvulkan.so` 스텁엔 1.1+ 함수가 없어 **API-33 스텁**에 링크. Gradle 안에서 shader 생성기의 `fork()`가
+  ENOMEM으로 실패해 셰이더가 빠지므로 `scripts/patch-vk-shaders-gen.py`로 `vfork()` 패치. GPU 컴파일 동시성 2(`gpu_compile` 풀).
+  이것 때문에 CI가 ~11분으로 늘었다.
+- 런타임: `WhisperGpu`(라이브러리 로드·장치명), `LocalWhisperStt.loadContext`(모델+백엔드별 캐시, 실패 시 CPU 폴백, `lastBackend`).
+  드라이버 크래시는 Kotlin에서 잡을 수 없어 `GpuGuard`가 GPU 호출 전후로 디스크 플래그를 세우고, 다음 실행에서 플래그가
+  남아 있으면 설정을 끈다. Compare는 GPU가 켜져 있으면 Whisper 모델마다 CPU/GPU를 둘 다 돌리고 로드 시간을 따로 표시.
+
 ## 인식 품질 관련 장치
 - 비영어 디코딩: beam 5 + 자연 분할 (`LocalWhisperStt.kt`).
 - 프롬프트 = 단어장(한국어면 `용어:` 접두) + 사용자 "Style example" 문장 (`buildPrompt`, `localizeGlossary`). 단어장 상한 320자.
@@ -79,6 +93,7 @@
 - 공개 저장소/공개 리소스 생성은 자동 승인되지 않는다 — 비공개 Release + 토큰 다운로드 방식을 쓴다.
 
 ## 백로그
+- GPU: 폰에서 속도·안정성 확인. Adreno에서 Vulkan이 느리면 ggml OpenCL(Adreno 커널) 백엔드 검토. CI 시간 줄이기(GPU 라이브러리 캐시).
 - 자동 중지 대기 시간(현재 1.6초 고정, `AudioRecorder.HANGOVER_SAMPLES`)을 설정에서 1.6/3/5초로 선택.
 - Compare models 결과로 기본 모델 확정 후 안 쓰는 모델 정리.
 - (보류) Nemotron 3.5 스트리밍: sherpa-onnx가 다시 들어왔으니 지원 여부만 확인하면 시도 가능.
