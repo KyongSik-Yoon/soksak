@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — Moonshine 긴 음성 빈 결과 수정 (AAR 2.0.1)
+- 폰 Compare에서 17초 녹음이 Moonshine Korean만 `(empty)`(0.6초)로 나옴.
+- 원인: sherpa-onnx 1.13.3의 Moonshine v2 버그 — 디코더 encoder_attention_mask 길이가 어긋나 ~7초 넘는 입력에서 ONNX 브로드캐스트 오류 후 빈 결과.
+  Python sherpa-onnx 1.13.3으로 재현(7초 정상, 12/17/19초 빈 결과), 2.0.1은 전부 정상(19초 1.0초). 업스트림 #3976에서 2.0.0에 수정.
+- AAR을 2.0.1로 올림(Kotlin API 그대로). SenseVoice도 같은 AAR.
+
 ## 2026-11-08 — Moonshine Korean, SenseVoice Small 추가
 - sherpa-onnx(AAR 1.13.3) 재도입, `LocalSherpaStt`. 모델 목록에서 Get으로 받기(공개 Release tar.bz2, 압축 해제).
   작업 환경에서 Python sherpa-onnx로 확인: Moonshine-ko는 한국어 샘플 2개를 정확히, 6.9초 음성을 0.37초에.

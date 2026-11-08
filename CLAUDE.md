@@ -36,10 +36,11 @@
 - 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `moonshine-ko`, `sensevoice-small`,
   `turbo-acft-q4`(Large v3 Turbo ACFT q4_0). `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
 - sherpa 모델(`LocalSherpaStt.kt`): sherpa-onnx 공개 Release `asr-models`의 tar.bz2를 받아 `models/<bundle>/`에 필요한 파일만 풀고
-  압축본은 지운다(commons-compress). AAR `sherpa-onnx-static-link-onnxruntime-1.13.3`은 CI가 `app/libs`에 받는다(gitignore).
+  압축본은 지운다(commons-compress). AAR `sherpa-onnx-static-link-onnxruntime-2.0.1`은 CI가 `app/libs`에 받는다(gitignore).
   Moonshine-ko는 `encoder_model.ort` + `decoder_model_merged.ort`(v2, `mergedDecoder`), 출력의 `▁` 제거.
   SenseVoice는 **2024-07-17** int8을 쓴다 — 2025-09-09판은 광둥어 튜닝이라 한국어 테스트 음성을 중국어 섞인 결과로 냈다.
   두 엔진 모두 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
+  - 1.x AAR은 Moonshine v2가 ~7초 넘는 입력에서 빈 결과를 낸다(encoder_attention_mask 버그, sherpa-onnx #3976, 2.0.0에서 수정). AAR을 2.0 미만으로 내리지 말 것.
 - ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후

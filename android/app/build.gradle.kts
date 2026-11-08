@@ -136,7 +136,7 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
     // On-device Moonshine (Korean) and SenseVoice STT. Static-link AAR: onnxruntime is baked into
     // libsherpa-onnx-jni.so, so no collision with the VAD's libonnxruntime.so on arm64.
-    implementation(group = "", name = "sherpa-onnx-static-link-onnxruntime-1.13.3", ext = "aar")
+    implementation(group = "", name = "sherpa-onnx-static-link-onnxruntime-2.0.1", ext = "aar")
     // tar.bz2 extraction of the sherpa model bundles.
     implementation("org.apache.commons:commons-compress:1.27.1")
 }
