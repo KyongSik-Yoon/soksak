@@ -62,7 +62,7 @@ def whisper(model, acft):
         ctx = min(1500, max(128 if acft else 768, ctx))
         out = subprocess.run(
             [f"{W}/whisper-cli", "-m", model, "-f", p, "-l", "ko", "-bs", "5", "-t", str(THREADS),
-             "-ac", str(ctx), "--prompt", PROMPT, "-nt", "-sns", "-np"],
+             "-ac", str(ctx), "--prompt", PROMPT, "-nt", "-sns"],
             capture_output=True, text=True)
         timings = out.stderr
         tot = float(re.search(r"total time\s*=\s*([\d.]+) ms", timings).group(1))
