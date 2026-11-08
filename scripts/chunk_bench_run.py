@@ -23,7 +23,9 @@ def decode(a, prompt):
     ctx = (len(a) + 319) // 320 + 16
     ctx = min(1500, max(128, (ctx + 63) // 64 * 64))
     out = subprocess.run([CLI, "-m", MODEL, "-f", f"{D}/_c.wav", "-l", "ko", "-bs", "5", "-t", str(THREADS),
-                          "-ac", str(ctx), "--prompt", prompt, "-nt", "-sns"], capture_output=True, text=True)
+                          "-ac", str(ctx), "--prompt", prompt, "-nt", "-sns"], capture_output=True)
+    # whisper-cli can print a token split mid-way through a UTF-8 sequence.
+    out.stdout = out.stdout.decode("utf-8", "replace"); out.stderr = out.stderr.decode("utf-8", "replace")
     tot = float(re.search(r"total time\s*=\s*([\d.]+) ms", out.stderr).group(1))
     load = float(re.search(r"load time\s*=\s*([\d.]+) ms", out.stderr).group(1))
     return " ".join(out.stdout.split()), (tot - load) / 1000
@@ -43,6 +45,12 @@ def cuts(a):
             out.append(cut); start = cut
     return out
 
+def voiced(a):
+    n = len(a) // FRAME
+    if n == 0: return 0.0
+    e = np.array([np.sqrt(np.mean(a[i * FRAME:(i + 1) * FRAME] ** 2)) for i in range(n)])
+    return float((e > 0.01).sum()) * FRAME / SR
+
 clips = [c for c in json.load(open(f"{D}/clips.json")) if c["set"] == SET]
 results = []
 for c in clips:
@@ -54,6 +62,12 @@ for c in clips:
         bounds = [0] + cuts(a) + [len(a)]
         texts, times = [], []
         for s, e in zip(bounds, bounds[1:]):
+            # The tail after the last cut is often just the trailing silence that ends a
+            # recording (the app auto-stops after 1.6s of it). Whisper invents text for silence,
+            # so a piece with under 0.3s of sound is skipped, as the app would.
+            if voiced(a[s:e]) < 0.3:
+                times.append(0.0)
+                continue
             ctx = " ".join(texts)[-200:]
             prompt = (STYLE + " " + ctx).strip()
             t_text, t = decode(a[s:e], prompt)
