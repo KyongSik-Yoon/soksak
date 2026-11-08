@@ -46,6 +46,7 @@ object HeadlessDictation {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var recorder: AudioRecorder? = null
+    private var streaming: StreamingWhisper? = null
     private var ampJob: Job? = null
     private var hostPkg: String = ""
     private var startMs = 0L
@@ -81,6 +82,19 @@ object HeadlessDictation {
         }
         recorder = rec
         active = true
+        // Whisper: start decoding at each pause while the user is still talking.
+        streaming = if (StreamingWhisper.applies(app, s)) {
+            var cached: String? = null
+            var loaded = false
+            StreamingWhisper(app, s, rec, scope) {
+                if (!loaded) {
+                    val vocab = VocabRepository(app).get()
+                    cached = if (vocab.isEmpty()) null else VocabCorrector.biasPrompt(vocab)
+                    loaded = true
+                }
+                cached
+            }.also { it.start() }
+        } else null
         BubbleService.instance?.showRecording()
         BubbleService.recordingStopper = { stop(app, s) }
 
@@ -109,6 +123,8 @@ object HeadlessDictation {
     /** Abandon the take without transcribing it. */
     fun abandon() {
         ampJob?.cancel()
+        streaming?.cancel()
+        streaming = null
         BubbleService.recordingStopper = null
         recorder?.cancel()
         recorder = null
@@ -122,7 +138,10 @@ object HeadlessDictation {
         ampJob?.cancel()
         BubbleService.recordingStopper = null
         val samples = rec.stop()
+        val stream = streaming
+        streaming = null
         if (samples == null) {
+            stream?.cancel()
             active = false
             BubbleService.instance?.showIdle()
             return
@@ -141,7 +160,10 @@ object HeadlessDictation {
                 }
                 val vocab = VocabRepository(ctx).get()
                 val bias = if (vocab.isEmpty()) null else VocabCorrector.biasPrompt(vocab)
-                val raw = OnDeviceStt.transcribe(ctx, s, WavIo.toFloats(samples), bias)
+                // Pieces already decoded while recording; only the tail is left. If any piece
+                // failed, decode the whole take as before.
+                val raw = stream?.finish()
+                    ?: OnDeviceStt.transcribe(ctx, s, WavIo.toFloats(samples), bias)
                 val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
                 if (text.isBlank()) {
                     BubbleService.instance?.showIdle()

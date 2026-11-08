@@ -118,6 +118,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var vadAutoStop by remember { mutableStateOf(true) }
     var headlessRecording by remember { mutableStateOf(true) }
     var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
+    var pipelinedWhisper by remember { mutableStateOf(true) }
     var githubToken by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
     var latestBuild by remember { mutableStateOf<AppUpdater.Release?>(null) }
@@ -161,7 +162,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
         notifOn = SetupUtils.notificationsGranted(context)
@@ -212,7 +213,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -462,6 +463,12 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         Spacer(Modifier.height(8.dp))
                         KeyField(promptExample, "e.g. GitLab에 MR 올려줘.") { promptExample = it; persist() }
                     }
+                    Divider()
+                    ToggleRow(
+                        "Transcribe while you talk",
+                        "Whisper models start on what you've said at each pause, so only the last few seconds are left when you stop. Also keeps long dictations from losing sentences.",
+                        pipelinedWhisper,
+                    ) { pipelinedWhisper = it; persist() }
                     Divider()
                     ToggleRow("Auto-stop on pause", "End recording when you stop talking", vadAutoStop) { vadAutoStop = it; persist() }
                     Divider()

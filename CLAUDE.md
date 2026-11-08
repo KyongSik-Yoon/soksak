@@ -82,6 +82,11 @@
   버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA M SV T)를 표시. 느린 끌기는 그대로 위치 이동.
 - 버블 축소: 3.5초 무활동이면 작아지고(`scheduleShrink`), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
+- **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, Whisper 모델만, 헤드리스 경로만):
+  녹음 중 0.5초 쉼에서(조각 5초 이상일 때) 잘라 바로 디코드하고, 앞 텍스트 끝 200자를 프롬프트 끝에 붙인다(`buildPrompt`의 previous).
+  멈추면 꼬리만 디코드. 소리 0.3초 미만 조각은 건너뜀. 조각 하나라도 실패하면 전체를 통째로 다시 디코드.
+  근거: `chunk-bench.yml` — 15초 코드스위칭 CER 22.6→23.8%(동급), 30초+ 및 쉼 많은 실음성은 통째 디코드가 문장을 통째로 빠뜨림
+  (45→14%), 멈춘 뒤 대기 ~20초→~3초. Retry/Compare는 여전히 통째로. 녹음 원본은 `AudioRecorder.rawCopy`.
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.
 
 ## 앱 내 업데이트

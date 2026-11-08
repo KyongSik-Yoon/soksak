@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — 말하는 동안 변환 (Whisper, 쉼에서 조각)
+- 사용자: Turbo가 가장 정확하지만 긴 문장일수록 느림. 측정: 인코더가 클립 길이에 비례, 빔은 거의 무관.
+- 벤치(chunk-bench.yml, TTS 코드스위칭 + FLEURS, 짧은/긴): 조각 방식이 짧은 클립은 동급, 긴/쉼 많은 클립은 훨씬 정확,
+  대기 ~3초. 통째 디코드는 30초 넘는(실음성은 20초에서도) 녹음에서 문장을 통째로 빠뜨리는 현재 버그도 드러남.
+- 구현: `StreamingWhisper`, `AudioRecorder.rawLength/rawCopy`, `LocalWhisperStt.transcribe(previousText)`, 설정 `pipelinedWhisper`.
+
 ## 2026-11-08 — 브라우저 검색창(네이버)에서 클립보드로만 복사됨
 - 증상: m.naver.com 검색창(웹 입력) 활성 상태에서 받아쓰기 → 버블 "Copied"(give-up 분기).
 - 추정: 웹 입력은 placeholder를 text로 내고 isShowingHintText를 안 세움 → 비어있지 않은 필드+커서 불명 → paste 경로 → paste 실패 → 재시도 끝 클립보드.

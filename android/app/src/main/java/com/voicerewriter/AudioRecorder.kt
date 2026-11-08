@@ -76,6 +76,12 @@ class AudioRecorder(private val context: Context) {
     @Volatile private var recording = false
     @Volatile private var lastPeak = 0 // most recent buffer peak, for the waveform
     private val chunks = ArrayList<ShortArray>()
+
+    // The raw take as one growing array, for [StreamingWhisper] to read pieces of while the
+    // recording is still going. Kept after stop() until the next start().
+    private val pcmLock = Any()
+    private var pcm = ShortArray(SAMPLE_RATE * 30)
+    @Volatile private var pcmLen = 0
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // VAD state (only used when a Silero model is available + enabled)
@@ -97,6 +103,16 @@ class AudioRecorder(private val context: Context) {
     @Volatile var vadActive: Boolean = false
         private set
 
+    /** Samples captured so far in this take, untrimmed. */
+    fun rawLength(): Int = pcmLen
+
+    /** A copy of raw samples [from, to) of this take (clamped to what exists). */
+    fun rawCopy(from: Int, to: Int): ShortArray = synchronized(pcmLock) {
+        val a = from.coerceIn(0, pcmLen)
+        val b = to.coerceIn(a, pcmLen)
+        pcm.copyOfRange(a, b)
+    }
+
     /** Current peak amplitude (0..32767) for waveform visualization. */
     fun amplitude(): Int = lastPeak
 
@@ -109,6 +125,7 @@ class AudioRecorder(private val context: Context) {
     fun start(vadAutoStop: Boolean = false, onAutoStop: (() -> Unit)? = null) {
         if (recording) return
         chunks.clear()
+        synchronized(pcmLock) { pcmLen = 0 }
         lastPeak = 0
         totalSamples = 0
         speechStarted = false
@@ -151,6 +168,11 @@ class AudioRecorder(private val context: Context) {
                 }
                 lastPeak = peak
                 synchronized(chunks) { chunks.add(buf.copyOf(n)) }
+                synchronized(pcmLock) {
+                    if (pcmLen + n > pcm.size) pcm = pcm.copyOf(pcm.size * 2)
+                    buf.copyInto(pcm, pcmLen, 0, n)
+                    pcmLen += n
+                }
                 totalSamples += n
                 if (vadInst != null && n == frame) {
                     val f = FloatArray(frame) { buf[it] / 32768f }

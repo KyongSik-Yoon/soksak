@@ -34,4 +34,13 @@ class BuildPromptTest {
         assertEquals("용어: GitLab.", LocalWhisperStt.buildPrompt("용어: GitLab.", ""))
         assertEquals(null, LocalWhisperStt.buildPrompt(null, "  "))
     }
+
+    @org.junit.Test
+    fun previousTextGoesLastAndIsCapped() {
+        val prev = "가".repeat(300)
+        val p = LocalWhisperStt.buildPrompt("용어: GitLab.", "MR 올려줘.", prev)!!
+        org.junit.Assert.assertTrue(p.startsWith("용어: GitLab. MR 올려줘. "))
+        org.junit.Assert.assertTrue(p.endsWith("가".repeat(200)))
+        org.junit.Assert.assertEquals("용어: GitLab. MR 올려줘. ".length + 200, p.length)
+    }
 }

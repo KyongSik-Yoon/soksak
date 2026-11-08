@@ -26,7 +26,13 @@ object LocalWhisperStt {
      * Transcribe [samples] (16 kHz mono, normalized -1..1). Suspends on heavy CPU work.
      * [biasPrompt] (optional) primes the recognizer toward the user's vocabulary.
      */
-    suspend fun transcribe(context: Context, settings: Settings, samples: FloatArray, biasPrompt: String? = null): String {
+    suspend fun transcribe(
+        context: Context,
+        settings: Settings,
+        samples: FloatArray,
+        biasPrompt: String? = null,
+        previousText: String? = null,
+    ): String {
         val id = settings.sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL }
         if (!WhisperModelManager.isReady(context, id)) {
             throw IllegalStateException("On-device model not downloaded. Open Settings → Voice → Download model.")
@@ -46,7 +52,11 @@ object LocalWhisperStt {
         val tLoaded = System.nanoTime()
         // transcribeData runs on whisper's own single-thread dispatcher internally.
         val lang = DictationLanguage.normalize(settings.sttLanguage)
-        val prompt = buildPrompt(biasPrompt?.ifBlank { null }?.let { localizeGlossary(it, lang) }, settings.promptExample)
+        val prompt = buildPrompt(
+            biasPrompt?.ifBlank { null }?.let { localizeGlossary(it, lang) },
+            settings.promptExample,
+            previousText,
+        )
         // Non-English dictation is code-switched speech in practice: Korean full of English
         // tech terms ("worktree 만들고 MR 올려") decoded with a Korean language token, where
         // greedy decoding at each ambiguous step drifts into English. Beam search (5) and
@@ -108,13 +118,21 @@ object LocalWhisperStt {
     private const val GLOSSARY_PREFIX = "Glossary: "
 
     /**
-     * Glossary first, style example last: whisper.cpp keeps the *end* of an over-long prompt,
-     * and the text right before the audio is what the decoder imitates most.
+     * Glossary first, style example next: whisper.cpp keeps the *end* of an over-long prompt,
+     * and the text right before the audio is what the decoder imitates most. When a dictation
+     * is decoded in pieces ([StreamingWhisper]), what was said so far ([previous], its last
+     * [PREVIOUS_MAX] chars) goes last: it is literally the text this audio continues.
      */
-    internal fun buildPrompt(glossary: String?, example: String?): String? =
-        listOfNotNull(glossary?.trim()?.ifBlank { null }, example?.trim()?.ifBlank { null })
+    internal fun buildPrompt(glossary: String?, example: String?, previous: String? = null): String? =
+        listOfNotNull(
+            glossary?.trim()?.ifBlank { null },
+            example?.trim()?.ifBlank { null },
+            previous?.trim()?.takeLast(PREVIOUS_MAX)?.ifBlank { null },
+        )
             .joinToString(" ")
             .ifBlank { null }
+
+    private const val PREVIOUS_MAX = 200
 
     /** Strip whisper's bracketed non-speech markers (e.g. [BLANK_AUDIO], [Music]). */
     private fun cleanTranscript(s: String): String =
