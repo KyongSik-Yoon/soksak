@@ -3,6 +3,13 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — 조용히 말하기 (Quiet mode)
+- 사용자: 사무실처럼 조용한 곳에서 남에게 피해 없이 말하면서 정확도도 높이고 싶다. "속삭임은 Small ACFT가 잘 듣더라".
+- 문제: Silero VAD는 속삭임을 말로 못 잡아 자동 중지가 일찍 걸리거나 앞뒤를 잘라낸다.
+- 구현: 설정 `quietMode`/`quietModel`(기본 Small ACFT), `Settings.forDictation()`이 받아쓰기 때 모델을 바꿈.
+  `AudioRecorder.start(quiet = true)`는 Silero를 안 쓰고 `QuietSpeechDetector`(방 소음 바닥 대비 2.5배 이상을 말로 봄)로 자동 중지,
+  녹음은 자르지 않는다. 버블 위로 밀기 메뉴 맨 위에 켜고 끄기, 켜면 배지가 파란색이고 메뉴에서 고른 모델은 quietModel로 저장.
+
 ## 2026-11-09 — Moonshine Base Korean 제거
 - 라우팅 벤치 결과를 보고 사용자 결정: "장점이 없다". 모델·MOONSHINE 엔진 코드·audiotext 대체 로직·package-moonshine.yml 제거,
   받아둔 파일은 RETIRED_DIRS로 정리. (Release `model-moonshine-base-ko`는 저장소에 남아 있음, 벤치 스크립트가 참조.)

@@ -40,6 +40,12 @@ data class Settings(
     val promptExample: String = DEFAULT_PROMPT_EXAMPLE,
     /** Decode Whisper dictations in pieces at pauses while still recording ([StreamingWhisper]). */
     val pipelinedWhisper: Boolean = true,
+    /**
+     * Quiet mode, for whispering where others are working: [quietModel] instead of [sttModel],
+     * no Silero trimming, auto-stop by loudness over the room ([QuietSpeechDetector]).
+     */
+    val quietMode: Boolean = false,
+    val quietModel: String = WhisperModelManager.SMALL_ACFT_MODEL,
     /** Settings screen language: "auto" (phone), "ko" or "en". See [I18n]. */
     val uiLanguage: String = "auto",
     /** Read-only GitHub token for in-app updates from the private fork ([AppUpdater]). */
@@ -53,6 +59,10 @@ data class Settings(
     val bubbleOnlyOnFields: Boolean = true, // show the bubble only while a text field is focused (needs accessibility)
     val hasCompletedOnboarding: Boolean = false, // first-run onboarding shown once; re-launchable from Settings
 ) {
+    /** The settings a dictation runs with: Quiet mode swaps in its own model. */
+    fun forDictation(): Settings =
+        if (quietMode && quietModel.isNotBlank()) copy(sttModel = quietModel) else this
+
     /** Cloud speech-to-text needs an API key. */
     val isSttConfigured: Boolean get() = sttKey.isNotBlank()
 
@@ -84,6 +94,8 @@ class SettingsRepository(private val context: Context) {
         val PROMPT_EXAMPLE = stringPreferencesKey("promptExample")
         val PIPELINED_WHISPER = booleanPreferencesKey("pipelinedWhisper")
         val UI_LANGUAGE = stringPreferencesKey("uiLanguage")
+        val QUIET_MODE = booleanPreferencesKey("quietMode")
+        val QUIET_MODEL = stringPreferencesKey("quietModel")
         val GITHUB_TOKEN = stringPreferencesKey("githubToken")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
@@ -115,6 +127,8 @@ class SettingsRepository(private val context: Context) {
             promptExample = p[Keys.PROMPT_EXAMPLE] ?: defaults.promptExample,
             pipelinedWhisper = p[Keys.PIPELINED_WHISPER] ?: defaults.pipelinedWhisper,
             uiLanguage = p[Keys.UI_LANGUAGE] ?: defaults.uiLanguage,
+            quietMode = p[Keys.QUIET_MODE] ?: defaults.quietMode,
+            quietModel = p[Keys.QUIET_MODEL] ?: defaults.quietModel,
             githubToken = p[Keys.GITHUB_TOKEN] ?: defaults.githubToken,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
@@ -137,6 +151,8 @@ class SettingsRepository(private val context: Context) {
             p[Keys.PROMPT_EXAMPLE] = s.promptExample
             p[Keys.PIPELINED_WHISPER] = s.pipelinedWhisper
             p[Keys.UI_LANGUAGE] = s.uiLanguage
+            p[Keys.QUIET_MODE] = s.quietMode
+            p[Keys.QUIET_MODEL] = s.quietModel
             p[Keys.GITHUB_TOKEN] = s.githubToken
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields

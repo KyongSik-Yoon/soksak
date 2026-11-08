@@ -190,6 +190,10 @@ class BubbleView(context: Context) : View(context) {
     var badge: String? = null
         set(value) { if (field != value) { field = value; invalidate() } }
 
+    /** Quiet mode is on: the model tab turns slate blue instead of coral. */
+    var badgeQuiet: Boolean = false
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     private val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = dp(9f)
         textAlign = Paint.Align.CENTER
@@ -290,7 +294,7 @@ class BubbleView(context: Context) : View(context) {
         scratch.set(content.centerX() - w / 2f, cy - h / 2f, content.centerX() + w / 2f, cy + h / 2f)
         fillPaint.shader = null
         fillPaint.clearShadowLayer()
-        fillPaint.color = markColor()
+        fillPaint.color = if (badgeQuiet) 0xFF5A78A8.toInt() else markColor()
         roundRect(canvas, scratch, fillPaint)
         badgePaint.color = surface()
         val fm = badgePaint.fontMetrics

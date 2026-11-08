@@ -75,7 +75,7 @@ object HeadlessDictation {
         startMs = System.currentTimeMillis()
         try {
             // Same rule as the sheet: hold-to-talk never auto-stops, the release ends it.
-            rec.start(vadAutoStop = s.vadAutoStop && !pushToTalk, hangoverSeconds = s.autoStopSeconds, onAutoStop = { stop(app, s) })
+            rec.start(vadAutoStop = s.vadAutoStop && !pushToTalk, hangoverSeconds = s.autoStopSeconds, quiet = s.quietMode, onAutoStop = { stop(app, s) })
         } catch (e: Exception) {
             Log.w(TAG, "recorder failed to start", e)
             return false

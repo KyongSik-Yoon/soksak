@@ -93,6 +93,7 @@ class AudioRecorder(private val context: Context) {
     private var lastSpeechSample = 0
     private var autoStopFired = false
     private var speechSamples = 0
+    private var quietDetector: QuietSpeechDetector? = null
 
     val isRecording: Boolean get() = recording
 
@@ -121,9 +122,18 @@ class AudioRecorder(private val context: Context) {
      * Start capturing. If [vadAutoStop] and the Silero model loads, [onAutoStop] is
      * invoked (on the main thread) once the speaker has paused, and silence is
      * trimmed from the result.
+     *
+     * [quiet] (Quiet mode, for whispering): Silero is not used at all. Auto-stop goes by
+     * loudness over the room ([QuietSpeechDetector]) and nothing is trimmed, so whispered
+     * words at either end are kept.
      */
     @SuppressLint("MissingPermission")
-    fun start(vadAutoStop: Boolean = false, hangoverSeconds: Double = DEFAULT_HANGOVER_S, onAutoStop: (() -> Unit)? = null) {
+    fun start(
+        vadAutoStop: Boolean = false,
+        hangoverSeconds: Double = DEFAULT_HANGOVER_S,
+        quiet: Boolean = false,
+        onAutoStop: (() -> Unit)? = null,
+    ) {
         if (recording) return
         hangoverSamples = (hangoverSeconds.coerceIn(0.5, 10.0) * SAMPLE_RATE).toInt()
         chunks.clear()
@@ -135,8 +145,9 @@ class AudioRecorder(private val context: Context) {
         lastSpeechSample = 0
         autoStopFired = false
         speechSamples = 0
-        vad = if (vadAutoStop) SileroVad.shared(context)?.also { it.reset() } else null
-        vadActive = vad != null
+        vad = if (vadAutoStop && !quiet) SileroVad.shared(context)?.also { it.reset() } else null
+        quietDetector = if (vadAutoStop && quiet) QuietSpeechDetector(hangoverSamples, MIN_SPEECH_SAMPLES) else null
+        vadActive = vad != null || quietDetector != null
 
         val frame = SileroVad.CHUNK // 512 samples; small reads → responsive VAD
         val minBuf = max(
@@ -160,6 +171,7 @@ class AudioRecorder(private val context: Context) {
         worker = Thread {
             val buf = ShortArray(frame)
             val vadInst = vad
+            val quietInst = quietDetector
             while (recording) {
                 val n = rec.read(buf, 0, frame)
                 if (n <= 0) continue
@@ -176,6 +188,14 @@ class AudioRecorder(private val context: Context) {
                     pcmLen += n
                 }
                 totalSamples += n
+                if (quietInst != null && !autoStopFired) {
+                    var sum = 0.0
+                    for (i in 0 until n) { val v = buf[i] / 32768.0; sum += v * v }
+                    if (quietInst.feed(kotlin.math.sqrt(sum / n).toFloat(), totalSamples, n)) {
+                        autoStopFired = true
+                        onAutoStop?.let { cb -> mainHandler.post { cb() } }
+                    }
+                }
                 if (vadInst != null && n == frame) {
                     val f = FloatArray(frame) { buf[it] / 32768f }
                     val prob = try { vadInst.process(f) } catch (_: Exception) { 0f }

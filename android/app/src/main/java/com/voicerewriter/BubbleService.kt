@@ -208,10 +208,11 @@ class BubbleService : Service() {
     private fun watchModelBadge() {
         serviceScope.launch {
             SettingsRepository(applicationContext).settings
-                .map { it.sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL } }
+                .map { s -> s.forDictation().sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL } to s.quietMode }
                 .distinctUntilChanged()
-                .collect { id ->
+                .collect { (id, quiet) ->
                     bubble?.badge = WhisperModelManager.MODELS.firstOrNull { it.id == id }?.badge
+                    bubble?.badgeQuiet = quiet
                 }
         }
     }
@@ -234,7 +235,7 @@ class BubbleService : Service() {
             val left = params.x + pad()
             p.show(
                 items = items,
-                currentId = settings.sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL },
+                currentId = settings.forDictation().sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL },
                 dark = v.dark,
                 anchorLeft = left - dp(4f),
                 anchorRight = left + cw + dp(4f),
@@ -247,16 +248,32 @@ class BubbleService : Service() {
                     startActivity(Intent(this@BubbleService, SettingsActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 },
+                quiet = settings.quietMode,
+                onQuiet = { on -> setQuietMode(on) },
             )
         }
     }
 
+    /** Quiet mode on/off from the bubble menu; the menu reopens to show the new state. */
+    private fun setQuietMode(on: Boolean) {
+        hapticStart()
+        serviceScope.launch {
+            val repo = SettingsRepository(applicationContext)
+            val s = repo.get().copy(quietMode = on)
+            repo.save(s)
+            withContext(Dispatchers.IO) { runCatching { OnDeviceStt.warm(applicationContext, s.forDictation().sttModel) } }
+        }
+        mainHandler.postDelayed({ showModelPicker() }, 120)
+    }
+
+    /** In Quiet mode the menu picks Quiet mode's model; otherwise the normal one. */
     private fun pickModel(id: String) {
         hapticStart()
         bubble?.badge = WhisperModelManager.MODELS.firstOrNull { it.id == id }?.badge
         serviceScope.launch {
             val repo = SettingsRepository(applicationContext)
-            repo.save(repo.get().copy(sttModel = id))
+            val cur = repo.get()
+            repo.save(if (cur.quietMode) cur.copy(quietModel = id) else cur.copy(sttModel = id))
             withContext(Dispatchers.IO) {
                 runCatching { OnDeviceStt.warm(applicationContext, id) }
                     .onFailure { android.util.Log.w("BubbleService", "warm $id failed", it) }
@@ -313,7 +330,7 @@ class BubbleService : Service() {
      */
     private fun beginDictation(pushToTalk: Boolean) {
         CoroutineScope(Dispatchers.Main).launch {
-            val s = runCatching { SettingsRepository(applicationContext).get() }.getOrNull()
+            val s = runCatching { SettingsRepository(applicationContext).get().forDictation() }.getOrNull()
             val headless = s != null && HeadlessDictation.canRun(applicationContext, s) &&
                 HeadlessDictation.start(applicationContext, s, pushToTalk) {
                     // Silenced microphone: say nothing, just let the sheet take this take.

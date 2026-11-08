@@ -120,6 +120,8 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var headlessRecording by remember { mutableStateOf(true) }
     var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
     var pipelinedWhisper by remember { mutableStateOf(true) }
+    var quietMode by remember { mutableStateOf(false) }
+    var quietModel by remember { mutableStateOf(WhisperModelManager.SMALL_ACFT_MODEL) }
     var uiLanguage by remember { mutableStateOf(I18n.mode) }
     var githubToken by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
@@ -164,7 +166,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         uiLanguage = s.uiLanguage
         // The screen was composed with whatever language was active before the setting was
@@ -222,7 +224,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -487,6 +489,27 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                             val i = AUTO_STOP_CHOICES.indexOf(autoStopSeconds)
                             autoStopSeconds = AUTO_STOP_CHOICES[(i + 1).mod(AUTO_STOP_CHOICES.size)]
                             persist()
+                        }
+                    }
+                    Divider()
+                    ToggleRow(
+                        tr("Quiet mode"),
+                        tr("For whispering in a quiet office: keeps the whole recording, stops on your own voice level instead of the speech detector, and uses its own model. Also on the bubble's flick-up menu."),
+                        quietMode,
+                    ) { quietMode = it; persist() }
+                    if (quietMode) {
+                        Divider()
+                        // Tap cycles through downloaded models; Small ACFT hears whispers best.
+                        val ready = remember(quietMode) {
+                            WhisperModelManager.MODELS.filter { WhisperModelManager.isReady(context, it.id) }
+                        }
+                        val label = WhisperModelManager.MODELS.firstOrNull { it.id == quietModel }?.label ?: quietModel
+                        NavRow(tr("Quiet mode model"), trf("%s · tap to change", label)) {
+                            if (ready.isNotEmpty()) {
+                                val i = ready.indexOfFirst { it.id == quietModel }
+                                quietModel = ready[(i + 1).mod(ready.size)].id
+                                persist()
+                            }
                         }
                     }
                     Divider()

@@ -56,6 +56,8 @@ class ModelPicker(
         screenH: Int,
         onPick: (String) -> Unit,
         onMore: () -> Unit,
+        quiet: Boolean = false,
+        onQuiet: ((Boolean) -> Unit)? = null,
     ) {
         dismiss()
         val ink = if (dark) CREAM else INK
@@ -77,12 +79,19 @@ class ModelPicker(
             }
         }
         card.addView(TextView(context).apply {
-            text = "Speech model"
+            text = tr("Speech model")
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(sub)
             typeface = font
             setPadding(dp(16), dp(6), dp(16), dp(4))
         })
+        // Quiet mode switch: its own model list (the checked model is Quiet mode's model).
+        if (onQuiet != null) {
+            card.addView(row(tr("Quiet mode") + " · " + tr(if (quiet) "On" else "Off"), if (quiet) "🤫" else null, quiet, ink, font) {
+                dismiss()
+                onQuiet(!quiet)
+            })
+        }
         for (item in items) {
             val active = item.id == currentId
             card.addView(row(item.label, item.badge, active, ink, font) {
@@ -92,13 +101,13 @@ class ModelPicker(
         }
         if (items.size <= 1) {
             card.addView(TextView(context).apply {
-                text = "Download more in Settings"
+                text = tr("Download more in Settings")
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                 setTextColor(sub)
                 setPadding(dp(16), dp(2), dp(16), dp(6))
             })
         }
-        card.addView(row("Models…", null, false, sub, font) { dismiss(); onMore() })
+        card.addView(row(tr("Models…"), null, false, sub, font) { dismiss(); onMore() })
 
         // Room around the card for its shadow.
         val frame = LinearLayout(context).apply {
