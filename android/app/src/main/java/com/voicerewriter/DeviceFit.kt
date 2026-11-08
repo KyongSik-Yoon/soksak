@@ -196,7 +196,6 @@ object DeviceFit {
         id == WhisperModelManager.SMALL_ACFT_MODEL -> 264L * 1024 * 1024
         id == WhisperModelManager.TURBO_ACFT_Q4_MODEL -> 470L * 1024 * 1024
         id == WhisperModelManager.MOONSHINE_KO_MODEL -> 100L * 1024 * 1024
-        id == WhisperModelManager.SENSE_VOICE_FULL_MODEL -> 900L * 1024 * 1024
         id == WhisperModelManager.SENSE_VOICE_MODEL -> 229L * 1024 * 1024
         id == "base" -> 142L * 1024 * 1024
         else -> 75L * 1024 * 1024

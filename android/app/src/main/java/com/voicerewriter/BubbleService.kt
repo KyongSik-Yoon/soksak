@@ -922,11 +922,34 @@ class BubbleService : Service() {
      */
     fun setFieldFocused(focused: Boolean) {
         mainHandler.post {
+            val gained = focused && !fieldFocused
             fieldFocused = focused
+            if (gained) noteTypingNow() // coming back to a text field counts as using the keyboard
             // Reconcile against the *actual* shown state (incl. alpha), so a transition
             // that left the view VISIBLE-but-transparent can't strand it hidden.
             if (shouldShow() != isShown()) applyGating(animate = true)
         }
+    }
+
+    private var lastTypingAt = 0L
+
+    /**
+     * The user is typing (or just focused a field) in another app: a shrunk bubble grows back,
+     * and the idle countdown restarts, so it only shrinks after the keyboard has sat unused.
+     * Called per accessibility event, so it's throttled.
+     */
+    fun noteTyping() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastTypingAt < 250) return
+        lastTypingAt = now
+        mainHandler.post { noteTypingNow() }
+    }
+
+    private fun noteTypingNow() {
+        val v = bubble ?: return
+        if (v.visibility != View.VISIBLE || v.state != BubbleView.State.IDLE) return
+        if (v.scaleX < 1f || v.alpha < 1f) wake(animate = true)
+        scheduleShrink()
     }
 
     /** Truly visible = on screen and not transparent (a hidden bubble can be VISIBLE w/ alpha 0). */
@@ -960,6 +983,7 @@ class BubbleService : Service() {
             c.visibility = View.VISIBLE
             if (animate && c.alpha < 1f) c.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(170).start()
             else { c.alpha = 1f; c.scaleX = 1f; c.scaleY = 1f }
+            scheduleShrink() // shown again at full size: the idle countdown starts over
         } else {
             if (!isShown()) { c.visibility = View.GONE; return }
             if (animate) {

@@ -98,7 +98,9 @@ class CompareActivity : ComponentActivity() {
                     val row = try {
                         val raw = OnDeviceStt.transcribe(ctx, base.copy(sttModel = m.id), floats, bias)
                         val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
-                        ModelRun(m.id, m.label, text, (System.nanoTime() - t0) / 1_000_000, null)
+                        // Moonshine sometimes hands off (see OnDeviceStt.isMoonshineMiss); say which model wrote this.
+                        val via = OnDeviceStt.lastFallback?.let { " → " + WhisperModelManager.model(it).label }.orEmpty()
+                        ModelRun(m.id, m.label + via, text, (System.nanoTime() - t0) / 1_000_000, null)
                     } catch (e: Exception) {
                         ModelRun(m.id, m.label, null, null, e.message ?: e.toString())
                     }

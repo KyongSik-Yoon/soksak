@@ -255,7 +255,9 @@ object ModelDownloader {
     }
 
     /** Parakeet's sherpa-onnx bundle directory. */
-    private val RETIRED_DIRS = listOf("parakeet", "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27")
+    private val RETIRED_DIRS = listOf("parakeet", "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27",
+        // SenseVoice full precision: benchmarked no better than int8 on Korean (7.3% vs 7.1% CER), ~900MB.
+        "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17")
 
     /** On-device LLM GGUFs, the Hinglish Whisper fine-tune, and the dropped turbo q5_0. */
     private val RETIRED_FILES = listOf(

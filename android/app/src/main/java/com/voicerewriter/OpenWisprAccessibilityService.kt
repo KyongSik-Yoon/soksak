@@ -192,6 +192,17 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                 main.postDelayed(fieldCheck, 120)
             }
         }
+        // Typing in another app wakes a shrunk bubble (and restarts its idle countdown).
+        // Content-changed is deliberately not activity: a streaming chat reply fires it
+        // constantly and would keep the bubble from ever shrinking.
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
+                val pkg = event.packageName
+                if (pkg != null && pkg != packageName) BubbleService.instance?.noteTyping()
+            }
+        }
         if (pendingText == null) return
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_FOCUSED,

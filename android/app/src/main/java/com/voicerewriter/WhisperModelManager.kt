@@ -55,7 +55,6 @@ object WhisperModelManager {
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
     const val MOONSHINE_KO_MODEL = "moonshine-base-ko"
     const val SENSE_VOICE_MODEL = "sensevoice-small"
-    const val SENSE_VOICE_FULL_MODEL = "sensevoice-small-fp32"
     private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
 
     val MODELS = listOf(
@@ -101,18 +100,6 @@ object WhisperModelManager {
             sizeLabel = "~163MB · ko/en/ja/zh · fast",
             engine = SpeechEngine.SENSE_VOICE,
             badge = "SV",
-        ),
-        // The same SenseVoice-Small (234M params) without int8 quantization: ~4x the size, for
-        // comparing whether quantization costs Korean accuracy. Same bundle date as above.
-        WhisperModel(
-            id = SENSE_VOICE_FULL_MODEL,
-            label = "SenseVoice Small (full precision)",
-            fileName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
-            url = "$SHERPA_ASR/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
-            sizeLabel = "~1GB download · ~900MB · slower",
-            engine = SpeechEngine.SENSE_VOICE,
-            badge = "SF",
-            onnxFile = "model.onnx",
         ),
         // whisper-large-v3-turbo with FUTO's audio-context fine-tune, by Mahmoud Ashraf
         // (Apache 2.0, huggingface.co/MahmoudAshraf/acft-whisper-large-v3-turbo). Stock turbo

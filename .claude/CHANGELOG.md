@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — 모델 벤치마크, Moonshine "audiotext" 대응, 버블 다시 커지기
+- 벤치(FLEURS ko 40문장): Turbo 3.3% CER, Moonshine Base 5.0%, Small ACFT 5.7%, SenseVoice int8 7.1%, fp32 7.3%, Moonshine tiny 7.7%.
+  속도는 Moonshine Base가 Turbo의 ~12배. SenseVoice fp32는 이득 없어 제거(받아둔 파일은 RETIRED_DIRS로 정리).
+- 사용자: Moonshine이 3초 녹음을 "audiotext"로 인식. 재현됨(짧은 클립 ~1/4). 감지해서 다른 모델로 재실행.
+- 사용자: 버블이 작아진 뒤 다시 안 커짐. 커지는 건 버블 터치뿐이었다 → 타이핑·입력창 재진입에 깨어나고 카운트다운 재시작.
+
 ## 2026-11-08 — GPU(OpenCL) 제거
 - build-39: 결과는 나오지만 CPU보다 훨씬 느림(사용자). GPU 관련 코드·CI 단계·패치 스크립트를 d8c84e5 상태로 되돌림.
   Moonshine Base Korean·SenseVoice full·버블 모델 전환은 유지. CI ~4.5분으로 복귀.

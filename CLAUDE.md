@@ -35,14 +35,19 @@
 
 ## 모델
 - 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `moonshine-base-ko`, `sensevoice-small`(int8),
-  `sensevoice-small-fp32`(비교용 비양자화), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0). `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
+  `turbo-acft-q4`(Large v3 Turbo ACFT q4_0).
+- 벤치마크: `.github/workflows/bench-models.yml` + `scripts/bench_models.py` — FLEURS ko_kr test 40문장(539초)을 앱과 같은 설정으로.
+  2026-11-08 결과(CER / x86 4스레드 RTF): Turbo 3.3%/2.43, Moonshine Base 5.0%/0.20, Small ACFT 5.7%/0.53, SenseVoice int8 7.1%/0.14,
+  SenseVoice fp32 7.3%/0.17(→ 제거), Moonshine tiny 7.7%/0.13. 낭독체라 개발 용어 섞인 발화는 반영 못 함. 속도 비율만 폰에 옮겨진다. `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
 - sherpa 모델(`LocalSherpaStt.kt`): sherpa-onnx 공개 Release `asr-models`의 tar.bz2를 받아 `models/<bundle>/`에 필요한 파일만 풀고
   압축본은 지운다(commons-compress). AAR `sherpa-onnx-static-link-onnxruntime-2.0.1`은 CI가 `app/libs`에 받는다(gitignore).
   Moonshine은 `encoder_model.ort` + `decoder_model_merged.ort`(v2, `mergedDecoder`), 출력의 `▁` 제거.
   **Moonshine Base Korean**(61M, 2026-11-08 tiny-ko 27M을 대체)은 sherpa 공개 Release에 없어 `.github/workflows/package-moonshine.yml`이
   Moonshine CDN의 양자화 ORT + tokenizer.json으로 만든 tokens.txt를 묶어 이 저장소 Release `model-moonshine-base-ko`에 올린다
   (토큰 다운로드, `releaseTag`). tokens.txt 생성법은 tiny-ko의 sherpa tokens.txt를 재현해 검증한다. 라이선스: Moonshine Community(비상업).
-  SenseVoice 파일은 모델별 `onnxFile`(int8: `model.int8.onnx`, fp32: `model.onnx`).
+  SenseVoice 파일은 모델별 `onnxFile`(기본 int8 `model.int8.onnx`).
+  - Moonshine Base Korean은 짧은 클립(~1–3초)의 약 1/4에서 "audiotext"라는 영어 자리표시자를 낸다(tiny는 안 그럼; 트림·패딩·게인·디더로 못 막음).
+    `OnDeviceStt.isMoonshineMiss`가 감지해 SenseVoice → Small ACFT → Turbo 중 받아둔 모델로 다시 돌린다(`lastFallback`, Compare에 "→ 모델" 표시).
   SenseVoice는 **2024-07-17** int8을 쓴다 — 2025-09-09판은 광둥어 튜닝이라 한국어 테스트 음성을 중국어 섞인 결과로 냈다.
   두 엔진 모두 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
   - 1.x AAR은 Moonshine v2가 ~7초 넘는 입력에서 빈 결과를 낸다(encoder_attention_mask 버그, sherpa-onnx #3976, 2.0.0에서 수정). AAR을 2.0 미만으로 내리지 말 것.
@@ -71,7 +76,9 @@
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.
-  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA M SV SF T)를 표시. 느린 끌기는 그대로 위치 이동.
+  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA M SV T)를 표시. 느린 끌기는 그대로 위치 이동.
+- 버블 축소: 3.5초 무활동이면 작아지고(`scheduleShrink`), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
+  `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.
 
 ## 앱 내 업데이트
