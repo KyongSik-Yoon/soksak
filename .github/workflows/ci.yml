@@ -48,7 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p app/libs
-          # Through the API with the job token first: anonymous release downloads from k2-fsa
+          # Through the API with the job token first: anonymous GitHub release downloads
           # returned 504 for a while (2026-11-08); the plain URL stays as a fallback.
           AAR=sherpa-onnx-static-link-onnxruntime-2.0.1.aar
           gh release download v2.0.1 -R k2-fsa/sherpa-onnx -p "$AAR" -D app/libs --clobber || \
