@@ -23,11 +23,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.OpenWispr">
 
-        <!-- GPU acceleration (libwhisper_gpu.so) links the phone's own OpenCL driver. Android 12+
-             only lets an app load a vendor library it declares here; optional, so phones without
-             one still install, and the GPU setting then reports the library couldn't load. -->
-        <uses-native-library android:name="libOpenCL.so" android:required="false" />
-
         <!-- Launcher: home (stats + recent dictations) -->
         <activity
             android:name=".HomeActivity"

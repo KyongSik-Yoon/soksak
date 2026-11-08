@@ -78,9 +78,6 @@ import com.voicerewriter.ui.OpenWisprTheme
 import com.voicerewriter.ui.SunsetBrush
 import com.voicerewriter.ui.Wordmark
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import com.whispercpp.whisper.WhisperGpu
 
 /**
  * Settings: a sectioned, on-device-first surface — setup status, Voice (engine segment +
@@ -121,8 +118,6 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var vadAutoStop by remember { mutableStateOf(true) }
     var headlessRecording by remember { mutableStateOf(true) }
     var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
-    var whisperGpu by remember { mutableStateOf(false) }
-    var gpuNote by remember { mutableStateOf<String?>(null) } // device name / unavailable / tripped
     var githubToken by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
     var latestBuild by remember { mutableStateOf<AppUpdater.Release?>(null) }
@@ -166,7 +161,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; whisperGpu = s.whisperGpu; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; headlessRecording = s.headlessRecording; promptExample = s.promptExample; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         a11yEnabled = SetupUtils.accessibilityEnabled(context)
         notifOn = SetupUtils.notificationsGranted(context)
@@ -217,7 +212,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, whisperGpu = whisperGpu, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, headlessRecording = headlessRecording, promptExample = promptExample, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -467,39 +462,6 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         Spacer(Modifier.height(8.dp))
                         KeyField(promptExample, "e.g. GitLab에 MR 올려줘.") { promptExample = it; persist() }
                     }
-                    Divider()
-                    // Turbo on the GPU (OpenCL). Asking the driver for the device name is the
-                    // first GPU call, so it only happens with the toggle on, off the main thread,
-                    // and under GpuGuard like any other GPU call.
-                    LaunchedEffect(whisperGpu) {
-                        // A GPU call that took the app down last time: turn the setting off and say
-                        // why, before anything touches the driver again (or opening Settings would
-                        // crash every time).
-                        if (whisperGpu && GpuGuard.consumeCrash(context)) {
-                            whisperGpu = false
-                            persist()
-                            return@LaunchedEffect
-                        }
-                        gpuNote = when {
-                            !whisperGpu && GpuGuard.tripped(context) ->
-                                "Turned off: the app closed during a GPU run." +
-                                    (GpuGuard.lastReport(context)?.let { "\n$it\n" } ?: "")
-                            !whisperGpu -> null
-                            else -> withContext(Dispatchers.Default) {
-                                GpuGuard.run(context) {
-                                    when {
-                                        !WhisperGpu.available -> "Couldn't load the GPU library: ${WhisperGpu.loadError ?: "not in this build"}."
-                                        else -> WhisperGpu.deviceName?.let { "Using $it." } ?: "No OpenCL GPU found. Stays on the CPU."
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    ToggleRow(
-                        "GPU acceleration (experimental)",
-                        (gpuNote?.let { "$it " } ?: "") + "Runs Large v3 Turbo on the GPU via OpenCL (Adreno). Other models stay on the CPU.",
-                        whisperGpu,
-                    ) { whisperGpu = it; if (it) GpuGuard.clearTrip(context); persist() }
                     Divider()
                     ToggleRow("Auto-stop on pause", "End recording when you stop talking", vadAutoStop) { vadAutoStop = it; persist() }
                     Divider()

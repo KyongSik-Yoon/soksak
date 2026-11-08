@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — GPU(OpenCL) 제거
+- build-39: 결과는 나오지만 CPU보다 훨씬 느림(사용자). GPU 관련 코드·CI 단계·패치 스크립트를 d8c84e5 상태로 되돌림.
+  Moonshine Base Korean·SenseVoice full·버블 모델 전환은 유지. CI ~4.5분으로 복귀.
+
 ## 2026-11-08 — GPU: 크래시는 없어졌으나 빈 결과 (build-39)
 - build-38: GPU 켜고 받아쓰기 → 크래시 없이 "Empty transcript". whisper.cpp 1.8 기본 flash_attn=true인데 ggml-opencl FA 커널은
   LLM 형태 위주 → GPU 컨텍스트는 flash_attn=false(jni.c `OPENWISPR_JNI_GPU`).

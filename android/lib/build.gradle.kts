@@ -24,11 +24,6 @@ android {
                 // r29 and already complies); this gets the same result without moving whisper.cpp
                 // onto a newer NDK, which it has not been tested against.
                 arguments += "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
-                // GPU (OpenCL) library: only when CI has fetched its sources and tools. See
-                // src/main/jni/whisper-gpu/CMakeLists.txt.
-                System.getenv("OPENWISPR_GPU_DEPS")?.takeIf { it.isNotBlank() }?.let {
-                    arguments += "-DOPENWISPR_GPU_DEPS=$it"
-                }
             }
         }
     }

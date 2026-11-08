@@ -11,15 +11,6 @@
 #define UNUSED(x) (void)(x)
 #define TAG "JNI"
 
-// The same glue is compiled twice: into libwhisper*.so (vendored whisper.cpp 1.7.4, CPU) as
-// WhisperLib, and into libwhisper_gpu.so (whisper.cpp built with the OpenCL backend, see
-// ../whisper-gpu) as WhisperLibGpu. Distinct JNI names let both libraries live in one process.
-#ifdef OPENWISPR_JNI_GPU
-#define JNI_FN(name) Java_com_whispercpp_whisper_WhisperLibGpu_00024Companion_##name
-#else
-#define JNI_FN(name) Java_com_whispercpp_whisper_WhisperLib_00024Companion_##name
-#endif
-
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,     TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN,     TAG, __VA_ARGS__)
 
@@ -140,7 +131,7 @@ static struct whisper_context *whisper_init_from_asset(
 }
 
 JNIEXPORT jlong JNICALL
-JNI_FN(initContextFromAsset)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_initContextFromAsset(
         JNIEnv *env, jobject thiz, jobject assetManager, jstring asset_path_str) {
     UNUSED(thiz);
     struct whisper_context *context = NULL;
@@ -151,25 +142,18 @@ JNI_FN(initContextFromAsset)(
 }
 
 JNIEXPORT jlong JNICALL
-JNI_FN(initContext)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_initContext(
         JNIEnv *env, jobject thiz, jstring model_path_str) {
     UNUSED(thiz);
     struct whisper_context *context = NULL;
     const char *model_path_chars = (*env)->GetStringUTFChars(env, model_path_str, NULL);
-    struct whisper_context_params cparams = whisper_context_default_params();
-#ifdef OPENWISPR_JNI_GPU
-    // whisper.cpp 1.8 turns flash attention on by default. ggml-opencl's flash-attention kernels
-    // are written for LLM shapes; with Whisper on Adreno the GPU build loaded and ran but returned
-    // empty transcripts. Plain attention (mul_mat + softmax) is the well-trodden path.
-    cparams.flash_attn = false;
-#endif
-    context = whisper_init_from_file_with_params(model_path_chars, cparams);
+    context = whisper_init_from_file_with_params(model_path_chars, whisper_context_default_params());
     (*env)->ReleaseStringUTFChars(env, model_path_str, model_path_chars);
     return (jlong) context;
 }
 
 JNIEXPORT void JNICALL
-JNI_FN(freeContext)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_freeContext(
         JNIEnv *env, jobject thiz, jlong context_ptr) {
     UNUSED(env);
     UNUSED(thiz);
@@ -178,7 +162,7 @@ JNI_FN(freeContext)(
 }
 
 JNIEXPORT void JNICALL
-JNI_FN(fullTranscribe)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data, jstring prompt,
         jstring language, jint beam_size, jboolean single_segment, jint audio_ctx_floor) {
     UNUSED(thiz);
@@ -275,7 +259,7 @@ JNI_FN(fullTranscribe)(
 }
 
 JNIEXPORT jint JNICALL
-JNI_FN(getTextSegmentCount)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentCount(
         JNIEnv *env, jobject thiz, jlong context_ptr) {
     UNUSED(env);
     UNUSED(thiz);
@@ -284,7 +268,7 @@ JNI_FN(getTextSegmentCount)(
 }
 
 JNIEXPORT jstring JNICALL
-JNI_FN(getTextSegment)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegment(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint index) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
@@ -294,7 +278,7 @@ JNI_FN(getTextSegment)(
 }
 
 JNIEXPORT jlong JNICALL
-JNI_FN(getTextSegmentT0)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentT0(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint index) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
@@ -302,7 +286,7 @@ JNI_FN(getTextSegmentT0)(
 }
 
 JNIEXPORT jlong JNICALL
-JNI_FN(getTextSegmentT1)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_getTextSegmentT1(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint index) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
@@ -310,7 +294,7 @@ JNI_FN(getTextSegmentT1)(
 }
 
 JNIEXPORT jstring JNICALL
-JNI_FN(getSystemInfo)(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_getSystemInfo(
         JNIEnv *env, jobject thiz
 ) {
     UNUSED(thiz);
@@ -320,7 +304,7 @@ JNI_FN(getSystemInfo)(
 }
 
 JNIEXPORT jstring JNICALL
-JNI_FN(benchMemcpy)(JNIEnv *env, jobject thiz,
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_benchMemcpy(JNIEnv *env, jobject thiz,
                                                                       jint n_threads) {
     UNUSED(thiz);
     const char *bench_ggml_memcpy = whisper_bench_memcpy_str(n_threads);
@@ -329,55 +313,10 @@ JNI_FN(benchMemcpy)(JNIEnv *env, jobject thiz,
 }
 
 JNIEXPORT jstring JNICALL
-JNI_FN(benchGgmlMulMat)(JNIEnv *env, jobject thiz,
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_benchGgmlMulMat(JNIEnv *env, jobject thiz,
                                                                           jint n_threads) {
     UNUSED(thiz);
     const char *bench_ggml_mul_mat = whisper_bench_ggml_mul_mat_str(n_threads);
     jstring string = (*env)->NewStringUTF(env, bench_ggml_mul_mat);
     return string;
 }
-
-#ifdef OPENWISPR_JNI_GPU
-#include "ggml-backend.h"
-
-#include <stdio.h>
-
-static int log_to_file = 0;
-
-static void log_gpu(enum ggml_log_level level, const char * text, void * user_data) {
-    UNUSED(user_data);
-    int prio = level == GGML_LOG_LEVEL_ERROR ? ANDROID_LOG_ERROR
-             : level == GGML_LOG_LEVEL_WARN  ? ANDROID_LOG_WARN : ANDROID_LOG_INFO;
-    __android_log_print(prio, "whisper-gpu", "%s", text);
-    if (log_to_file) fputs(text, stderr); // unbuffered, see gpuDevice
-}
-
-// Name of the GPU whisper would pick ("" if OpenCL found none).
-//
-// Also sends every whisper/ggml log line, and the process's stderr, to [log_path]. ggml's OpenCL
-// backend reacts to driver trouble (a kernel that won't compile, an unsupported GPU) by logging
-// the reason and calling exit(1), which closes the app with nothing in the UI. The file survives
-// that, and the app shows its tail on the next start. stderr stays redirected for the process,
-// so a later failure in initContext/fullTranscribe lands there too.
-JNIEXPORT jstring JNICALL
-JNI_FN(gpuDevice)(JNIEnv *env, jobject thiz, jstring log_path) {
-    UNUSED(thiz);
-    if (log_path != NULL && !log_to_file) {
-        const char *path = (*env)->GetStringUTFChars(env, log_path, NULL);
-        if (path[0] != 0 && freopen(path, "w", stderr) != NULL) {
-            setvbuf(stderr, NULL, _IONBF, 0);
-            log_to_file = 1;
-        }
-        (*env)->ReleaseStringUTFChars(env, log_path, path);
-    }
-    whisper_log_set(log_gpu, NULL);
-    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        enum ggml_backend_dev_type t = ggml_backend_dev_type(dev);
-        if (t == GGML_BACKEND_DEVICE_TYPE_GPU || t == GGML_BACKEND_DEVICE_TYPE_IGPU) {
-            return (*env)->NewStringUTF(env, ggml_backend_dev_description(dev));
-        }
-    }
-    return (*env)->NewStringUTF(env, "");
-}
-#endif

@@ -19,7 +19,7 @@
     추가 — 발열·반응속도). Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
   - 기본 언어 한국어. 한국어+영어 개발 용어가 섞인 발화가 주 사용 사례.
   - Turbo q5_0은 느리고 이득이 없어 제거, q4_0만 유지.
-  - GPU는 Vulkan 시도 후 제거(느림·발열), OpenCL로 재시도 중(아래 GPU 절).
+  - GPU 가속은 Vulkan, OpenCL 모두 CPU보다 느려 제거(아래 GPU 절). 다시 시도하지 않는다.
   - macOS 코드(`macos/`)는 건드리지 않는다. CI의 macOS 잡이 취소/실패해도 무시.
 
 ## 빌드·배포 흐름 (로컬 Android SDK 없음 → CI가 컴파일러)
@@ -52,18 +52,11 @@
   이 저장소 Release(`model-*`, pre-release)에 올린다. 앱은 GitHub 토큰으로 받는다(`releaseTag` 필드). 토큰이 없으면 Import.
 - 디바이스 추천: `DeviceFit.kt` (6GB+ → small-acft).
 
-## GPU (OpenCL) — 실험적, 설정 "GPU acceleration", Turbo만
-- 1차 Vulkan 시도(build-30)는 사용자 폰(스냅드래곤)에서 CPU보다 훨씬 느리고 발열이 심해 제거(build-31). Vulkan으로 돌아가지 않는다.
-- 2차: ggml **OpenCL** 백엔드 + Qualcomm Adreno 커널. 두 번째 네이티브 라이브러리 `libwhisper_gpu.so` = 업스트림 whisper.cpp **v1.8.7**
-  (`android/lib/src/main/jni/whisper-gpu/CMakeLists.txt`). CPU용 `libwhisper*.so`(vendored 1.7.4)는 그대로.
-  같은 `jni.c`를 `OPENWISPR_JNI_GPU`로 한 번 더 컴파일해 JNI 이름만 `WhisperLibGpu`로 바꾼다(`JNI_FN` 매크로).
-- 소스는 vendoring하지 않고 CI 단계 "Fetch GPU (OpenCL) build deps"가 받는다: whisper.cpp 태그, Khronos OpenCL-Headers,
-  NDK로 빌드한 OpenCL-ICD-Loader의 `libOpenCL.so`(**링크 전용**). env `OPENWISPR_GPU_DEPS`가 없으면 GPU 라이브러리 없이 빌드.
-- 런타임엔 폰의 `/vendor/lib64/libOpenCL.so`를 쓴다: manifest `<uses-native-library android:name="libOpenCL.so" required=false>`,
-  그리고 app `packaging.jniLibs.excludes += "**/libOpenCL.so"`(APK에 들어가면 진짜 드라이버를 가려 GPU를 못 찾는다).
-- 런타임 코드: `WhisperGpu`(로드·장치명·`loadError`), `LocalWhisperStt.GPU_MODELS`(Turbo만), `loadContext`(모델+백엔드별 캐시,
-  실패 시 CPU 폴백, `lastBackend`). 드라이버 크래시는 Kotlin에서 못 잡으므로 `GpuGuard`가 GPU 호출 전후 디스크 플래그로 감지해
-  다음 실행에 설정을 끈다. Compare는 GPU가 켜져 있으면 Turbo를 CPU/GPU 둘 다 돌리고 로드 시간을 따로 표시.
+## GPU — 두 번 시도, 둘 다 제거 (2026-11-08)
+- Vulkan(build-30): 사용자 폰(스냅드래곤)에서 CPU보다 훨씬 느리고 발열 → 제거.
+- OpenCL + Adreno 커널(build-35~39): 크래시 2건(토큰 임베딩 51866행 업로드, 지연 초기화 전 get_alignment)과 빈 결과(flash attention)를
+  고쳐 동작까지 갔으나 CPU보다 느림 → 제거. 경위와 패치는 `.claude/CHANGELOG.md`와 커밋 e4c51c4~b71a8b8에 있다.
+- 결론: 이 앱의 Whisper는 CPU만. 속도는 모델 선택(Moonshine Base Korean, SenseVoice)으로 해결한다.
 
 ## 인식 품질 관련 장치
 - 비영어 디코딩: beam 5 + 자연 분할 (`LocalWhisperStt.kt`).
@@ -100,8 +93,6 @@
 - 공개 저장소/공개 리소스 생성은 자동 승인되지 않는다 — 비공개 Release + 토큰 다운로드 방식을 쓴다.
 
 ## 백로그
-- GPU(OpenCL): build-36에서 Turbo 로드 중 네이티브 크래시(마지막 로그 n_langs=100). 64의 배수가 아닌 양자화 가중치
-  (토큰 임베딩 51866행)를 CPU에 두는 `scripts/patch-whisper-gpu.py`로 재시도 중. 결과에 따라 유지 또는 제거.
 - 자동 중지 대기 시간(현재 1.6초 고정, `AudioRecorder.HANGOVER_SAMPLES`)을 설정에서 1.6/3/5초로 선택.
 - Compare models 결과로 기본 모델 확정 후 안 쓰는 모델 정리.
 - (보류) Nemotron 3.5 스트리밍: sherpa-onnx가 다시 들어왔으니 지원 여부만 확인하면 시도 가능.
