@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-08 — GPU: 두 번째 크래시(get_alignment) 수정
+- build-37 크래시 보고: SIGSEGV `ggml_backend_opencl_buffer_type_get_alignment` ← `whisper_model_load`.
+  "CPU total size = 37.34 MB" = 토큰 임베딩이 CPU로 간 것 → 첫 패치는 의도대로 동작.
+- 원인: ggml-opencl이 backend_ctx를 지연 초기화하는데 whisper.cpp가 그 전에 alignment를 읽음. `scripts/patch-ggml-opencl.py`로
+  get_alignment/get_max_size가 먼저 `ggml_cl_init`을 부르게 함.
+
 ## 2026-11-08 — Moonshine Base Korean, SenseVoice full, GPU 로드 크래시 대응
 - 사용자: moonshine-base-ko와 SenseVoice-Small 비교, 기존 문샤인(tiny-ko) 제거, SenseVoice는 더 큰 걸로.
   SenseVoice-Small은 원래 234M 하나뿐이고 기존 것은 그 int8 → 비양자화(fp32, ~900MB)를 비교용으로 추가.
