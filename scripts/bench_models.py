@@ -60,11 +60,17 @@ def whisper(model, acft):
         ctx = (n + 319) // 320 + 16
         ctx = (ctx + 63) // 64 * 64
         ctx = min(1500, max(128 if acft else 768, ctx))
+        # Feed whisper-cli a plain 16-bit PCM WAV of exactly what the other engines get.
+        wav = f"{W}/clip.wav"
+        sf.write(wav, a, 16000, subtype="PCM_16")
         out = subprocess.run(
-            [f"{W}/whisper-cli", "-m", model, "-f", p, "-l", "ko", "-bs", "5", "-t", str(THREADS),
+            [f"{W}/whisper-cli", "-m", model, "-f", wav, "-l", "ko", "-bs", "5", "-t", str(THREADS),
              "-ac", str(ctx), "--prompt", PROMPT, "-nt", "-sns"],
             capture_output=True, text=True)
         timings = out.stderr
+        if not out.stdout.strip() and not getattr(run, "warned", False):
+            run.warned = True
+            print("whisper-cli gave no text; its stderr tail:\n" + "\n".join(timings.splitlines()[-25:]), flush=True)
         tot = float(re.search(r"total time\s*=\s*([\d.]+) ms", timings).group(1))
         load = float(re.search(r"load time\s*=\s*([\d.]+) ms", timings).group(1))
         return out.stdout.strip(), (tot - load) / 1000
