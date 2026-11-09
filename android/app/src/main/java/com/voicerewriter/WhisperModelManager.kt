@@ -47,6 +47,7 @@ object WhisperModelManager {
 
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
+    const val SMALL_ACFT_NPU_MODEL = "small-acft-npu"
     const val MEDIUM_NPU_MODEL = "medium-npu"
 
     val MODELS = listOf(
@@ -80,6 +81,19 @@ object WhisperModelManager {
             acft = true,
             releaseTag = "model-acft-large-v3-turbo-q4_0",
             badge = "T",
+        ),
+        // The Small ACFT weights above on the Qualcomm NPU, compiled in CI (npu-acft.yml). Medium
+        // spends most of its time in NPU execution (about 60ms per token), so a smaller model is
+        // what speeds this path up. Runs at the full 30s audio context, unlike the CPU build.
+        WhisperModel(
+            id = SMALL_ACFT_NPU_MODEL,
+            label = "Small ACFT (NPU)",
+            fileName = "sherpa-onnx-qnn-SM8850-binary-whisper-small-acft",
+            url = "",
+            sizeLabel = "~580MB · Snapdragon NPU",
+            releaseTag = "model-qnn-whisper-small-acft-sm8850",
+            engine = SpeechEngine.QNN_WHISPER,
+            badge = "SN",
         ),
         // OpenAI whisper-medium (multilingual, float) on the Qualcomm NPU through sherpa-onnx's QNN
         // runtime, as context binaries for SM8850 compiled in CI (npu-model.yml) from sherpa's QNN

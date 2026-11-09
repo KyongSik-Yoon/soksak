@@ -39,7 +39,7 @@
 - 앱 ID: 디버그는 `com.voicerewriter.dev` (Play 원본과 공존).
 
 ## 모델
-- 목록: `WhisperModelManager.MODELS` — `small-acft`(FUTO, 기본), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0), `medium-npu`.
+- 목록: `WhisperModelManager.MODELS` — `small-acft`(FUTO, 기본), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0), `small-acft-npu`, `medium-npu`.
 - 라우팅 벤치(`route-bench.yml`, 깨끗함/카페소음 10dB/0dB/아주 작은 소리, CER): Turbo 12.0/15.2/63.2/12.7%,
   Small ACFT 13.1/19.5/56.4/16.3%(Turbo의 1/5 시간), SenseVoice 20.6/27.8/51.7/21.4%(가장 빠름), Moonshine Base 21.4/40.9/97.5/38.7%.
   소리 크기·SNR 기반 자동 선택은 아직 검증 안 됨(첫 규칙은 SNR 기준값이 틀려 발동 안 함). 사용자 경험: 속삭임은 Whisper(Small ACFT)가 잘 들음.
@@ -64,6 +64,7 @@
   `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008. 매니페스트 `<uses-native-library libcdsprpc.so>`가
   없으면 deviceCreate 14001 → sherpa QNN 코드가 **프로세스를 exit**한다(build-66에서 버블 warm 때문에 실행할 때마다 꺼짐).
   `NpuLoadGuard`: 모델 폴더의 `.npu-loading` 표식이 다음 로드 때 남아 있으면 그 빌드에서는 NPU 모델 로드를 거부(재다운로드나 새 빌드로 해제).
+- **Small ACFT (NPU)**(`small-acft-npu`): FUTO 가중치를 `.github/workflows/npu-acft.yml`이 sherpa 방식으로 SM8850 컨텍스트 바이너리로 만든다(`scripts/npu_acft_export.py`가 `whisper.load_model`을 ACFT 가중치로 바꿔 텐서 접두어 `small`을 유지, `scripts/npu_compile_sm8850.sh`가 QAIRT 이미지에서 컴파일). Release `model-qnn-whisper-small-acft-sm8850`. audio context는 30초 고정 그대로.
 - 디바이스 추천: `DeviceFit.kt` — 언제나 small-acft(가장 작은 모델), 저장공간 부족만 미리 알린다.
 
 ## GPU — 두 번 시도, 둘 다 제거 (2026-11-08)
@@ -88,7 +89,7 @@
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.
-  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T MN)를 표시. 느린 끌기는 그대로 위치 이동.
+  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T SN MN)를 표시. 느린 끌기는 그대로 위치 이동.
 - **조용히 말하기**(설정 "Quiet mode", 버블 메뉴 맨 위 행): 받아쓰기 때 `Settings.forDictation()`이 모델을 `quietModel`
   (기본 Small ACFT)로 바꾸고, `AudioRecorder.start(quiet = true)`가 Silero 대신 `QuietSpeechDetector`(소음 바닥 대비 2.5배·절대 3e-4 이상을
   말로 봄)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 파란색, 메뉴에서 고른 모델은 quietModel에 저장.
