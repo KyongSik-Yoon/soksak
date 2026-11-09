@@ -166,6 +166,8 @@ object HeadlessDictation {
                     ?: OnDeviceStt.transcribe(ctx, s, WavIo.toFloats(samples), bias)
                 val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
                 if (text.isBlank()) {
+                    Log.i(TAG, "empty transcript (${s.sttModel}, ${durationSec}s)")
+                    toast(ctx, tr("Nothing was recognized."))
                     BubbleService.instance?.showIdle()
                     pendingId?.let { PendingAudio.release(it) }
                     return@launch
@@ -180,12 +182,18 @@ object HeadlessDictation {
                 pendingId?.let { id -> withContext(Dispatchers.IO) { runCatching { PendingAudio.settle(ctx, id, text) } } }
             } catch (e: Exception) {
                 Log.e(TAG, "headless transcription failed; audio kept for retry", e)
+                // Say why: a silent return to idle looked like "nothing happened".
+                toast(ctx, e.message ?: e.javaClass.simpleName)
                 pendingId?.let { PendingAudio.release(it) }
                 BubbleService.instance?.showIdle()
             } finally {
                 active = false
             }
         }
+    }
+
+    private fun toast(ctx: Context, msg: String) {
+        Handler(Looper.getMainLooper()).post { android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show() }
     }
 
     private fun recordHistory(ctx: Context, pkg: String, label: String, durationSec: Int, before: String, after: String, s: Settings) {

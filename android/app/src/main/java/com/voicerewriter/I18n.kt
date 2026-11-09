@@ -191,6 +191,10 @@ object I18n {
         "Download more in Settings" to "설정에서 더 받기",
         "Models…" to "모델…",
         "Off" to "꺼짐",
+        "Copy debug log" to "디버그 로그 복사",
+        "This app's recent log, for reporting a problem" to "문제를 알려줄 때 쓰는 이 앱의 최근 로그",
+        "Copied %s lines" to "%s줄 복사함",
+        "Nothing was recognized." to "인식된 말이 없어요.",
     )
 }
 

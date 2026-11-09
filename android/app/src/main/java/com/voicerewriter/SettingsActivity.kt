@@ -77,7 +77,9 @@ import com.voicerewriter.ui.MonoEyebrow
 import com.voicerewriter.ui.OpenWisprTheme
 import com.voicerewriter.ui.SunsetBrush
 import com.voicerewriter.ui.Wordmark
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Settings: a sectioned, on-device-first surface — setup status, Voice (engine segment +
@@ -610,6 +612,15 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                         NavRow(tr("Last clipboard fallback"), last) {}
                         Divider()
                     }
+                    NavRow(tr("Copy debug log"), tr("This app's recent log, for reporting a problem")) {
+                        launch {
+                            val log = withContext(Dispatchers.IO) { DebugLog.recent() }
+                            (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                                .setPrimaryClip(android.content.ClipData.newPlainText("openwispr log", log))
+                            android.widget.Toast.makeText(context, trf("Copied %s lines", log.lines().size.toString()), android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    Divider()
                     NavRow(tr("Auto-start helper"), tr("For Samsung, Xiaomi, OnePlus, Oppo")) {
                         val intent = SetupUtils.oemAutoStartIntents().firstOrNull { it.resolveActivity(context.packageManager) != null }
                             ?: SetupUtils.appInfoIntent(context)

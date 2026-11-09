@@ -121,6 +121,7 @@ object LocalSherpaStt {
                     tokens = File(dir, "tokens.txt").absolutePath,
                     numThreads = 2,
                     provider = "qnn",
+                    debug = true, // sherpa's QNN steps in logcat (Settings → Copy debug log)
                 )
             }
             SpeechEngine.SENSE_VOICE -> OfflineModelConfig(
@@ -178,6 +179,7 @@ object LocalSherpaStt {
                         stream.release()
                     }
                 }.trim()
+                Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s in ${parts.size} part(s) -> ${text.length} chars")
                 // Whisper on silence recites stock TV/YouTube lines; SenseVoice doesn't, but it costs nothing.
                 HallucinationFilter.clean(text)
             }
