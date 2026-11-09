@@ -8,6 +8,7 @@
 - 빌드 JDK는 로컬·CI 모두 25(바이트코드 대상은 Java 17 유지). NDK r25는 유지(whisper.cpp 성능 때문에 벤치 없이 올리지 않는다). Compose BOM·Coroutines는 빌드가 요구하지 않아 그대로.
 - 이 PC에 Android SDK를 설치해 로컬 빌드 가능. 업그레이드 전후 모두 `:app:assembleDebug :app:testDebugUnitTest` 성공(단위 테스트 98개).
   로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) SenseVoice·NPU는 CI 빌드로만 확인 가능. 폰 확인은 아직.
+- 커밋 4b08ee0, bd23ada → build-73 CI 성공. 사용자에게 보이는 기능 변화는 없다(빌드 도구만 교체).
 
 ## 2026-11-09 — NPU 모델을 CI에서 SM8850 컨텍스트 바이너리로
 - 결과(build-72): 사용자 폰에서 **Medium (NPU) 정상 동작** 확인(15:18). 변환 워크플로 1회 ~50분(QNN SDK 이미지, 디스크 정리 필요).
