@@ -127,7 +127,7 @@ object LocalSherpaStt {
                     tokens = File(dir, "tokens.txt").absolutePath,
                     numThreads = 2,
                     provider = "qnn",
-                    debug = true, // sherpa's QNN steps in logcat (Settings → Copy debug log)
+                    debug = false, // true dumps every tensor (thousands of lines per load) into logcat
                 )
             }
             SpeechEngine.WHISPER -> error("Whisper runs in LocalWhisperStt")
