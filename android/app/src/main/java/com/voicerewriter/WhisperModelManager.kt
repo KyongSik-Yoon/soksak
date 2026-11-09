@@ -54,7 +54,9 @@ object WhisperModelManager {
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
     const val SENSE_VOICE_MODEL = "sensevoice-small"
+    const val MEDIUM_NPU_MODEL = "medium-npu"
     private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
+    private const val SHERPA_QNN = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-2"
 
     val MODELS = listOf(
         WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB", badge = "Ti"),
@@ -104,7 +106,25 @@ object WhisperModelManager {
             releaseTag = "model-acft-large-v3-turbo-q4_0",
             badge = "T",
         ),
+        // OpenAI whisper-medium (multilingual, float) compiled for the Qualcomm NPU by sherpa-onnx:
+        // model libraries that the phone turns into NPU context binaries on first load (slow once,
+        // cached in the model folder). npu-bench (2026-11-09): CER on par with Turbo ACFT on clean and
+        // quiet speech, best on code-switched dev requests, weaker in babble. No prompt support;
+        // fixed 30s input. Only offered where [NpuSupport] says the bundled HTP libraries fit.
+        WhisperModel(
+            id = MEDIUM_NPU_MODEL,
+            label = "Medium (NPU)",
+            fileName = "sherpa-onnx-qnn-whisper-medium-android-aarch64",
+            url = "$SHERPA_QNN/sherpa-onnx-qnn-whisper-medium-android-aarch64.tar.bz2",
+            sizeLabel = "~1.3GB · Snapdragon NPU · first load is slow",
+            engine = SpeechEngine.QNN_WHISPER,
+            badge = "MN",
+        ),
     )
+
+    /** Models this phone can run: NPU models only on a supported Snapdragon. */
+    fun available(): List<WhisperModel> =
+        MODELS.filter { it.engine != SpeechEngine.QNN_WHISPER || NpuSupport.available }
 
     const val DEFAULT_MODEL = "tiny"
     private const val MIN_VALID_BYTES = 30L * 1024 * 1024
@@ -235,4 +255,9 @@ object WhisperModelManager {
 }
 
 /** The runtime a speech model needs. */
-enum class SpeechEngine { WHISPER, SENSE_VOICE }
+enum class SpeechEngine {
+    WHISPER,
+    SENSE_VOICE,
+    /** OpenAI Whisper on the Qualcomm NPU through sherpa-onnx's QNN runtime ([NpuSupport]). */
+    QNN_WHISPER,
+}

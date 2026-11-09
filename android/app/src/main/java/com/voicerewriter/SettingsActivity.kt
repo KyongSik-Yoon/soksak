@@ -857,7 +857,7 @@ private data class SttModelOption(val id: String, val name: String, val meta: St
  * large model deliberately, it just isn't told to.
  */
 private fun sttModelOptions(recommendedId: String): List<SttModelOption> =
-    WhisperModelManager.MODELS.map { SttModelOption(it.id, it.label, it.sizeLabel, it.id == recommendedId) }
+    WhisperModelManager.available().map { SttModelOption(it.id, it.label, it.sizeLabel, it.id == recommendedId) }
 
 private fun keyPlaceholder(provider: String) = when (provider) {
     "groq" -> "gsk_..."; "openai" -> "sk-..."; else -> tr("key or endpoint")

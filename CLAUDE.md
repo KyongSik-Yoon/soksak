@@ -53,6 +53,12 @@
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후
   이 저장소 Release(`model-*`, pre-release)에 올린다. 앱은 GitHub 토큰으로 받는다(`releaseTag` 필드). 토큰이 없으면 Import.
+- **Medium (NPU)**(`medium-npu`, `SpeechEngine.QNN_WHISPER`): sherpa-onnx의 QNN용 OpenAI whisper-medium(Release `asr-models-qnn-2`,
+  모델 라이브러리 libencoder/libdecoder.so). 첫 로드 때 폰이 NPU 컨텍스트 바이너리(encoder.bin/decoder.bin, 모델 폴더)를 만들어 느리고
+  이후 빠르다. 30초 고정 입력이라 `LocalSherpaStt.windows`로 28초 이하 창으로 잘라 디코드. 프롬프트 미지원.
+  `NpuSupport`(SoC SM8850 = Hexagon v81)일 때만 목록에 보임. CI `sherpa-qnn` 잡이 sherpa v2.0.1 JNI를 QNN 켜고(정적 ORT, TTS 끔) 빌드해
+  QNN 런타임(libQnnHtp/HtpPrepare/System/HtpV81Stub/Skel)과 함께 AAR의 `jni/arm64-v8a`에 덮어넣는다(actions/cache). 
+  `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008.
 - 디바이스 추천: `DeviceFit.kt` (6GB+ → small-acft).
 
 ## GPU — 두 번 시도, 둘 다 제거 (2026-11-08)

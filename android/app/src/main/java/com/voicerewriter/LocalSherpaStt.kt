@@ -7,6 +7,9 @@ import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineSenseVoiceModelConfig
+import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
+import com.k2fsa.sherpa.onnx.QnnConfig
+import com.voicerewriter.textproc.HallucinationFilter
 import com.whispercpp.whisper.WhisperCpuConfig
 import java.io.BufferedInputStream
 import java.io.File
@@ -18,7 +21,9 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 
 /**
- * On-device STT through sherpa-onnx for SenseVoice-Small: much lighter than Whisper on a phone,
+ * On-device STT through sherpa-onnx for SenseVoice-Small, and Whisper on the Qualcomm NPU (QNN).
+ *
+ * SenseVoice-Small: much lighter than Whisper on a phone,
  * at the cost of no prompt/glossary biasing (the dictionary still applies after decoding).
  * (Moonshine Korean ran here too until 2026-11-09; removed for being weak in noise.)
  *
@@ -29,9 +34,18 @@ object LocalSherpaStt {
 
     private const val TAG = "LocalSherpaStt"
 
+    // sherpa-onnx's QNN Whisper bundles: model libraries for the NPU plus the tokenizer.
+    private const val QNN_ENCODER = "libencoder.so"
+    private const val QNN_DECODER = "libdecoder.so"
+
+    /** The QNN Whisper input is fixed at 30s and longer audio is cut off; decode in windows. */
+    internal const val QNN_WINDOW_S = 28.0
+    private const val QNN_MIN_WINDOW_S = 18.0
+
     /** Files a bundle must contain to be usable. */
     fun requiredFiles(m: WhisperModelManager.WhisperModel): List<String> = when (m.engine) {
         SpeechEngine.SENSE_VOICE -> listOf(m.onnxFile, "tokens.txt")
+        SpeechEngine.QNN_WHISPER -> listOf(QNN_ENCODER, QNN_DECODER, "tokens.txt")
         SpeechEngine.WHISPER -> emptyList()
     }
 
@@ -78,8 +92,36 @@ object LocalSherpaStt {
     @Volatile private var recognizer: OfflineRecognizer? = null
     @Volatile private var loadedId: String? = null
 
-    private fun build(dir: File, m: WhisperModelManager.WhisperModel, language: String): OfflineRecognizer {
+    @Volatile private var adspPathSet = false
+
+    private fun build(context: Context, dir: File, m: WhisperModelManager.WhisperModel, language: String): OfflineRecognizer {
         val model = when (m.engine) {
+            SpeechEngine.QNN_WHISPER -> {
+                // The HTP skel (libQnnHtpV81Skel.so) is loaded by the DSP from ADSP_LIBRARY_PATH;
+                // without the app's lib dir there, device creation fails with error 1008.
+                if (!adspPathSet) {
+                    OfflineRecognizer.prependAdspLibraryPath(context.applicationInfo.nativeLibraryDir)
+                    adspPathSet = true
+                }
+                OfflineModelConfig(
+                    whisper = OfflineWhisperModelConfig(
+                        encoder = File(dir, QNN_ENCODER).absolutePath,
+                        decoder = File(dir, QNN_DECODER).absolutePath,
+                        language = language.takeUnless { it == "auto" } ?: "",
+                        task = "transcribe",
+                        // First load compiles the model libraries into these NPU context binaries
+                        // (slow, once); later loads read them back.
+                        qnnConfig = QnnConfig(
+                            backendLib = "libQnnHtp.so",
+                            systemLib = "libQnnSystem.so",
+                            contextBinary = "${File(dir, "encoder.bin").absolutePath},${File(dir, "decoder.bin").absolutePath}",
+                        ),
+                    ),
+                    tokens = File(dir, "tokens.txt").absolutePath,
+                    numThreads = 2,
+                    provider = "qnn",
+                )
+            }
             SpeechEngine.SENSE_VOICE -> OfflineModelConfig(
                 senseVoice = OfflineSenseVoiceModelConfig(
                     model = File(dir, m.onnxFile).absolutePath,
@@ -106,7 +148,7 @@ object LocalSherpaStt {
         val dir = WhisperModelManager.modelFile(context, id)
         check(isReady(dir, m)) { "${m.label} isn't downloaded yet." }
         val t0 = System.currentTimeMillis()
-        return build(dir, m, language).also {
+        return build(context, dir, m, language).also {
             recognizer = it
             loadedId = key
             Log.i(TAG, "loaded $id in ${System.currentTimeMillis() - t0}ms")
@@ -117,20 +159,54 @@ object LocalSherpaStt {
         withContext(Dispatchers.Default) {
             lock.withLock {
                 val rec = ensureLoaded(context, settings.sttModel, DictationLanguage.normalize(settings.sttLanguage))
-                val stream = rec.createStream()
-                try {
-                    stream.acceptWaveform(samples, 16_000)
-                    rec.decode(stream)
-                    clean(rec.getResult(stream).text)
-                } finally {
-                    stream.release()
-                }
+                val qnn = WhisperModelManager.model(settings.sttModel).engine == SpeechEngine.QNN_WHISPER
+                val parts = if (qnn) windows(samples) else listOf(0 until samples.size)
+                val text = parts.joinToString(" ") { r ->
+                    val stream = rec.createStream()
+                    try {
+                        stream.acceptWaveform(if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1), 16_000)
+                        rec.decode(stream)
+                        clean(rec.getResult(stream).text)
+                    } finally {
+                        stream.release()
+                    }
+                }.trim()
+                // Whisper on silence recites stock TV/YouTube lines; SenseVoice doesn't, but it costs nothing.
+                HallucinationFilter.clean(text)
             }
         }
 
     suspend fun warm(context: Context, settings: Settings) = withContext(Dispatchers.Default) {
         runCatching { lock.withLock { ensureLoaded(context, settings.sttModel, DictationLanguage.normalize(settings.sttLanguage)) } }
             .onFailure { Log.w(TAG, "warm failed", it) }
+    }
+
+    /**
+     * Split [samples] into windows of at most [QNN_WINDOW_S], cutting each at its quietest 0.2s
+     * between [QNN_MIN_WINDOW_S] and [QNN_WINDOW_S] so a word is rarely split.
+     */
+    internal fun windows(samples: FloatArray, sr: Int = 16_000): List<IntRange> {
+        val max = (QNN_WINDOW_S * sr).toInt()
+        val min = (QNN_MIN_WINDOW_S * sr).toInt()
+        val win = sr / 5
+        val hop = sr / 50
+        val out = mutableListOf<IntRange>()
+        var start = 0
+        while (samples.size - start > max) {
+            var best = start + max
+            var bestE = Double.MAX_VALUE
+            var p = start + min
+            while (p + win <= start + max) {
+                var e = 0.0
+                for (i in p until p + win) e += samples[i] * samples[i]
+                if (e < bestE) { bestE = e; best = p + win / 2 }
+                p += hop
+            }
+            out += start until best
+            start = best
+        }
+        out += start until samples.size
+        return out
     }
 
     /**

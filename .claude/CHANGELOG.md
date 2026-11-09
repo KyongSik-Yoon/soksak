@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — Medium (NPU) 모델 추가
+- 사용자: "진행해, 권한 모두 위임". CI `sherpa-qnn` 잡(QNN JNI 빌드 + v81 런타임) → AAR에 주입, `SpeechEngine.QNN_WHISPER`,
+  `NpuSupport`, `LocalSherpaStt`의 QNN 경로(ADSP_LIBRARY_PATH, 컨텍스트 바이너리 캐시, 28초 창 분할, HallucinationFilter).
+
 ## 2026-11-09 — NPU(Qualcomm QNN) 검토 + 후보 벤치
 - 사용자 폰: Galaxy S26 Ultra SM-S948N = Snapdragon 8 Elite Gen 5 for Galaxy (SM8850, HTP v81). sherpa-onnx QNN 데모 APK
   (1.12.22, SenseVoice)를 사용자가 설치 → 크래시 없이 NPU로 동작, 일반 앱의 NPU 접근 가능 확인.

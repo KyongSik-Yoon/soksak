@@ -17,8 +17,53 @@ on:
   workflow_dispatch:
 
 jobs:
+  # libsherpa-onnx-jni.so rebuilt with Qualcomm NPU (QNN) support — the published AAR has none —
+  # plus the QNN runtime pieces for Hexagon v81 (Snapdragon 8 Elite Gen 5, NpuSupport.kt). Same
+  # sherpa-onnx tag as the AAR, so the AAR's Kotlin classes match these JNI symbols. Cached: the
+  # ~20 min build only reruns when the key changes. Headers and runtime libs come from
+  # sherpa-onnx's public asr-models-qnn release (QAIRT 2.40), as its own QNN APK builds do.
+  sherpa-qnn:
+    name: sherpa-onnx JNI with QNN
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: qnn-out
+          key: sherpa-qnn-jni-v2.0.1-qairt2.40.0.251030-v81-r1
+      - name: Build
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -ex
+          V=2.40.0.251030
+          git clone -q --depth 1 --branch v2.0.1 https://github.com/k2-fsa/sherpa-onnx s
+          cd s
+          gh release download asr-models-qnn -R k2-fsa/sherpa-onnx -p "qnn-include-$V.tar.bz2" -p "qnn-libs-$V.tar.bz2"
+          tar xf "qnn-include-$V.tar.bz2" && tar xf "qnn-libs-$V.tar.bz2"
+          ls qnn-libs-$V
+          export QNN_SDK_ROOT=$PWD/qnn-include-$V
+          export SHERPA_ONNX_ENABLE_QNN=ON SHERPA_ONNX_ENABLE_TTS=OFF SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=OFF
+          export SHERPA_ONNX_ENABLE_BINARY=OFF BUILD_SHARED_LIBS=OFF
+          export ANDROID_NDK=$ANDROID_NDK_LATEST_HOME
+          export LDFLAGS="-Wl,-z,max-page-size=16384"
+          ./build-android-arm64-v8a.sh > build.log 2>&1 || { tail -80 build.log; exit 1; }
+          tail -5 build.log
+          mkdir -p ../qnn-out
+          cp -v build-android-arm64-v8a-static/install/lib/libsherpa-onnx-jni.so ../qnn-out/
+          for f in libQnnHtp.so libQnnHtpPrepare.so libQnnSystem.so libQnnHtpV81Stub.so libQnnHtpV81Skel.so; do
+            cp -v "qnn-libs-$V/$f" ../qnn-out/
+          done
+          ls -la ../qnn-out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sherpa-qnn
+          path: qnn-out
+
   android:
     name: Android build & unit tests
+    needs: sherpa-qnn
     runs-on: ubuntu-latest
     permissions:
       contents: write   # publish each main build as a release (Obtainium updates from it)
@@ -60,6 +105,21 @@ jobs:
             curl -fSL --retry 8 --retry-all-errors --retry-delay 10 -o "app/libs/$AAR" \
               "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$AAR"
           ls -la app/libs
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sherpa-qnn
+          path: qnn-out
+
+      - name: Put the QNN JNI and runtime into the sherpa AAR
+        working-directory: android
+        run: |
+          set -e
+          AAR=app/libs/sherpa-onnx-static-link-onnxruntime-2.0.1.aar
+          rm -rf /tmp/aar && mkdir /tmp/aar && unzip -q "$AAR" -d /tmp/aar
+          cp -v ../qnn-out/*.so /tmp/aar/jni/arm64-v8a/
+          rm "$AAR" && (cd /tmp/aar && zip -qr - .) > "$AAR"
+          unzip -l "$AAR" | grep arm64-v8a
 
       - name: Assemble debug + run unit tests
         working-directory: android
