@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — 툴체인 업그레이드(Gradle 9.9.0, AGP 9.5.1, Kotlin 2.4.21)
+- AGP 9는 Kotlin을 내장하므로 `kotlin.android` 플러그인과 `kotlinOptions`를 뺐다. Kotlin 버전은 Compose 플러그인 버전이 정한다.
+- JDK 17, NDK r25는 유지(whisper.cpp 성능 때문에 NDK는 벤치 없이 올리지 않는다). Compose BOM·Coroutines는 빌드가 요구하지 않아 그대로.
+- 이 PC에 Android SDK를 설치해 로컬 빌드 가능. 업그레이드 전후 모두 `:app:assembleDebug :app:testDebugUnitTest` 성공(단위 테스트 98개).
+  로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) SenseVoice·NPU는 CI 빌드로만 확인 가능. 폰 확인은 아직.
+
 ## 2026-11-09 — NPU 모델을 CI에서 SM8850 컨텍스트 바이너리로
 - 결과(build-72): 사용자 폰에서 **Medium (NPU) 정상 동작** 확인(15:18). 변환 워크플로 1회 ~50분(QNN SDK 이미지, 디스크 정리 필요).
   CI 평소 빌드 시간은 그대로(sherpa-qnn 캐시 적중 ~10초 + Android ~4.5분).
