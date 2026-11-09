@@ -4,6 +4,9 @@
 새 작업을 끝내면 맨 위에 추가한다.
 
 ## 2026-11-09 — NPU 모델을 CI에서 SM8850 컨텍스트 바이너리로
+- 결과(build-72): 사용자 폰에서 **Medium (NPU) 정상 동작** 확인(15:18). 변환 워크플로 1회 ~50분(QNN SDK 이미지, 디스크 정리 필요).
+  CI 평소 빌드 시간은 그대로(sherpa-qnn 캐시 적중 ~10초 + Android ~4.5분).
+- 남은 개선: 1.48GB tar.bz2를 폰에서 Java로 푸는 데 오래 걸림 → 무압축 tar + 압축 해제 진행률 표시.
 - build-70 로그(디버그 로그 복사): QNN 로드·DSP 연결·ADSP 경로는 성공, 인코더는 이전 시도에서 encoder.bin까지 만들어졌으나
   디코더 "Finalizing graph 'decoder'" 도중 프로세스가 사라짐(네이티브 크래시 기록 없음 → 종료/kill). 폰 위 컴파일을 포기.
 - `npu-model.yml`로 x86에서 컴파일 → 비공개 Release, 앱 모델 항목을 releaseTag 다운로드로 교체, 옛 폴더는 RETIRED_DIRS.
