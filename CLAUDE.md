@@ -24,7 +24,7 @@
     알림만 만들어 ci.yml에서 뺐다(2026-11-08). 벤치·모델 패키징 워크플로 변경은 CI를 돌리지 않는다(paths-ignore).
 
 ## 빌드·배포 흐름 (폰에 올리는 빌드는 CI가 만든다)
-로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 17 필요(이 PC 기본은 25) → `cd android && JAVA_HOME=$(mise where java@temurin-17) ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
+로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
 로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) SenseVoice·NPU는 동작하지 않는다.
 1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
 2. 성공하면 Release `build-<run_number>`에 `openwispr-dev-<run>.apk`를 올리고 최근 5개만 남긴다.

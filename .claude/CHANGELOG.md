@@ -5,7 +5,7 @@
 
 ## 2026-11-09 — 툴체인 업그레이드(Gradle 9.9.0, AGP 9.5.1, Kotlin 2.4.21)
 - AGP 9는 Kotlin을 내장하므로 `kotlin.android` 플러그인과 `kotlinOptions`를 뺐다. Kotlin 버전은 Compose 플러그인 버전이 정한다.
-- JDK 17, NDK r25는 유지(whisper.cpp 성능 때문에 NDK는 벤치 없이 올리지 않는다). Compose BOM·Coroutines는 빌드가 요구하지 않아 그대로.
+- 빌드 JDK는 로컬·CI 모두 25(바이트코드 대상은 Java 17 유지). NDK r25는 유지(whisper.cpp 성능 때문에 벤치 없이 올리지 않는다). Compose BOM·Coroutines는 빌드가 요구하지 않아 그대로.
 - 이 PC에 Android SDK를 설치해 로컬 빌드 가능. 업그레이드 전후 모두 `:app:assembleDebug :app:testDebugUnitTest` 성공(단위 테스트 98개).
   로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) SenseVoice·NPU는 CI 빌드로만 확인 가능. 폰 확인은 아직.
 
