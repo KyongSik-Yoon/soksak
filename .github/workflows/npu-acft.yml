@@ -40,8 +40,9 @@ jobs:
           set -ex
           python3 -m pip install -q torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
           python3 -m pip install -q "numpy<2" openai-whisper onnx onnxruntime soundfile librosa "transformers<5" safetensors
+          # scripts/whisper/qnn/export_onnx.py is a symlink to this file; raw URLs serve only its target.
           curl -fsSL --retry 5 -o export_onnx.py \
-            "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/$SHERPA/scripts/whisper/qnn/export_onnx.py"
+            "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/$SHERPA/scripts/whisper/rknn/export_onnx.py"
           mkdir onnx && cd onnx
           python3 ../scripts/npu_acft_export.py ../export_onnx.py
           mv small-encoder.onnx encoder.onnx
