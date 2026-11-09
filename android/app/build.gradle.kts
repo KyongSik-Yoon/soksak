@@ -5,7 +5,8 @@ plugins {
 
 android {
     namespace = "com.voicerewriter"
-    compileSdk = 36
+    // Compose 1.12 refuses to build below 37. Compile-time only: targetSdk stays 36.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.voicerewriter"
@@ -106,7 +107,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
 
-    val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
+    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -117,7 +118,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     testImplementation("junit:junit:4.13.2")
     // Real org.json on the unit-test classpath: `isReturnDefaultValues` turns the stubbed
