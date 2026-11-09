@@ -5,7 +5,7 @@
 
 ## 2026-11-09 — Compose BOM 2026.09.00(Compose 1.12.1, Material3 1.4.0), Coroutines 1.11.0
 - Compose 1.12가 compileSdk 37 이상을 요구해 앱 모듈만 37로 올렸다. targetSdk는 36 유지(런타임 동작 변화 없음).
-- 로컬 `:app:assembleDebug :app:testDebugUnitTest` 성공. 로컬 APK 39.6→45.8MB. UI 라이브러리 교체라 폰에서 화면 확인 필요.
+- 로컬 `:app:assembleDebug :app:testDebugUnitTest` 성공. 로컬 APK 39.6→45.8MB. 커밋 8c0c0c3 → build-75 CI 성공. UI 라이브러리 교체라 폰에서 화면 확인 필요.
 
 ## 2026-11-09 — Medium (NPU)에서 말 끝이 잘리던 문제
 - 증상: "그 닷컴 비그 파일은 이제 안 쓸"처럼 끝 음절이 사라짐(사용자 스크린샷, build-73).
