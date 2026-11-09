@@ -6,7 +6,7 @@
 ## 2026-11-09 — Medium (NPU) 진단 로그(단계별 시간, QNN 프로파일)
 - 토큰당 약 65ms의 정체를 재기 위해 sherpa 패치를 `.github/patches/sherpa-qnn.patch`로 옮기고 `QNN timing us`, `QNN profile` 로그를 추가. 원인을 찾으면 진단 코드는 뺀다. 커밋 a6168d9 → build-78 CI 성공.
 - 측정(build-78, 9.7초 음성, 33토큰, 전체 3098ms): NPU 디코더 37스텝 실행 2211ms(스텝당 약 60ms, 마지막 스텝 프로파일 기준 NPU 연산 44ms·QNN 호스트 12.5ms·RPC 2ms), 인코더 364ms(NPU 350ms), **출력 Transpose 363ms(CPU 단일 스레드)**, self 캐시 복사 105ms, cross 복사 10ms. NPU 연산이 절반 이상이라 패치만으로는 크게 못 줄인다.
-- 조치: Transpose를 4스레드로 분산(패치). QNN 호스트 12.5ms는 공유 메모리로 줄일 여지가 있으나 텐서 98개 등록이 필요해 보류.
+- 조치: Transpose를 4스레드로 분산(패치, 커밋 718890e → build-79 CI 성공, 효과는 미측정). QNN 호스트 12.5ms는 공유 메모리로 줄일 여지가 있으나 텐서 98개 등록이 필요해 보류.
 
 ## 2026-11-09 — Medium (NPU) 토큰당 295MB 재복사 제거(sherpa 패치)
 - 측정(build-76, Compare): NPU 디코드 = 고정 약 1.0초 + 토큰당 약 73ms(19/21/35토큰 2412/2586/3595ms). 14.5초 음성에서 NPU 6.0초, Small 1.9초, Small ACFT 2.6초, SenseVoice 0.2초, Turbo 10.2초(모두 모델 로드 제외). 모델 로드 3.4~3.8초는 Compare처럼 모델을 바꿀 때만 든다.
