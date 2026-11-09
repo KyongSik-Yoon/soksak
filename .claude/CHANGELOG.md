@@ -3,6 +3,13 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — NPU 모델을 CI에서 SM8850 컨텍스트 바이너리로
+- build-70 로그(디버그 로그 복사): QNN 로드·DSP 연결·ADSP 경로는 성공, 인코더는 이전 시도에서 encoder.bin까지 만들어졌으나
+  디코더 "Finalizing graph 'decoder'" 도중 프로세스가 사라짐(네이티브 크래시 기록 없음 → 종료/kill). 폰 위 컴파일을 포기.
+- `npu-model.yml`로 x86에서 컴파일 → 비공개 Release, 앱 모델 항목을 releaseTag 다운로드로 교체, 옛 폴더는 RETIRED_DIRS.
+- 디버그 로그: `-t`는 uid 필터 전에 줄을 세서 다른 앱 로그에 밀려 우리 줄이 사라졌다 → 전체를 읽고 끝 N줄.
+- NpuLoadGuard: 설정·버블 메뉴에서 그 모델을 다시 고르면 해제.
+
 ## 2026-11-09 — build-66 NPU 모델 선택 후 앱이 켜지자마자 꺼짐 → 수정
 - 원인: libQnnHtpV81Stub.so가 /vendor/lib64/libcdsprpc.so를 NEEDED로 갖는데, targetSdk 31+ 앱은 매니페스트에
   `<uses-native-library android:name="libcdsprpc.so" android:required="false"/>`가 있어야 벤더 라이브러리를 본다(sherpa 데모 매니페스트에 있음).

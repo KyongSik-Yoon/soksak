@@ -56,7 +56,6 @@ object WhisperModelManager {
     const val SENSE_VOICE_MODEL = "sensevoice-small"
     const val MEDIUM_NPU_MODEL = "medium-npu"
     private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
-    private const val SHERPA_QNN = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-2"
 
     val MODELS = listOf(
         WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB", badge = "Ti"),
@@ -106,17 +105,19 @@ object WhisperModelManager {
             releaseTag = "model-acft-large-v3-turbo-q4_0",
             badge = "T",
         ),
-        // OpenAI whisper-medium (multilingual, float) compiled for the Qualcomm NPU by sherpa-onnx:
-        // model libraries that the phone turns into NPU context binaries on first load (slow once,
-        // cached in the model folder). npu-bench (2026-11-09): CER on par with Turbo ACFT on clean and
-        // quiet speech, best on code-switched dev requests, weaker in babble. No prompt support;
-        // fixed 30s input. Only offered where [NpuSupport] says the bundled HTP libraries fit.
+        // OpenAI whisper-medium (multilingual, float) on the Qualcomm NPU through sherpa-onnx's QNN
+        // runtime, as context binaries for SM8850 compiled in CI (npu-model.yml) from sherpa's QNN
+        // model libraries — compiling them on the phone died in the decoder (builds 67-70).
+        // npu-bench (2026-11-09): CER on par with Turbo ACFT on clean and quiet speech, best on
+        // code-switched dev requests, weaker in babble. No prompt support; fixed 30s input.
+        // Only offered where [NpuSupport] says the binaries and HTP libraries fit.
         WhisperModel(
             id = MEDIUM_NPU_MODEL,
             label = "Medium (NPU)",
-            fileName = "sherpa-onnx-qnn-whisper-medium-android-aarch64",
-            url = "$SHERPA_QNN/sherpa-onnx-qnn-whisper-medium-android-aarch64.tar.bz2",
-            sizeLabel = "~1.3GB · Snapdragon NPU · first load is slow",
+            fileName = "sherpa-onnx-qnn-SM8850-binary-whisper-medium",
+            url = "",
+            sizeLabel = "~1.5GB · Snapdragon NPU",
+            releaseTag = "model-qnn-whisper-medium-sm8850",
             engine = SpeechEngine.QNN_WHISPER,
             badge = "MN",
         ),

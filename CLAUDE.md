@@ -55,9 +55,11 @@
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후
   이 저장소 Release(`model-*`, pre-release)에 올린다. 앱은 GitHub 토큰으로 받는다(`releaseTag` 필드). 토큰이 없으면 Import.
-- **Medium (NPU)**(`medium-npu`, `SpeechEngine.QNN_WHISPER`): sherpa-onnx의 QNN용 OpenAI whisper-medium(Release `asr-models-qnn-2`,
-  모델 라이브러리 libencoder/libdecoder.so). 첫 로드 때 폰이 NPU 컨텍스트 바이너리(encoder.bin/decoder.bin, 모델 폴더)를 만들어 느리고
-  이후 빠르다. 30초 고정 입력이라 `LocalSherpaStt.windows`로 28초 이하 창으로 잘라 디코드. 프롬프트 미지원.
+- **Medium (NPU)**(`medium-npu`, `SpeechEngine.QNN_WHISPER`): OpenAI whisper-medium의 SM8850용 QNN 컨텍스트 바이너리
+  (encoder.bin/decoder.bin + tokens.txt). `.github/workflows/npu-model.yml`이 sherpa의 QNN 모델 라이브러리(`asr-models-qnn-2`의 linux-x64판)를
+  sherpa `ghcr.io/k2-fsa/qnn-sdk:2.40` 이미지에서 `qnn-context-binary-generator`로 컴파일해 비공개 Release `model-qnn-whisper-medium-sm8850`에 올리고,
+  앱은 토큰으로 받는다. 폰에서 모델 라이브러리를 컴파일하는 방식(build-66~70)은 디코더 그래프 최종 처리 중 프로세스가 끝나 버렸다 → 쓰지 않음
+  (APK에서 libQnnHtpPrepare.so도 뺌). 30초 고정 입력이라 `LocalSherpaStt.windows`로 28초 이하 창으로 잘라 디코드. 프롬프트 미지원.
   `NpuSupport`(SoC SM8850 = Hexagon v81)일 때만 목록에 보임. CI `sherpa-qnn` 잡이 sherpa v2.0.1 JNI를 QNN 켜고(정적 ORT, TTS 끔) 빌드해
   QNN 런타임(libQnnHtp/HtpPrepare/System/HtpV81Stub/Skel)과 함께 jniLibs로 넣는다(actions/cache).
   `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008. 매니페스트 `<uses-native-library libcdsprpc.so>`가

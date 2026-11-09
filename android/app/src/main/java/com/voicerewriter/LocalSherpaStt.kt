@@ -34,9 +34,9 @@ object LocalSherpaStt {
 
     private const val TAG = "LocalSherpaStt"
 
-    // sherpa-onnx's QNN Whisper bundles: model libraries for the NPU plus the tokenizer.
-    private const val QNN_ENCODER = "libencoder.so"
-    private const val QNN_DECODER = "libdecoder.so"
+    // QNN Whisper bundles (npu-model.yml): SM8850 context binaries plus the tokenizer.
+    private const val QNN_ENCODER = "encoder.bin"
+    private const val QNN_DECODER = "decoder.bin"
 
     /** The QNN Whisper input is fixed at 30s and longer audio is cut off; decode in windows. */
     internal const val QNN_WINDOW_S = 28.0
@@ -105,16 +105,15 @@ object LocalSherpaStt {
                 }
                 OfflineModelConfig(
                     whisper = OfflineWhisperModelConfig(
-                        encoder = File(dir, QNN_ENCODER).absolutePath,
-                        decoder = File(dir, QNN_DECODER).absolutePath,
+                        // Context binaries only: no model libraries, so nothing compiles on the phone.
+                        encoder = "",
+                        decoder = "",
                         language = language.takeUnless { it == "auto" } ?: "",
                         task = "transcribe",
-                        // First load compiles the model libraries into these NPU context binaries
-                        // (slow, once); later loads read them back.
                         qnnConfig = QnnConfig(
                             backendLib = "libQnnHtp.so",
                             systemLib = "libQnnSystem.so",
-                            contextBinary = "${File(dir, "encoder.bin").absolutePath},${File(dir, "decoder.bin").absolutePath}",
+                            contextBinary = "${File(dir, QNN_ENCODER).absolutePath},${File(dir, QNN_DECODER).absolutePath}",
                             htpPerfMode = true, // burst clocks: dictation is short and someone is waiting
                         ),
                     ),

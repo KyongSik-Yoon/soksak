@@ -9,8 +9,8 @@ import java.io.File
  * the bubble warms the selected model at start — so one bad load became a crash loop (build-66:
  * missing `uses-native-library libcdsprpc.so`). A marker file in the model folder is written
  * before loading and removed after, success or exception. Finding it at the next load means the
- * last one died: the model is then refused with a message instead of loaded. Deleting and
- * re-downloading the model clears it, as does a new app build.
+ * last one died: the model is then refused with a message instead of loaded. Picking the model
+ * again (Settings or the bubble menu) clears it, as does a new app build.
  */
 class NpuLoadGuard(private val dir: File, private val build: Long) {
     private val loading = File(dir, ".npu-loading")
@@ -24,7 +24,7 @@ class NpuLoadGuard(private val dir: File, private val build: Long) {
         }
         if (failed.exists() && failed.readText().trim() == build.toString()) {
             throw IllegalStateException(
-                "The NPU model closed the app last time it loaded, so it's off for this build. Pick another model.",
+                "The NPU model closed the app last time it loaded. Pick another model, or pick it again to retry.",
             )
         }
         loading.writeText(build.toString())
@@ -32,5 +32,15 @@ class NpuLoadGuard(private val dir: File, private val build: Long) {
 
     fun end() {
         loading.delete()
+    }
+
+    companion object {
+        /** The user picked NPU model [id] on purpose: let it try again. */
+        fun reset(context: android.content.Context, id: String) {
+            if (WhisperModelManager.model(id).engine != SpeechEngine.QNN_WHISPER) return
+            val dir = WhisperModelManager.modelFile(context, id)
+            File(dir, ".npu-loading").delete()
+            File(dir, ".npu-failed").delete()
+        }
     }
 }

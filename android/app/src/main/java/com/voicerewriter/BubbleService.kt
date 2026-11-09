@@ -273,6 +273,7 @@ class BubbleService : Service() {
         serviceScope.launch {
             val repo = SettingsRepository(applicationContext)
             val cur = repo.get()
+            NpuLoadGuard.reset(applicationContext, id) // picking it again is the way to retry
             repo.save(if (cur.quietMode) cur.copy(quietModel = id) else cur.copy(sttModel = id))
             withContext(Dispatchers.IO) {
                 runCatching { OnDeviceStt.warm(applicationContext, id) }

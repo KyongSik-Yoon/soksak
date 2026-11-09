@@ -256,6 +256,8 @@ object ModelDownloader {
 
     /** Parakeet's sherpa-onnx bundle directory. */
     private val RETIRED_DIRS = listOf("parakeet", "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27",
+        // Medium (NPU) as model libraries the phone had to compile (builds 66-70); now SM8850 binaries.
+        "sherpa-onnx-qnn-whisper-medium-android-aarch64",
         // Moonshine Base Korean: no advantage over SenseVoice / Small ACFT in the routing
         // benchmark, and very weak in noise (97% CER at 0 dB SNR). Removed 2026-11-09.
         "sherpa-onnx-moonshine-base-ko-quantized",

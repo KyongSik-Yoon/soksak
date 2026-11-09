@@ -437,7 +437,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                                             importLauncher.launch(arrayOf("*/*"))
                                         } else downloadStt(m.id)
                                     },
-                                    onUse = { sttModel = m.id; persist() },
+                                    onUse = { NpuLoadGuard.reset(context, m.id); sttModel = m.id; persist() },
                                     onDelete = {
                                         pendingDelete = DeletableModel(m.id, m.name, m.meta)
                                     },

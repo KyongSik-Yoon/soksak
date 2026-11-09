@@ -12,9 +12,10 @@ object DebugLog {
     fun recent(lines: Int = 3000): String = runCatching {
         // threadtime carries the pid; plain "-v pid" isn't accepted by every logcat (Samsung's).
         val tries = listOf(
-            listOf("logcat", "-d", "-b", "main,crash", "-v", "threadtime", "-t", lines.toString()),
-            listOf("logcat", "-d", "-v", "threadtime", "-t", lines.toString()),
-            listOf("logcat", "-d", "-t", lines.toString()),
+            // No -t: it counts lines before the uid filter, so other apps' chatter pushed ours out.
+            listOf("logcat", "-d", "-b", "main,crash", "-v", "threadtime"),
+            listOf("logcat", "-d", "-v", "threadtime"),
+            listOf("logcat", "-d"),
         )
         var out = ""
         for (cmd in tries) {
@@ -23,6 +24,7 @@ object DebugLog {
             p.waitFor()
             if (p.exitValue() == 0 && out.lines().size > 3) break
         }
+        out = out.lines().takeLast(lines).joinToString("\n")
         "OpenWispr pid ${Process.myPid()} ${android.os.Build.MODEL} ${android.os.Build.SOC_MODEL.takeIf { android.os.Build.VERSION.SDK_INT >= 31 } ?: ""}\n$out"
     }.getOrElse { "logcat failed: $it" }
 }
