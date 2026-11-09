@@ -3,6 +3,17 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — NPU(Qualcomm QNN) 검토 + 후보 벤치
+- 사용자 폰: Galaxy S26 Ultra SM-S948N = Snapdragon 8 Elite Gen 5 for Galaxy (SM8850, HTP v81). sherpa-onnx QNN 데모 APK
+  (1.12.22, SenseVoice)를 사용자가 설치 → 크래시 없이 NPU로 동작, 일반 앱의 NPU 접근 가능 확인.
+- 재료: sherpa Release `asr-models-qnn`에 QNN 헤더·런타임 so(2.40), `asr-models-qnn-2`에 Whisper tiny~medium QNN 모델 라이브러리.
+  turbo/large는 없음(직접 변환 필요, QAIRT는 HF csukuangfj/qnn-toolkit 미러). sherpa Kotlin API `OfflineWhisperModelConfig.qnnConfig`.
+  제약: 30초 고정 입력, 프롬프트(단어장·Style example) 미지원, greedy.
+- `npu-bench.yml`(라우팅 벤치 클립, CER clean/babble10/babble0/quiet, 코드스위칭 clean): Turbo ACFT 11.4/15.2/64.3/12.4 (cs 22.5),
+  Turbo 원본 12.6/16.4/56.8/14.0 (23.4), **Medium 11.3/17.8/68.1/14.4 (21.4)**, Small ACFT 13.0/19.8/55.5/19.7 (24.5),
+  Small 원본 15.7/21.5/65.9/18.1 (31.0), SenseVoice 20.7/28.1/51.4/21.6 (36.8).
+  → Medium NPU판이 보통 환경에서 Turbo ACFT와 동급(프롬프트 없이도), 시끄러운 곳은 약함.
+
 ## 2026-11-09 — Turbo 대기 단축(꼬리 무음 제거) + 엉뚱한 결과 거르기
 - 사용자: Turbo는 말하는 동안 변환을 넣었는데도 느리고, 가끔 완전히 엉뚱한 내용이 나온다. Compare 화면: 1초 클립에서
   Small ACFT "정리한 다음 Claude Code로 테스트 돌려줘."(기본 Style example 끝부분 그대로), Turbo "이 시각 세계였습니다."
