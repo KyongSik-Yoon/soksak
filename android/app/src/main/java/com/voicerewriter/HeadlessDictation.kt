@@ -83,7 +83,7 @@ object HeadlessDictation {
         recorder = rec
         active = true
         // Whisper: start decoding at each pause while the user is still talking.
-        streaming = if (StreamingWhisper.applies(app, s)) {
+        streaming = if (s.pipelinedWhisper) {
             var cached: String? = null
             var loaded = false
             StreamingWhisper(app, s, rec, scope) {

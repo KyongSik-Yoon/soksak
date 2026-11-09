@@ -15,7 +15,7 @@
   플로팅 버튼 사용성을 **로컬 Whisper**로 구현한다. 앱스토어 배포 없음, 개인용.
 - 원본: RohitAg13/openWispr (MIT). 포크 네트워크에서 분리(detach)했고 비공개. 원본 업데이트는 `upstream` remote로 수동 반영.
 - 확정된 결정
-  - 음성 인식: Whisper(whisper.cpp, `android/lib`) + **SenseVoice Small**(sherpa-onnx). Moonshine(tiny→Base Korean)은
+  - 음성 인식: Whisper만 쓴다 — CPU(whisper.cpp, `android/lib`)와 NPU(sherpa-onnx QNN). 기본 Tiny/Base/Small과 SenseVoice는 쓰지 않아 2026-11-09 제거했다(`ModelDownloader`의 RETIRED 목록이 폰에서 파일을 지운다). Moonshine(tiny→Base Korean)은
     2026-11-08 추가했다가 2026-11-09 제거 — 라우팅 벤치에서 소음에 매우 약하고(0dB 97% CER) 다른 모델 대비 장점이 없었다. Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
   - 기본 언어 한국어. 한국어+영어 개발 용어가 섞인 발화가 주 사용 사례.
   - Turbo q5_0은 느리고 이득이 없어 제거, q4_0만 유지.
@@ -25,7 +25,7 @@
 
 ## 빌드·배포 흐름 (폰에 올리는 빌드는 CI가 만든다)
 로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
-로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) SenseVoice·NPU는 동작하지 않는다.
+로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) NPU 모델은 동작하지 않는다.
 1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
 2. 성공하면 Release `build-<run_number>`에 `openwispr-dev-<run>.apk`를 올리고 최근 5개만 남긴다.
    versionCode = `1000 + run`, versionName = `1.6.0-dev.<run>` (`android/app/build.gradle.kts`).
@@ -39,20 +39,17 @@
 - 앱 ID: 디버그는 `com.voicerewriter.dev` (Play 원본과 공존).
 
 ## 모델
-- 목록: `WhisperModelManager.MODELS` — tiny, base, small, `small-acft`(FUTO), `sensevoice-small`(int8),
-  `turbo-acft-q4`(Large v3 Turbo ACFT q4_0).
+- 목록: `WhisperModelManager.MODELS` — `small-acft`(FUTO, 기본), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0), `medium-npu`.
 - 라우팅 벤치(`route-bench.yml`, 깨끗함/카페소음 10dB/0dB/아주 작은 소리, CER): Turbo 12.0/15.2/63.2/12.7%,
   Small ACFT 13.1/19.5/56.4/16.3%(Turbo의 1/5 시간), SenseVoice 20.6/27.8/51.7/21.4%(가장 빠름), Moonshine Base 21.4/40.9/97.5/38.7%.
   소리 크기·SNR 기반 자동 선택은 아직 검증 안 됨(첫 규칙은 SNR 기준값이 틀려 발동 안 함). 사용자 경험: 속삭임은 Whisper(Small ACFT)가 잘 들음.
 - 벤치마크: `.github/workflows/bench-models.yml` + `scripts/bench_models.py` — FLEURS ko_kr test 40문장(539초)을 앱과 같은 설정으로.
   2026-11-08 결과(CER / x86 4스레드 RTF): Turbo 3.3%/2.43, Moonshine Base 5.0%/0.20, Small ACFT 5.7%/0.53, SenseVoice int8 7.1%/0.14,
   SenseVoice fp32 7.3%/0.17(→ 제거), Moonshine tiny 7.7%/0.13. 낭독체라 개발 용어 섞인 발화는 반영 못 함. 속도 비율만 폰에 옮겨진다. `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
-- sherpa 모델(`LocalSherpaStt.kt`): sherpa-onnx 공개 Release `asr-models`의 tar.bz2를 받아 `models/<bundle>/`에 필요한 파일만 풀고
+- sherpa 모델(`LocalSherpaStt.kt`): NPU용 tar.bz2 번들을 비공개 Release에서 받아 `models/<bundle>/`에 필요한 파일만 풀고
   압축본은 지운다(commons-compress). sherpa는 AAR을 쓰지 않는다(2026-11-09): Kotlin API를 `android/app/src/main/java/com/k2fsa/sherpa/onnx`에 vendoring(sherpa@347ec76),
   JNI .so는 CI `sherpa-qnn` 잡이 같은 커밋으로 빌드해 `app/src/main/jniLibs/arm64-v8a`(gitignore)에 넣는다. 둘의 커밋이 다르면 JNI가 필드를 못 찾는다.
   (`release.yml` 태그 릴리스 워크플로는 아직 AAR 방식 — 쓰지 않음.)
-  SenseVoice는 **2024-07-17** int8을 쓴다 — 2025-09-09판은 광둥어 튜닝이라 한국어 테스트 음성을 중국어 섞인 결과로 냈다.
-  SenseVoice는 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
 - ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후
@@ -67,13 +64,13 @@
   `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008. 매니페스트 `<uses-native-library libcdsprpc.so>`가
   없으면 deviceCreate 14001 → sherpa QNN 코드가 **프로세스를 exit**한다(build-66에서 버블 warm 때문에 실행할 때마다 꺼짐).
   `NpuLoadGuard`: 모델 폴더의 `.npu-loading` 표식이 다음 로드 때 남아 있으면 그 빌드에서는 NPU 모델 로드를 거부(재다운로드나 새 빌드로 해제).
-- 디바이스 추천: `DeviceFit.kt` (6GB+ → small-acft).
+- 디바이스 추천: `DeviceFit.kt` — 언제나 small-acft(가장 작은 모델), 저장공간 부족만 미리 알린다.
 
 ## GPU — 두 번 시도, 둘 다 제거 (2026-11-08)
 - Vulkan(build-30): 사용자 폰(스냅드래곤)에서 CPU보다 훨씬 느리고 발열 → 제거.
 - OpenCL + Adreno 커널(build-35~39): 크래시 2건(토큰 임베딩 51866행 업로드, 지연 초기화 전 get_alignment)과 빈 결과(flash attention)를
   고쳐 동작까지 갔으나 CPU보다 느림 → 제거. 경위와 패치는 `.claude/CHANGELOG.md`와 커밋 e4c51c4~b71a8b8에 있다.
-- 결론: 이 앱의 Whisper는 CPU만. 속도는 모델 선택(Small ACFT, SenseVoice)으로 해결한다.
+- 결론: 이 앱의 Whisper는 GPU를 쓰지 않는다. 속도는 모델 선택과 NPU로 해결한다.
 
 ## 인식 품질 관련 장치
 - 비영어 디코딩: beam 5 + 자연 분할 (`LocalWhisperStt.kt`).
@@ -91,13 +88,13 @@
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.
-  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: Ti B S SA SV T)를 표시. 느린 끌기는 그대로 위치 이동.
+  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T MN)를 표시. 느린 끌기는 그대로 위치 이동.
 - **조용히 말하기**(설정 "Quiet mode", 버블 메뉴 맨 위 행): 받아쓰기 때 `Settings.forDictation()`이 모델을 `quietModel`
   (기본 Small ACFT)로 바꾸고, `AudioRecorder.start(quiet = true)`가 Silero 대신 `QuietSpeechDetector`(소음 바닥 대비 2.5배·절대 3e-4 이상을
   말로 봄)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 파란색, 메뉴에서 고른 모델은 quietModel에 저장.
 - 버블 축소: 3.5초 무활동이면 작아지고(`scheduleShrink`), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
-- **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, Whisper 모델만(CPU·NPU), 헤드리스 경로만):
+- **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, CPU·NPU 공통, 헤드리스 경로만):
   녹음 중 0.5초 쉼에서(조각 5초 이상일 때) 잘라 바로 디코드하고, 앞 텍스트 끝 200자를 프롬프트 끝에 붙인다(`buildPrompt`의 previous, NPU는 프롬프트 미지원이라 없음).
   멈추면 꼬리만 디코드(자동 중지 무음은 잘라 마지막 소리 뒤 0.4초까지, `tailEnd`). 소리 0.3초 미만 조각은 건너뜀. 조각 하나라도 실패하면 전체를 통째로 다시 디코드.
   근거: `chunk-bench.yml` — 15초 코드스위칭 CER 22.6→23.8%(동급), 30초+ 및 쉼 많은 실음성은 통째 디코드가 문장을 통째로 빠뜨림
@@ -133,6 +130,6 @@
 - 공개 저장소/공개 리소스 생성은 자동 승인되지 않는다 — 비공개 Release + 토큰 다운로드 방식을 쓴다.
 
 ## 백로그
-- Compare models 결과로 기본 모델 확정 후 안 쓰는 모델 정리.
+- Compare models 결과로 기본 모델 확정.
 - (보류) Nemotron 3.5 스트리밍: sherpa-onnx가 다시 들어왔으니 지원 여부만 확인하면 시도 가능.
 - Release `model-acft-large-v3-turbo-q5_0` 삭제 여부 (앱에서는 이미 제거).

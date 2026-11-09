@@ -8,12 +8,6 @@ class StreamingWhisperTest {
     private val frame = 320
     private fun frames(sec: Double, v: Float) = List((sec * 16000 / frame).toInt()) { v }
 
-    @Test fun whisperStreamsOnCpuAndNpuButSenseVoiceDoesNot() {
-        assertEquals(true, StreamingWhisper.streams(SpeechEngine.WHISPER))
-        assertEquals(true, StreamingWhisper.streams(SpeechEngine.QNN_WHISPER))
-        assertEquals(false, StreamingWhisper.streams(SpeechEngine.SENSE_VOICE))
-    }
-
     @Test fun cutsInTheMiddleOfTheFirstLongEnoughPause() {
         // 6s speech, 0.8s pause, 3s speech.
         val e = frames(6.0, 0.1f) + frames(0.8, 0.0f) + frames(3.0, 0.1f)

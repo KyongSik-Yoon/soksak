@@ -23,8 +23,7 @@ import kotlin.math.sqrt
  * pause-y takes (whole-clip decoding dropped entire sentences past ~30s: 45% vs 14% CER on real
  * speech), and ~3s instead of ~20s of waiting after stop.
  *
- * Only for Whisper models, on the CPU or the NPU; SenseVoice decodes a whole take in about a
- * second. The NPU path takes no prompt, so its pieces don't see the text before them.
+ * The NPU path takes no prompt, so its pieces don't see the text before them.
  * Saved recordings (Retry, Compare) still decode whole.
  */
 class StreamingWhisper(
@@ -42,13 +41,6 @@ class StreamingWhisper(
         private const val SR = AudioRecorder.SAMPLE_RATE
         /** A piece needs this much sound to be decoded; whisper invents text for silence. */
         private const val MIN_VOICED_S = 0.3
-
-        /** Whether a take with these settings should stream (setting on, a Whisper model in use). */
-        fun applies(context: Context, s: Settings): Boolean =
-            s.pipelinedWhisper && streams(WhisperModelManager.model(OnDeviceStt.resolveModel(context, s.sttModel)).engine)
-
-        internal fun streams(engine: SpeechEngine): Boolean =
-            engine == SpeechEngine.WHISPER || engine == SpeechEngine.QNN_WHISPER
 
         const val TAIL_MARGIN_S = 0.4
 

@@ -83,9 +83,7 @@ import kotlinx.coroutines.withContext
  * progress rather than a wall. The download is presented as what it is: the reason nothing has
  * to be uploaded, rather than a toll on the way in.
  *
- * Which Whisper model that is depends on the phone. [DeviceFit] reads RAM and free storage
- * before the first byte is fetched and picks one this device can actually run, so a budget phone
- * gets a smaller model instead of one it will OOM on at the try-it step.
+ * [DeviceFit] checks free storage before the first byte is fetched.
  *
  * On-device is the only path here; cloud transcription stays available later in Settings, as
  * does personalization (dictionary, contacts), which is deliberately not in this flow.
@@ -118,10 +116,8 @@ class OnboardingActivity : ComponentActivity() {
     }
 }
 
-// Onboarding downloads exactly one Whisper model — no model choice is put to the user. Which
-// size it is comes from [DeviceFit.plan]: the full model on a phone with the memory to run it, a
-// smaller one otherwise. Anything else (a different size, cloud) stays reachable from Settings
-// for people who go looking.
+// Onboarding downloads exactly one Whisper model ([DeviceFit.plan]) — no model choice is put to
+// the user. Anything else (a different size, cloud) stays reachable from Settings.
 
 // Read aloud at the try-it step: one ordinary sentence, with a time and a name in it.
 private const val TRY_IT_SCRIPT =
@@ -489,7 +485,7 @@ private fun WelcomeStep(onNext: () -> Unit) {
  * Deliberately withheld: file sizes and model names. Neither changes what the user does next,
  * and every number here is one more thing to feel anxious about.
  *
- * One deliberate exception: [fitNote]. When [DeviceFit] has downgraded this phone to a smaller
+ * One deliberate exception: [fitNote]. When [DeviceFit] has a warning about this phone's
  * model, or found it short on space, the user is going to notice the consequence either way —
  * as lower accuracy, or as a download that stops partway. Saying it once, here, is the only
  * version of that where they know why and what to do about it.

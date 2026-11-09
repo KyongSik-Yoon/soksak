@@ -258,19 +258,24 @@ object ModelDownloader {
     private val RETIRED_DIRS = listOf("parakeet", "sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27",
         // Medium (NPU) as model libraries the phone had to compile (builds 66-70); now SM8850 binaries.
         "sherpa-onnx-qnn-whisper-medium-android-aarch64",
-        // Moonshine Base Korean: no advantage over SenseVoice / Small ACFT in the routing
+        // Moonshine Base Korean: no advantage over Small ACFT in the routing
         // benchmark, and very weak in noise (97% CER at 0 dB SNR). Removed 2026-11-09.
         "sherpa-onnx-moonshine-base-ko-quantized",
         // SenseVoice full precision: benchmarked no better than int8 on Korean (7.3% vs 7.1% CER), ~900MB.
-        "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17")
+        "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+        // SenseVoice int8: unused once the NPU models arrived. Removed 2026-11-09.
+        "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17")
 
-    /** On-device LLM GGUFs, the Hinglish Whisper fine-tune, and the dropped turbo q5_0. */
+    /** On-device LLM GGUFs, the Hinglish Whisper fine-tune, the dropped turbo q5_0, and stock Tiny/Base/Small. */
     private val RETIRED_FILES = listOf(
         "openwispr-cleanup-qwen3-0.6b-Q4_K_M.gguf",
         "gemma-3-270m-qat-Q4_0.gguf",
         "Qwen3-0.6B-Q8_0.gguf",
         "ggml-hinglish-swift-q5_1.bin",
         "ggml-acft-large-v3-turbo-q5_0.bin",
+        "ggml-tiny.bin",
+        "ggml-base.bin",
+        "ggml-small.bin",
     )
 
     private val SIDECARS = listOf(".part", ".etag", ".sha256")

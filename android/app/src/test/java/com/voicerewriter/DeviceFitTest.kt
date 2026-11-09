@@ -6,94 +6,29 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Reading RAM and free space needs a device; choosing what to download from those two numbers
- * does not, and that is where a wrong answer costs a user their first run. [DeviceFit.planFor]
- * is the pure half, so these cover the thresholds and — more importantly — the guarantee that
- * every path lands on a real, downloadable Whisper model rather than an error state.
- */
 class DeviceFitTest {
 
-    private val gib = 1024L * 1024L * 1024L
-    private val roomy = 8 * gib
-
-    private fun plan(ramGb: Double, lowRam: Boolean = false, freeBytes: Long = roomy) =
-        DeviceFit.planFor((ramGb * gib).toLong(), lowRam, freeBytes)
+    private val mib = 1024L * 1024L
 
     @Test
-    fun `a flagship gets the full model`() {
-        val p = plan(7.4) // an 8GB phone, as Android reports it
-        assertEquals(DeviceFit.Tier.FULL, p.tier)
+    fun `a phone with room gets Small ACFT and no warning`() {
+        val p = DeviceFit.planFor(8 * 1024 * mib)
         assertEquals(WhisperModelManager.SMALL_ACFT_MODEL, p.sttModel)
-    }
-
-    @Test
-    fun `a 4GB phone gets the compact model`() {
-        val p = plan(3.6) // what a "4GB" device actually reports
-        assertEquals(DeviceFit.Tier.COMPACT, p.tier)
-        assertEquals("base", p.sttModel)
-    }
-
-    @Test
-    fun `a 3GB phone gets the smallest model`() {
-        val p = plan(2.8)
-        assertEquals(DeviceFit.Tier.MINIMAL, p.tier)
-        assertEquals("tiny", p.sttModel)
-    }
-
-    @Test
-    fun `Android's own low-RAM flag overrides a healthy-looking total`() {
-        // Go-edition devices can report plenty of total RAM while the platform is already
-        // trimming hard. The flag wins.
-        val p = plan(6.0, lowRam = true)
-        assertEquals(DeviceFit.Tier.MINIMAL, p.tier)
-    }
-
-    @Test
-    fun `an unreadable ActivityManager assumes the phone is capable`() {
-        val p = DeviceFit.planFor(0L, lowRam = false, freeBytes = roomy)
-        assertEquals(DeviceFit.Tier.FULL, p.tier)
-    }
-
-    @Test
-    fun `free space can only push the tier down, never up`() {
-        // 500MB: enough for the compact model (142MB of weights plus 350MB headroom), not for
-        // the full one (264MB plus headroom).
-        val p = plan(7.4, freeBytes = 500L * 1024 * 1024)
-        assertEquals(DeviceFit.Tier.COMPACT, p.tier)
-        // RAM was never the problem here, and the copy has to be able to say so.
-        assertEquals(DeviceFit.Tier.FULL, p.ramTier)
         assertEquals(0, p.storageShortMb)
+        assertNull(DeviceFit.explain(p))
     }
 
     @Test
     fun `a nearly full phone is told how much it is short by, before the download starts`() {
-        val p = plan(7.4, freeBytes = 100L * 1024 * 1024)
-        assertEquals(DeviceFit.Tier.MINIMAL, p.tier)
-        assertTrue("expected a shortfall, got ${p.storageShortMb}MB", p.storageShortMb > 0)
+        val p = DeviceFit.planFor(100 * mib)
+        assertEquals(514, p.storageShortMb) // 264MB of weights + 350MB headroom - 100MB free
+        assertTrue(DeviceFit.explain(p)!!.contains("514MB"))
+    }
+
+    @Test
+    fun `the plan names a model the registry knows`() {
+        val p = DeviceFit.planFor(0)
+        assertEquals(p.sttModel, OnDeviceStt.resolveModel(p.sttModel))
         assertNotNull(DeviceFit.explain(p))
-    }
-
-    @Test
-    fun `every tier resolves to a real model that can actually be downloaded`() {
-        // The whole point is that a smaller tier is a smaller model, never a dead end. If a
-        // plan ever names an id the registry doesn't know, OnDeviceStt silently falls back to
-        // the default model instead of the one this phone was sized for.
-        for (ram in listOf(0.0, 1.5, 2.8, 3.6, 5.5, 12.0)) {
-            for (low in listOf(true, false)) {
-                val p = plan(ram, lowRam = low)
-                assertEquals(
-                    "stt id must survive resolveModel for ram=$ram low=$low",
-                    p.sttModel,
-                    OnDeviceStt.resolveModel(p.sttModel),
-                )
-                assertTrue(p.downloadMb > 0)
-            }
-        }
-    }
-
-    @Test
-    fun `a phone that gets the full model is told nothing at all`() {
-        assertNull(DeviceFit.explain(plan(7.4)))
     }
 }

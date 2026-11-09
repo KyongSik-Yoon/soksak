@@ -82,7 +82,9 @@ class ModelDownloaderDeleteTest {
         val llm = write("gemma-3-270m-qat-Q4_0.gguf", 128)
         val llmPart = write("Qwen3-0.6B-Q8_0.gguf.part", 64)
         val hinglish = write("ggml-hinglish-swift-q5_1.bin", 32)
-        val whisper = write("ggml-base.bin", 100)
+        val stock = write("ggml-base.bin", 100)
+        val senseVoice = tmp.newFolder("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17")
+        val whisper = write("small_acft_q8_0.bin", 100)
         val whisperPart = write("small_acft_q8_0.bin.part", 50)
 
         ModelDownloader.sweepRetired(tmp.root)
@@ -91,6 +93,8 @@ class ModelDownloaderDeleteTest {
         assertFalse(llm.exists())
         assertFalse(llmPart.exists())
         assertFalse(hinglish.exists())
+        assertFalse("stock Base was removed", stock.exists())
+        assertFalse("SenseVoice was removed", senseVoice.exists())
         assertTrue("a current model must survive", whisper.exists())
         assertTrue("a current model's resume state must survive", whisperPart.exists())
     }

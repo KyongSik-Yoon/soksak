@@ -6,7 +6,6 @@ import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
-import com.k2fsa.sherpa.onnx.OfflineSenseVoiceModelConfig
 import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.k2fsa.sherpa.onnx.QnnConfig
 import com.voicerewriter.textproc.HallucinationFilter
@@ -22,14 +21,11 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 
 /**
- * On-device STT through sherpa-onnx for SenseVoice-Small, and Whisper on the Qualcomm NPU (QNN).
+ * On-device STT through sherpa-onnx: Whisper on the Qualcomm NPU (QNN). No prompt/glossary
+ * biasing (the dictionary still applies after decoding).
  *
- * SenseVoice-Small: much lighter than Whisper on a phone,
- * at the cost of no prompt/glossary biasing (the dictionary still applies after decoding).
- * (Moonshine Korean ran here too until 2026-11-09; removed for being weak in noise.)
- *
- * Models ship from sherpa-onnx's public `asr-models` release as tar.bz2 bundles: downloaded
- * with [ModelDownloader] (resume, size check), unpacked into `models/<bundle>/`, archive deleted.
+ * Models ship as tar.bz2 bundles on this repo's private releases: downloaded with
+ * [ModelDownloader] (resume, size check), unpacked into `models/<bundle>/`, archive deleted.
  */
 object LocalSherpaStt {
 
@@ -56,7 +52,6 @@ object LocalSherpaStt {
 
     /** Files a bundle must contain to be usable. */
     fun requiredFiles(m: WhisperModelManager.WhisperModel): List<String> = when (m.engine) {
-        SpeechEngine.SENSE_VOICE -> listOf(m.onnxFile, "tokens.txt")
         SpeechEngine.QNN_WHISPER -> listOf(QNN_ENCODER, QNN_DECODER, "tokens.txt")
         SpeechEngine.WHISPER -> emptyList()
     }
@@ -135,16 +130,6 @@ object LocalSherpaStt {
                     debug = true, // sherpa's QNN steps in logcat (Settings → Copy debug log)
                 )
             }
-            SpeechEngine.SENSE_VOICE -> OfflineModelConfig(
-                senseVoice = OfflineSenseVoiceModelConfig(
-                    model = File(dir, m.onnxFile).absolutePath,
-                    // SenseVoice knows zh/en/ja/ko/yue; anything else lets it detect.
-                    language = language.takeIf { it in setOf("zh", "en", "ja", "ko", "yue") } ?: "auto",
-                    useInverseTextNormalization = true,
-                ),
-                tokens = File(dir, "tokens.txt").absolutePath,
-                numThreads = WhisperCpuConfig.preferredThreadCount,
-            )
             SpeechEngine.WHISPER -> error("Whisper runs in LocalWhisperStt")
         }
         return OfflineRecognizer(
@@ -199,7 +184,7 @@ object LocalSherpaStt {
                     }
                 }.trim()
                 Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s, load ${loadMs}ms, decode $partLog -> ${text.length} chars")
-                // Whisper on silence recites stock TV/YouTube lines; SenseVoice doesn't, but it costs nothing.
+                // Whisper on silence recites stock TV/YouTube lines.
                 HallucinationFilter.clean(text)
             }
         }
@@ -246,8 +231,7 @@ object LocalSherpaStt {
     }
 
     /**
-     * SentencePiece word markers ("▁조국이 …") and SenseVoice's stray language/emotion tags
-     * don't belong in a text field.
+     * SentencePiece word markers ("▁조국이 …") and stray special tokens don't belong in a text field.
      */
     internal fun clean(raw: String): String =
         raw.replace('▁', ' ')

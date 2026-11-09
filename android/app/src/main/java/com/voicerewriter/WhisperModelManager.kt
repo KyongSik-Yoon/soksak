@@ -13,11 +13,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Manages on-device Whisper model files (ggml) for whisper.cpp: a registry of
- * multilingual sizes, one-time download with progress, and readiness checks.
- *
- * `small` (~488MB) is accurate but heavy/slow on phones (memory + CPU), so the
- * default is `base` — a good accuracy/speed balance; `tiny` is the fastest.
+ * Manages on-device Whisper models: a registry of multilingual sizes, one-time download with
+ * progress, and readiness checks. Small ACFT is the default; the stock Tiny/Base/Small and
+ * SenseVoice were removed on 2026-11-09 as never used.
  */
 object WhisperModelManager {
 
@@ -37,30 +35,21 @@ object WhisperModelManager {
          * workflow), fetched with the user's GitHub token from Settings > Updates.
          */
         val releaseTag: String? = null,
-        /** Which runtime decodes it. Non-Whisper models are sherpa-onnx bundles (a directory). */
+        /** Which runtime decodes it. NPU models are sherpa-onnx bundles (a directory). */
         val engine: SpeechEngine = SpeechEngine.WHISPER,
         /** One or two letters drawn on the floating bubble so the active model is visible there. */
         val badge: String = label.take(1),
-        /** SenseVoice only: which ONNX file of the bundle to unpack and load. */
-        val onnxFile: String = "model.int8.onnx",
     ) {
         val githubHosted: Boolean get() = releaseTag != null
         /** No download at all: the file can only be imported from the phone. */
         val importOnly: Boolean get() = url.isBlank() && !githubHosted
     }
 
-    private fun hf(file: String) = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
-
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
-    const val SENSE_VOICE_MODEL = "sensevoice-small"
     const val MEDIUM_NPU_MODEL = "medium-npu"
-    private const val SHERPA_ASR = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
 
     val MODELS = listOf(
-        WhisperModel("tiny", "Tiny (fastest)", "ggml-tiny.bin", hf("ggml-tiny.bin"), "~75MB", badge = "Ti"),
-        WhisperModel("base", "Base (balanced)", "ggml-base.bin", hf("ggml-base.bin"), "~142MB", badge = "B"),
-        WhisperModel("small", "Small (most accurate)", "ggml-small.bin", hf("ggml-small.bin"), "~488MB", badge = "S"),
         // FUTO's audio-context fine-tune of multilingual whisper-small (Apache 2.0,
         // github.com/futo-org/whisper-acft) — the same weights FUTO Voice Input ships. jni.c
         // shrinks audio_ctx to the clip length (768 floor) for speed; stock Whisper was never
@@ -73,19 +62,6 @@ object WhisperModelManager {
             sizeLabel = "~264MB · tuned for short clips",
             acft = true,
             badge = "SA",
-        ),
-        // Non-Whisper engines via sherpa-onnx, much lighter on a phone (heat, latency). Bundles from
-        // sherpa-onnx's public asr-models release; fileName is the unpacked directory.
-        // SenseVoice-Small int8 (zh/en/ja/ko/yue). The 2024-07-17 export: the 2025-09-09 one is a
-        // Cantonese-tuned refresh that turned Korean test audio into mixed Chinese in testing.
-        WhisperModel(
-            id = SENSE_VOICE_MODEL,
-            label = "SenseVoice Small",
-            fileName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
-            url = "$SHERPA_ASR/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
-            sizeLabel = "~163MB · ko/en/ja/zh · fast",
-            engine = SpeechEngine.SENSE_VOICE,
-            badge = "SV",
         ),
         // whisper-large-v3-turbo with FUTO's audio-context fine-tune, by Mahmoud Ashraf
         // (Apache 2.0, huggingface.co/MahmoudAshraf/acft-whisper-large-v3-turbo). Stock turbo
@@ -127,7 +103,7 @@ object WhisperModelManager {
     fun available(): List<WhisperModel> =
         MODELS.filter { it.engine != SpeechEngine.QNN_WHISPER || NpuSupport.available }
 
-    const val DEFAULT_MODEL = "tiny"
+    const val DEFAULT_MODEL = SMALL_ACFT_MODEL
     private const val MIN_VALID_BYTES = 30L * 1024 * 1024
 
 
@@ -258,7 +234,6 @@ object WhisperModelManager {
 /** The runtime a speech model needs. */
 enum class SpeechEngine {
     WHISPER,
-    SENSE_VOICE,
     /** OpenAI Whisper on the Qualcomm NPU through sherpa-onnx's QNN runtime ([NpuSupport]). */
     QNN_WHISPER,
 }
