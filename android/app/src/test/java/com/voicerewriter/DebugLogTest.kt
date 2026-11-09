@@ -2,6 +2,7 @@ package com.voicerewriter
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.Calendar
 
 class DebugLogTest {
     private fun line(level: String, tag: String, msg: String) = "11-09 23:51:02.642  7286 19286 $level $tag: $msg"
@@ -32,6 +33,30 @@ class DebugLogTest {
             "--------- beginning of crash",
         )
         assertEquals(lines, DebugLog.relevant(lines))
+    }
+
+    private fun at(year: Int, month: Int, day: Int, hour: Int) =
+        Calendar.getInstance().apply { clear(); set(year, month - 1, day, hour, 0, 0) }.timeInMillis
+
+    private fun stamped(time: String) = "$time.000  7286 19286 F DEBUG   : backtrace:"
+
+    @Test fun `lines older than a day are dropped`() {
+        val old = stamped("11-08 14:18:10")
+        val recent = stamped("11-09 06:00:00")
+        assertEquals(listOf(recent), DebugLog.relevant(listOf(old, recent), nowMs = at(2026, 11, 10, 5)))
+    }
+
+    @Test fun `the day before New Year still counts as recent`() {
+        val old = stamped("12-30 23:00:00")
+        val recent = stamped("12-31 23:00:00")
+        val today = stamped("01-01 02:00:00")
+        assertEquals(listOf(recent, today), DebugLog.relevant(listOf(old, recent, today), nowMs = at(2027, 1, 1, 3)))
+    }
+
+    @Test fun `only focus changes into text fields stay`() {
+        val outside = line("D", "OpenWisprA11y", "fieldFocus editable=false ime=false host=com.anthropic.claude")
+        val field = line("D", "OpenWisprA11y", "fieldFocus editable=true ime=true host=com.anthropic.claude")
+        assertEquals(listOf(field), DebugLog.relevant(listOf(outside, field)))
     }
 
     @Test fun `NPU diagnostics are off unless asked for`() {
