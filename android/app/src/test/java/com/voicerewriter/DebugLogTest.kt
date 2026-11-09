@@ -59,6 +59,26 @@ class DebugLogTest {
         assertEquals(listOf(field), DebugLog.relevant(listOf(outside, field)))
     }
 
+    @Test fun `the tensor listing goes and the NPU timings stay`() {
+        val src = "/home/runner/work/openWispr/openWispr/s/sherpa-onnx/csrc"
+        val timing = listOf(
+            line("W", "sherpa-onnx", "$src/qnn/offline-whisper-model-qnn.cc:Run:254"),
+            line("W", "sherpa-onnx", "QNN timing us: encoder 370776 transpose 100011 | steps 38"),
+            line("W", "sherpa-onnx", "QNN profile decoder: QNN (execute) time#400/u1 = 58530 (x1)"),
+        )
+        val dump = listOf(
+            line("W", "sherpa-onnx", "$src/qnn/qnn-model.cc:InitInputTensors:634"),
+            line("W", "sherpa-onnx", "input 49"),
+            line("W", "sherpa-onnx", "$src/qnn/utils.cc:PrintTensor:493"),
+            line("W", "sherpa-onnx", "  id: 49"),
+            line("W", "sherpa-onnx", "    encodingDefinition: 0x7fffffff"),
+            line("W", "sherpa-onnx", " memType raw data size: 1835008"),
+            line("W", "sherpa-onnx", "$src/qnn/qnn-model.cc:InitOutputTensors:655"),
+            line("W", "sherpa-onnx", "output 47"),
+        )
+        assertEquals(timing, DebugLog.relevant(dump + timing))
+    }
+
     @Test fun `NPU diagnostics are off unless asked for`() {
         assertEquals(false, Settings().npuDiagnostics)
     }

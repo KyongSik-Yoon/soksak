@@ -30,11 +30,14 @@ object DebugLog {
         "RefBase", "dsp-client",
     )
 
+    /** sherpa's field-by-field listing of every QNN tensor at load: thousands of lines, always the same. */
+    private val TENSOR_DUMP = Regex("""PrintTensor:|Init(In|Out)putTensors:|^\s|^(input|output) \d+$""")
+
     private fun stamp(ms: Long) = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date(ms))
 
     /**
      * The newest [max] of [lines] without drawing chatter, FastRPC's routine (non-error) messages,
-     * focus changes outside text fields or, given [nowMs], anything older than a day. Logcat stamps
+     * sherpa's tensor listing, focus changes outside text fields or, given [nowMs], anything older than a day. Logcat stamps
      * have no year but sort as text; a [since] after [now] means the day spans New Year.
      */
     internal fun relevant(lines: List<String>, max: Int = MAX_LINES, nowMs: Long? = null): List<String> {
@@ -44,6 +47,7 @@ object DebugLog {
             val (time, level, tag, message) = THREADTIME.find(line)?.destructured ?: return@filterNot false
             val stale = now != null && since != null && (if (since <= now) time < since else time in now..since)
             stale || tag in NOISE_TAGS || tag.startsWith("VRI[") || ("adsprpc/" in message && level != "E") ||
+                (tag == "sherpa-onnx" && TENSOR_DUMP.containsMatchIn(message)) ||
                 (tag == "OpenWisprA11y" && message.startsWith("fieldFocus") && "editable=false" in message)
         }.takeLast(max)
     }
