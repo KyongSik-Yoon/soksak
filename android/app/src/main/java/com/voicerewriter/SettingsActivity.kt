@@ -124,6 +124,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     var pipelinedWhisper by remember { mutableStateOf(true) }
     var quietMode by remember { mutableStateOf(false) }
     var quietModel by remember { mutableStateOf(WhisperModelManager.SMALL_ACFT_MODEL) }
+    var npuDiagnostics by remember { mutableStateOf(false) }
     var uiLanguage by remember { mutableStateOf(I18n.mode) }
     var githubToken by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
@@ -168,7 +169,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         reviewBeforeInsert = s.reviewBeforeInsert
         uiLanguage = s.uiLanguage
         // The screen was composed with whatever language was active before the setting was
@@ -226,7 +227,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -610,6 +611,14 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
                     // screenshot of Settings is enough to diagnose it.
                     OpenWisprAccessibilityService.lastFallback(context)?.let { last ->
                         NavRow(tr("Last clipboard fallback"), last) {}
+                        Divider()
+                    }
+                    if (NpuSupport.available) {
+                        ToggleRow(
+                            tr("NPU diagnostics"),
+                            tr("Adds step-by-step NPU timings to the debug log. Can slow the NPU, so leave it off normally"),
+                            npuDiagnostics,
+                        ) { npuDiagnostics = it; persist() }
                         Divider()
                     }
                     NavRow(tr("Copy debug log"), tr("This app's recent log, for reporting a problem")) {

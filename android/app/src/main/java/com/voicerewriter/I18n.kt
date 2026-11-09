@@ -191,6 +191,8 @@ object I18n {
         "Download more in Settings" to "설정에서 더 받기",
         "Models…" to "모델…",
         "Off" to "꺼짐",
+        "NPU diagnostics" to "NPU 진단 로그",
+        "Adds step-by-step NPU timings to the debug log. Can slow the NPU, so leave it off normally" to "NPU 단계별 시간을 디버그 로그에 남겨요. NPU가 느려질 수 있어 평소에는 꺼 두세요",
         "Copy debug log" to "디버그 로그 복사",
         "This app's recent log, for reporting a problem" to "문제를 알려줄 때 쓰는 이 앱의 최근 로그",
         "Copied %s lines" to "%s줄 복사함",

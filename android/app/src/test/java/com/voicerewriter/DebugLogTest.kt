@@ -34,6 +34,10 @@ class DebugLogTest {
         assertEquals(lines, DebugLog.relevant(lines))
     }
 
+    @Test fun `NPU diagnostics are off unless asked for`() {
+        assertEquals(false, Settings().npuDiagnostics)
+    }
+
     @Test fun `only the newest lines are kept`() {
         val lines = (1..5).map { line("I", "StreamingWhisper", "piece $it") }
         assertEquals(lines.takeLast(2), DebugLog.relevant(lines, max = 2))

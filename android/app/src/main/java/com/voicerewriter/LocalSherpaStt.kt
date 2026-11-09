@@ -101,7 +101,7 @@ object LocalSherpaStt {
 
     @Volatile private var adspPathSet = false
 
-    private fun build(context: Context, dir: File, m: WhisperModelManager.WhisperModel, language: String): OfflineRecognizer {
+    private fun build(context: Context, dir: File, m: WhisperModelManager.WhisperModel, language: String, diagnostics: Boolean): OfflineRecognizer {
         val model = when (m.engine) {
             SpeechEngine.QNN_WHISPER -> {
                 // The HTP skel (libQnnHtpV81Skel.so) is loaded by the DSP from ADSP_LIBRARY_PATH;
@@ -127,7 +127,7 @@ object LocalSherpaStt {
                     tokens = File(dir, "tokens.txt").absolutePath,
                     numThreads = 2,
                     provider = "qnn",
-                    debug = false, // true dumps every tensor (thousands of lines per load) into logcat
+                    debug = diagnostics, // every tensor at load, QNN profiling on each NPU execution
                 )
             }
             SpeechEngine.WHISPER -> error("Whisper runs in LocalWhisperStt")
@@ -137,8 +137,10 @@ object LocalSherpaStt {
         )
     }
 
-    private fun ensureLoaded(context: Context, id: String, language: String): OfflineRecognizer {
-        val key = "$id|$language"
+    private fun ensureLoaded(context: Context, settings: Settings): OfflineRecognizer {
+        val id = settings.sttModel
+        val language = DictationLanguage.normalize(settings.sttLanguage)
+        val key = "$id|$language|${settings.npuDiagnostics}"
         recognizer?.takeIf { loadedId == key }?.let { return it }
         recognizer?.release()
         recognizer = null
@@ -150,7 +152,7 @@ object LocalSherpaStt {
         guard?.begin()
         Log.i(TAG, "loading $id from $dir (${dir.list()?.joinToString()})")
         return try {
-            build(context, dir, m, language).also {
+            build(context, dir, m, language, settings.npuDiagnostics).also {
                 recognizer = it
                 loadedId = key
                 Log.i(TAG, "loaded $id in ${System.currentTimeMillis() - t0}ms")
@@ -164,7 +166,7 @@ object LocalSherpaStt {
         withContext(Dispatchers.Default) {
             lock.withLock {
                 val t0 = System.nanoTime()
-                val rec = ensureLoaded(context, settings.sttModel, DictationLanguage.normalize(settings.sttLanguage))
+                val rec = ensureLoaded(context, settings)
                 val loadMs = (System.nanoTime() - t0) / 1_000_000
                 val qnn = WhisperModelManager.model(settings.sttModel).engine == SpeechEngine.QNN_WHISPER
                 val parts = if (qnn) windows(samples) else listOf(0 until samples.size)
@@ -190,7 +192,7 @@ object LocalSherpaStt {
         }
 
     suspend fun warm(context: Context, settings: Settings) = withContext(Dispatchers.Default) {
-        runCatching { lock.withLock { ensureLoaded(context, settings.sttModel, DictationLanguage.normalize(settings.sttLanguage)) } }
+        runCatching { lock.withLock { ensureLoaded(context, settings) } }
             .onFailure { Log.w(TAG, "warm failed", it) }
     }
 

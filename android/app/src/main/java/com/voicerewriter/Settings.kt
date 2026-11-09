@@ -46,6 +46,8 @@ data class Settings(
      */
     val quietMode: Boolean = false,
     val quietModel: String = WhisperModelManager.SMALL_ACFT_MODEL,
+    /** sherpa's QNN debug output and per-execution profiling, for Copy debug log. Costs NPU time. */
+    val npuDiagnostics: Boolean = false,
     /** Settings screen language: "auto" (phone), "ko" or "en". See [I18n]. */
     val uiLanguage: String = "auto",
     /** Read-only GitHub token for in-app updates from the private fork ([AppUpdater]). */
@@ -96,6 +98,7 @@ class SettingsRepository(private val context: Context) {
         val UI_LANGUAGE = stringPreferencesKey("uiLanguage")
         val QUIET_MODE = booleanPreferencesKey("quietMode")
         val QUIET_MODEL = stringPreferencesKey("quietModel")
+        val NPU_DIAGNOSTICS = booleanPreferencesKey("npuDiagnostics")
         val GITHUB_TOKEN = stringPreferencesKey("githubToken")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
@@ -129,6 +132,7 @@ class SettingsRepository(private val context: Context) {
             uiLanguage = p[Keys.UI_LANGUAGE] ?: defaults.uiLanguage,
             quietMode = p[Keys.QUIET_MODE] ?: defaults.quietMode,
             quietModel = p[Keys.QUIET_MODEL] ?: defaults.quietModel,
+            npuDiagnostics = p[Keys.NPU_DIAGNOSTICS] ?: defaults.npuDiagnostics,
             githubToken = p[Keys.GITHUB_TOKEN] ?: defaults.githubToken,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
@@ -153,6 +157,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.UI_LANGUAGE] = s.uiLanguage
             p[Keys.QUIET_MODE] = s.quietMode
             p[Keys.QUIET_MODEL] = s.quietModel
+            p[Keys.NPU_DIAGNOSTICS] = s.npuDiagnostics
             p[Keys.GITHUB_TOKEN] = s.githubToken
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields
