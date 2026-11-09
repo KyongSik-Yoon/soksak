@@ -149,10 +149,16 @@ object LocalSherpaStt {
         val dir = WhisperModelManager.modelFile(context, id)
         check(isReady(dir, m)) { "${m.label} isn't downloaded yet." }
         val t0 = System.currentTimeMillis()
-        return build(context, dir, m, language).also {
-            recognizer = it
-            loadedId = key
-            Log.i(TAG, "loaded $id in ${System.currentTimeMillis() - t0}ms")
+        val guard = if (m.engine == SpeechEngine.QNN_WHISPER) NpuLoadGuard(dir, AppUpdater.installedVersionCode(context)) else null
+        guard?.begin()
+        return try {
+            build(context, dir, m, language).also {
+                recognizer = it
+                loadedId = key
+                Log.i(TAG, "loaded $id in ${System.currentTimeMillis() - t0}ms")
+            }
+        } finally {
+            guard?.end()
         }
     }
 

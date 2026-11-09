@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — build-66 NPU 모델 선택 후 앱이 켜지자마자 꺼짐 → 수정
+- 원인: libQnnHtpV81Stub.so가 /vendor/lib64/libcdsprpc.so를 NEEDED로 갖는데, targetSdk 31+ 앱은 매니페스트에
+  `<uses-native-library android:name="libcdsprpc.so" android:required="false"/>`가 있어야 벤더 라이브러리를 본다(sherpa 데모 매니페스트에 있음).
+  deviceCreate 14001 → sherpa가 SHERPA_ONNX_EXIT로 프로세스 종료, 버블이 시작할 때 모델을 warm해서 무한 반복.
+- 수정: 매니페스트 선언 + `NpuLoadGuard`(로드 중 죽으면 다음부터 그 빌드에서 거부).
+
 ## 2026-11-09 — Medium (NPU) 모델 추가
 - 사용자: "진행해, 권한 모두 위임". CI `sherpa-qnn` 잡(QNN JNI 빌드 + v81 런타임) → AAR에 주입, `SpeechEngine.QNN_WHISPER`,
   `NpuSupport`, `LocalSherpaStt`의 QNN 경로(ADSP_LIBRARY_PATH, 컨텍스트 바이너리 캐시, 28초 창 분할, HallucinationFilter).

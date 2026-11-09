@@ -28,6 +28,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.OpenWispr">
 
+        <!-- Qualcomm NPU (Medium (NPU) model): libQnnHtpV81Stub.so needs the vendor library
+             /vendor/lib64/libcdsprpc.so, which apps targeting API 31+ only see when declared here.
+             Without it QNN's deviceCreate fails (14001) and sherpa-onnx exits the process. -->
+        <uses-native-library
+            android:name="libcdsprpc.so"
+            android:required="false" />
+
         <!-- Shizuku hands its binder to the app through this provider (silent updates, see
              ShizukuInstaller). The permission keeps ordinary apps from calling it. -->
         <provider

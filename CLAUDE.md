@@ -60,7 +60,9 @@
   이후 빠르다. 30초 고정 입력이라 `LocalSherpaStt.windows`로 28초 이하 창으로 잘라 디코드. 프롬프트 미지원.
   `NpuSupport`(SoC SM8850 = Hexagon v81)일 때만 목록에 보임. CI `sherpa-qnn` 잡이 sherpa v2.0.1 JNI를 QNN 켜고(정적 ORT, TTS 끔) 빌드해
   QNN 런타임(libQnnHtp/HtpPrepare/System/HtpV81Stub/Skel)과 함께 jniLibs로 넣는다(actions/cache).
-  `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008.
+  `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008. 매니페스트 `<uses-native-library libcdsprpc.so>`가
+  없으면 deviceCreate 14001 → sherpa QNN 코드가 **프로세스를 exit**한다(build-66에서 버블 warm 때문에 실행할 때마다 꺼짐).
+  `NpuLoadGuard`: 모델 폴더의 `.npu-loading` 표식이 다음 로드 때 남아 있으면 그 빌드에서는 NPU 모델 로드를 거부(재다운로드나 새 빌드로 해제).
 - 디바이스 추천: `DeviceFit.kt` (6GB+ → small-acft).
 
 ## GPU — 두 번 시도, 둘 다 제거 (2026-11-08)
