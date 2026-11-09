@@ -58,7 +58,7 @@
   (encoder.bin/decoder.bin + tokens.txt). `.github/workflows/npu-model.yml`이 sherpa의 QNN 모델 라이브러리(`asr-models-qnn-2`의 linux-x64판)를
   sherpa `ghcr.io/k2-fsa/qnn-sdk:2.40` 이미지에서 `qnn-context-binary-generator`로 컴파일해 비공개 Release `model-qnn-whisper-medium-sm8850`에 올리고,
   앱은 토큰으로 받는다. 폰에서 모델 라이브러리를 컴파일하는 방식(build-66~70)은 디코더 그래프 최종 처리 중 프로세스가 끝나 버렸다 → 쓰지 않음
-  (APK에서 libQnnHtpPrepare.so도 뺌). sherpa QNN 디코더는 토큰을 `입력 초 × 6`개(시작 토큰 4개 포함)에서 끊으므로, `LocalSherpaStt.windows`로 14초 이하 창으로 자르고 `paddedForTokenBudget`로 무음을 붙여 초당 12토큰을 보장한다. 프롬프트 미지원. CI는 sherpa 소스에 `.github/patches/sherpa-qnn.patch`를 적용한다(인코더 출력을 디코드당 한 번만 복사, 괄호·음표 같은 non-speech 토큰 억제(CPU의 `suppress_nst`와 동일), 단계별 시간·QNN 프로파일 로그 — 설정 "NPU 진단 로그"(`npuDiagnostics`, 기본 끔)를 켰을 때만 동작. 캐시 키가 패치 해시라 바꾸면 자동 재빌드).
+  (APK에서 libQnnHtpPrepare.so도 뺌). sherpa QNN 디코더는 토큰을 `입력 초 × 6`개(시작 토큰 4개 포함)에서 끊으므로, `LocalSherpaStt.windows`로 14초 이하 창으로 자르고 `paddedForTokenBudget`로 무음을 붙여 초당 12토큰을 보장한다. 프롬프트 미지원. CI는 sherpa 소스에 `.github/patches/sherpa-qnn.patch`를 적용한다(인코더 출력을 디코드당 한 번만 복사, 괄호·음표 같은 non-speech 토큰 억제(CPU의 `suppress_nst`와 동일), 입력·출력 버퍼를 rpcmem 한 덩어리로 등록해 실행마다 복사하지 않음(안 되면 복사로 폴백, 로그 `QNN shared memory`), 단계별 시간·QNN 프로파일 로그 — 설정 "NPU 진단 로그"(`npuDiagnostics`, 기본 끔)를 켰을 때만 동작. 캐시 키가 패치 해시라 바꾸면 자동 재빌드).
   `NpuSupport`(SoC SM8850 = Hexagon v81)일 때만 목록에 보임. CI `sherpa-qnn` 잡이 sherpa v2.0.1 JNI를 QNN 켜고(정적 ORT, TTS 끔) 빌드해
   QNN 런타임(libQnnHtp/HtpPrepare/System/HtpV81Stub/Skel)과 함께 jniLibs로 넣는다(actions/cache).
   `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008. 매니페스트 `<uses-native-library libcdsprpc.so>`가

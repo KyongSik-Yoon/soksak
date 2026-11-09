@@ -194,10 +194,10 @@ index 863d752..b6a08eb 100644
    int32_t self_kv_stride_ = 0;
  
 diff --git i/sherpa-onnx/csrc/qnn/qnn-model.cc w/sherpa-onnx/csrc/qnn/qnn-model.cc
-index b008913..7dc897a 100644
+index b008913..ec97142 100644
 --- i/sherpa-onnx/csrc/qnn/qnn-model.cc
 +++ w/sherpa-onnx/csrc/qnn/qnn-model.cc
-@@ -8,6 +8,7 @@
+@@ -8,12 +8,14 @@
  
  #include <cstdint>
  #include <fstream>
@@ -205,19 +205,53 @@ index b008913..7dc897a 100644
  #include <memory>
  #include <string>
  #include <unordered_map>
-@@ -485,14 +486,54 @@ class QnnModel::Impl {
-       output_tensors_raw.push_back(*p);
+ #include <utility>
+ #include <vector>
+ 
++#include "HTP/QnnHtpMem.h"
+ #include "sherpa-onnx/csrc/file-utils.h"
+ #include "sherpa-onnx/csrc/qnn/macros.h"
+ #include "sherpa-onnx/csrc/qnn/qnn-backend.h"
+@@ -213,7 +215,7 @@ class QnnModel::Impl {
+     return true;
+   }
+ 
+-  ~Impl() = default;
++  ~Impl() { FreeSharedBuffer(); }
+ 
+   bool SaveBinaryContext(const std::string &filename) {
+     auto qnn_interface = backend_->QnnInterface();
+@@ -478,31 +480,217 @@ class QnnModel::Impl {
+     output_tensors_raw.reserve(output_tensors_.size());
+ 
+     for (const auto &p : input_tensors_) {
+-      input_tensors_raw.push_back(*p);
++      input_tensors_raw.push_back(ForExecute(p.get()));
      }
  
+     for (const auto &p : output_tensors_) {
+-      output_tensors_raw.push_back(*p);
++      output_tensors_raw.push_back(ForExecute(p.get()));
++    }
++
 +    if (debug_ && !profile_) {
 +      backend_->QnnInterface().profileCreate(
 +          backend_->BackendHandle(), QNN_PROFILE_LEVEL_BASIC, &profile_);
-+    }
-+
+     }
+ 
      auto ret = backend_->QnnInterface().graphExecute(
          graph_handle_, input_tensors_raw.data(), input_tensors_raw.size(),
 -        output_tensors_raw.data(), output_tensors_raw.size(), nullptr, nullptr);
 +        output_tensors_raw.data(), output_tensors_raw.size(), profile_, nullptr);
++
++    if (ret != QNN_SUCCESS && !mem_handles_.empty()) {
++      // A failed execute would otherwise exit the process. The tensors' client
++      // buffers still point into the block, so plain copies can take over.
++      SHERPA_ONNX_LOGE("QNN shared memory: execute failed (%d), using copies",
++                       static_cast<int32_t>(ret));
++      DeregisterSharedBuffer();
++      return Run();
++    }
      SHERPA_ONNX_QNN_CHECK(ret, "Failed to run graphExecute");
  
      return true;
@@ -261,7 +295,156 @@ index b008913..7dc897a 100644
    bool IsInitialized() const { return is_initialized_; }
  
   private:
-@@ -624,6 +665,8 @@ class QnnModel::Impl {
+   void PostInit() {
+-    AllocateBuffer();
+-    SetupPointers();
++    if (!AllocateSharedBuffer()) {
++      AllocateBuffer();
++      SetupPointers();
++    }
+ 
+     is_initialized_ = true;
+   }
+ 
++  // The tensor as passed to graphExecute. Stored tensors keep their client
++  // buffer, which memHandle would overwrite: it is how data is read and written.
++  Qnn_Tensor_t ForExecute(const Qnn_Tensor_t *t) const {
++    Qnn_Tensor_t ans = *t;
++    auto it = mem_handles_.find(t);
++    if (it != mem_handles_.end()) {
++      ans.v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
++      ans.v1.memHandle = it->second;
++    }
++    return ans;
++  }
++
++  // Puts every tensor in one rpcmem block registered with the HTP, so that
++  // graphExecute hands over offsets instead of copying the buffers on each call.
++  // Returns false, with nothing left allocated, if any step is unavailable.
++  bool AllocateSharedBuffer() {
++    auto qi = backend_->QnnInterface();
++    if (!qi.memRegister || !qi.memDeRegister) {
++      return false;
++    }
++
++    rpc_lib_.reset(dlopen("libcdsprpc.so", RTLD_NOW | RTLD_LOCAL));
++    if (!rpc_lib_) {
++      SHERPA_ONNX_LOGE("QNN shared memory: no libcdsprpc.so, using copies");
++      return false;
++    }
++
++    using AllocFn = void *(*)(int heap_id, uint32_t flags, int size);
++    using ToFdFn = int (*)(void *p);
++    auto alloc = reinterpret_cast<AllocFn>(dlsym(rpc_lib_.get(), "rpcmem_alloc"));
++    auto to_fd = reinterpret_cast<ToFdFn>(dlsym(rpc_lib_.get(), "rpcmem_to_fd"));
++    rpc_free_ = reinterpret_cast<FreeFn>(dlsym(rpc_lib_.get(), "rpcmem_free"));
++    if (!alloc || !to_fd || !rpc_free_) {
++      SHERPA_ONNX_LOGE("QNN shared memory: no rpcmem symbols, using copies");
++      return false;
++    }
++
++    constexpr int kHeapIdSystem = 25;
++    constexpr uint32_t kDefaultFlags = 1;
++    constexpr uint64_t kAlignment = 4096;
++
++    std::vector<std::pair<Qnn_Tensor_t *, uint64_t>> layout;
++    uint64_t total = 0;
++    auto place = [&](const std::vector<TensorPtr> &tensors) {
++      for (const auto &t : tensors) {
++        layout.emplace_back(t.get(), total);
++        total += (t->v1.clientBuf.dataSize + kAlignment - 1) / kAlignment *
++                 kAlignment;
++      }
++    };
++    place(input_tensors_);
++    place(output_tensors_);
++
++    if (total > static_cast<uint64_t>(INT32_MAX)) {
++      return false;
++    }
++
++    rpc_block_ = alloc(kHeapIdSystem, kDefaultFlags, static_cast<int>(total));
++    if (!rpc_block_) {
++      SHERPA_ONNX_LOGE("QNN shared memory: cannot allocate %.1f MB, using copies",
++                       static_cast<float>(total) / 1024 / 1024);
++      return false;
++    }
++
++    int fd = to_fd(rpc_block_);
++    if (fd < 0) {
++      SHERPA_ONNX_LOGE("QNN shared memory: no file descriptor, using copies");
++      FreeSharedBuffer();
++      return false;
++    }
++
++    for (const auto &entry : layout) {
++      Qnn_Tensor_t *t = entry.first;
++
++      QnnMemHtp_Descriptor_t htp{};
++      htp.type = QNN_HTP_MEM_SHARED_BUFFER;
++      htp.size = total;
++      htp.sharedBufferConfig.fd = fd;
++      htp.sharedBufferConfig.offset = entry.second;
++
++      Qnn_MemDescriptor_t descriptor = QNN_MEM_DESCRIPTOR_INIT;
++      descriptor.memShape.numDim = t->v1.rank;
++      descriptor.memShape.dimSize = t->v1.dimensions;
++      descriptor.memShape.shapeConfig = nullptr;
++      descriptor.dataType = t->v1.dataType;
++      descriptor.memType = QNN_MEM_TYPE_CUSTOM;
++      descriptor.customInfo = &htp;
++
++      Qnn_MemHandle_t handle = nullptr;
++      auto ret = qi.memRegister(backend_->ContextHandle(), &descriptor, 1, &handle);
++      if (ret != QNN_SUCCESS) {
++        SHERPA_ONNX_LOGE("QNN shared memory: memRegister failed (%d), using copies",
++                         static_cast<int32_t>(ret));
++        FreeSharedBuffer();
++        return false;
++      }
++
++      mem_handles_[t] = handle;
++      t->v1.clientBuf.data = static_cast<uint8_t *>(rpc_block_) + entry.second;
++    }
++
++    SHERPA_ONNX_LOGE("QNN shared memory: %d tensors, %.1f MB",
++                     static_cast<int32_t>(layout.size()),
++                     static_cast<float>(total) / 1024 / 1024);
++    return true;
++  }
++
++  void DeregisterSharedBuffer() {
++    if (mem_handles_.empty()) {
++      return;
++    }
++
++    std::vector<Qnn_MemHandle_t> handles;
++    handles.reserve(mem_handles_.size());
++    for (const auto &p : mem_handles_) {
++      handles.push_back(p.second);
++    }
++    mem_handles_.clear();
++
++    auto ret = backend_->QnnInterface().memDeRegister(handles.data(),
++                                                      handles.size());
++    if (ret != QNN_SUCCESS) {
++      SHERPA_ONNX_LOGE("QNN shared memory: memDeRegister failed (%d)",
++                       static_cast<int32_t>(ret));
++    }
++  }
++
++  void FreeSharedBuffer() {
++    DeregisterSharedBuffer();
++    if (rpc_block_) {
++      rpc_free_(rpc_block_);
++      rpc_block_ = nullptr;
++    }
++  }
++
+   bool InitModel(const std::string &model_so) {
+     model_lib_handle_ = std::unique_ptr<void, decltype(&dlclose)>(
+         dlopen(model_so.c_str(), RTLD_NOW | RTLD_LOCAL), &dlclose);
+@@ -624,6 +812,8 @@ class QnnModel::Impl {
      }
    }
  
@@ -270,7 +453,20 @@ index b008913..7dc897a 100644
    void AllocateBuffer() {
      uint32_t n = 0;
      for (const auto &p : name2tensor_) {
-@@ -726,6 +769,8 @@ bool QnnModel::HasTensor(const std::string &name) const {
+@@ -684,6 +874,12 @@ class QnnModel::Impl {
+   std::vector<uint8_t> buffer_;
+   const QnnBackend *backend_ = nullptr;
+ 
++  using FreeFn = void (*)(void *p);
++  std::unique_ptr<void, decltype(&dlclose)> rpc_lib_{nullptr, &dlclose};
++  FreeFn rpc_free_ = nullptr;
++  void *rpc_block_ = nullptr;
++  std::unordered_map<const Qnn_Tensor_t *, Qnn_MemHandle_t> mem_handles_;
++
+   Qnn_GraphHandle_t graph_handle_ = nullptr;
+ 
+   const QnnContext_Config_t **context_config_ = nullptr;
+@@ -726,6 +922,8 @@ bool QnnModel::HasTensor(const std::string &name) const {
    return impl_->HasTensor(name);
  }
  
