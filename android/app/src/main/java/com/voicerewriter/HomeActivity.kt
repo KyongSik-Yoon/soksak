@@ -376,7 +376,7 @@ class HomeActivity : ComponentActivity() {
         ) {
             Column(Modifier.padding(20.dp, 22.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    StatCell("Words", formatWords(stats?.totalWords ?: 0L), Modifier.weight(1f))
+                    StatCell("Words", formatWordCount(stats?.totalWords ?: 0L), Modifier.weight(1f))
                     StatDivider()
                     StatCell("Saved", formatSaved(stats?.timeSavedMinutes ?: 0.0), Modifier.weight(1f))
                     StatDivider()
@@ -402,9 +402,11 @@ class HomeActivity : ComponentActivity() {
                 value,
                 fontFamily = Mulish,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 30.sp,
+                fontSize = 28.sp,
                 letterSpacing = (-0.02).em,
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                softWrap = false,
             )
             Spacer(Modifier.height(9.dp))
             Eyebrow(label, size = 9.5f)
@@ -413,7 +415,7 @@ class HomeActivity : ComponentActivity() {
 
     @Composable
     private fun StatDivider() {
-        Box(Modifier.padding(horizontal = 16.dp).width(1.dp).height(60.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)))
+        Box(Modifier.padding(horizontal = 10.dp).width(1.dp).height(60.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)))
     }
 
     @Composable
@@ -1012,8 +1014,6 @@ class HomeActivity : ComponentActivity() {
         return HomeData(keep, groups.map { DayGroup(it.key, it.value) }, DictationHistory.stats(ctx), unfinished)
     }
 
-    private fun formatWords(n: Long): String = "%,d".format(n)
-
     private fun formatSaved(minutes: Double): String {
         if (minutes < 1) return "0m"
         return if (minutes >= 60) "%.1fh".format(minutes / 60.0) else "${minutes.toInt()}m"
@@ -1037,4 +1037,11 @@ class HomeActivity : ComponentActivity() {
             else -> SimpleDateFormat("EEEE · MMM d", Locale.US).format(Date(ts))
         }
     }
+}
+
+/** The stat band's word count: exact while it fits the cell, then at most six characters. */
+internal fun formatWordCount(n: Long): String = when {
+    n < 10_000 -> "%,d".format(n)
+    n < 999_950 -> "%.1fK".format(n / 1_000.0)
+    else -> "%.1fM".format(n / 1_000_000.0)
 }
