@@ -17,11 +17,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  # libsherpa-onnx-jni.so rebuilt with Qualcomm NPU (QNN) support — the published AAR has none —
-  # plus the QNN runtime pieces for Hexagon v81 (Snapdragon 8 Elite Gen 5, NpuSupport.kt). Same
-  # sherpa-onnx tag as the AAR, so the AAR's Kotlin classes match these JNI symbols. Cached: the
-  # ~20 min build only reruns when the key changes. Headers and runtime libs come from
-  # sherpa-onnx's public asr-models-qnn release (QAIRT 2.40), as its own QNN APK builds do.
+  # libsherpa-onnx-jni.so built with Qualcomm NPU (QNN) support — the published AAR has none, and
+  # v2.0.1's JNI can't configure Whisper on QNN at all — plus the QNN runtime pieces for Hexagon
+  # v81 (Snapdragon 8 Elite Gen 5, NpuSupport.kt). Built from the same sherpa-onnx commit the app's
+  # vendored Kotlin API (android/app/src/main/java/com/k2fsa/sherpa/onnx) comes from: the JNI reads
+  # those classes' fields by name. Cached per key. Headers and runtime libs come from sherpa-onnx's
+  # public asr-models-qnn release (QAIRT 2.40), as its own QNN APK builds do.
   sherpa-qnn:
     name: sherpa-onnx JNI with QNN
     runs-on: ubuntu-latest
@@ -30,7 +31,7 @@ jobs:
         id: cache
         with:
           path: qnn-out
-          key: sherpa-qnn-jni-v2.0.1-qairt2.40.0.251030-v81-r1
+          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-v81-r1
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         env:
@@ -38,8 +39,9 @@ jobs:
         run: |
           set -ex
           V=2.40.0.251030
-          git clone -q --depth 1 --branch v2.0.1 https://github.com/k2-fsa/sherpa-onnx s
-          cd s
+          SHERPA=347ec768a01ca53e766780f7759b14e145b643e6
+          mkdir s && cd s && git init -q && git remote add origin https://github.com/k2-fsa/sherpa-onnx
+          git fetch -q --depth 1 origin "$SHERPA" && git checkout -q FETCH_HEAD
           gh release download asr-models-qnn -R k2-fsa/sherpa-onnx -p "qnn-include-$V.tar.bz2" -p "qnn-libs-$V.tar.bz2"
           tar xf "qnn-include-$V.tar.bz2" && tar xf "qnn-libs-$V.tar.bz2"
           ls qnn-libs-$V
@@ -92,34 +94,11 @@ jobs:
       - name: Install NDK + CMake (whisper.cpp native module)
         run: sdkmanager "ndk;25.1.8937393" "cmake;3.22.1"
 
-      - name: Fetch vendored sherpa-onnx AAR (Moonshine / SenseVoice; gitignored binary)
-        working-directory: android
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p app/libs
-          # Through the API with the job token first: anonymous GitHub release downloads (k2-fsa, also Maven via GitHub)
-          # returned 504 for a while (2026-11-08); the plain URL stays as a fallback.
-          AAR=sherpa-onnx-static-link-onnxruntime-2.0.1.aar
-          gh release download v2.0.1 -R k2-fsa/sherpa-onnx -p "$AAR" -D app/libs --clobber || \
-            curl -fSL --retry 8 --retry-all-errors --retry-delay 10 -o "app/libs/$AAR" \
-              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$AAR"
-          ls -la app/libs
-
-      - uses: actions/download-artifact@v4
+      - name: sherpa-onnx JNI + QNN runtime into jniLibs (gitignored)
+        uses: actions/download-artifact@v4
         with:
           name: sherpa-qnn
-          path: qnn-out
-
-      - name: Put the QNN JNI and runtime into the sherpa AAR
-        working-directory: android
-        run: |
-          set -e
-          AAR=app/libs/sherpa-onnx-static-link-onnxruntime-2.0.1.aar
-          rm -rf /tmp/aar && mkdir /tmp/aar && unzip -q "$AAR" -d /tmp/aar
-          cp -v ../qnn-out/*.so /tmp/aar/jni/arm64-v8a/
-          rm "$AAR" && (cd /tmp/aar && zip -qr - .) > "$AAR"
-          unzip -l "$AAR" | grep arm64-v8a
+          path: android/app/src/main/jniLibs/arm64-v8a
 
       - name: Assemble debug + run unit tests
         working-directory: android

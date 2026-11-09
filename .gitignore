@@ -54,3 +54,5 @@ macos/SherpaOnnxFramework/binaries/
 
 # Vendored sherpa-onnx AAR, fetched by CI
 android/app/libs/*.aar
+# CI-built sherpa-onnx JNI + Qualcomm QNN runtime (sherpa-qnn job in ci.yml)
+android/app/src/main/jniLibs/

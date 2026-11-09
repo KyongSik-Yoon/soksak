@@ -134,9 +134,9 @@ dependencies {
     // both libonnxruntime.so and libonnxruntime4j_jni.so — are 16 KB page aligned; 1.19.2 shipped
     // 4 KB, which Android 16 devices with 16 KB pages can only run in compatibility mode.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
-    // On-device Moonshine (Korean) and SenseVoice STT. Static-link AAR: onnxruntime is baked into
-    // libsherpa-onnx-jni.so, so no collision with the VAD's libonnxruntime.so on arm64.
-    implementation(group = "", name = "sherpa-onnx-static-link-onnxruntime-2.0.1", ext = "aar")
+    // sherpa-onnx (SenseVoice, Whisper on the Qualcomm NPU): Kotlin API vendored under
+    // com/k2fsa/sherpa/onnx, libsherpa-onnx-jni.so (onnxruntime linked in statically, so no clash with
+    // the VAD's libonnxruntime.so) and the QNN runtime dropped into jniLibs by CI's sherpa-qnn job.
     // tar.bz2 extraction of the sherpa model bundles.
     implementation("org.apache.commons:commons-compress:1.27.1")
     // Silent in-app updates through Shizuku (ShizukuInstaller).

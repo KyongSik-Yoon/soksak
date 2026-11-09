@@ -46,7 +46,9 @@
   2026-11-08 결과(CER / x86 4스레드 RTF): Turbo 3.3%/2.43, Moonshine Base 5.0%/0.20, Small ACFT 5.7%/0.53, SenseVoice int8 7.1%/0.14,
   SenseVoice fp32 7.3%/0.17(→ 제거), Moonshine tiny 7.7%/0.13. 낭독체라 개발 용어 섞인 발화는 반영 못 함. 속도 비율만 폰에 옮겨진다. `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
 - sherpa 모델(`LocalSherpaStt.kt`): sherpa-onnx 공개 Release `asr-models`의 tar.bz2를 받아 `models/<bundle>/`에 필요한 파일만 풀고
-  압축본은 지운다(commons-compress). AAR `sherpa-onnx-static-link-onnxruntime-2.0.1`은 CI가 `app/libs`에 받는다(gitignore).
+  압축본은 지운다(commons-compress). sherpa는 AAR을 쓰지 않는다(2026-11-09): Kotlin API를 `android/app/src/main/java/com/k2fsa/sherpa/onnx`에 vendoring(sherpa@347ec76),
+  JNI .so는 CI `sherpa-qnn` 잡이 같은 커밋으로 빌드해 `app/src/main/jniLibs/arm64-v8a`(gitignore)에 넣는다. 둘의 커밋이 다르면 JNI가 필드를 못 찾는다.
+  (`release.yml` 태그 릴리스 워크플로는 아직 AAR 방식 — 쓰지 않음.)
   SenseVoice는 **2024-07-17** int8을 쓴다 — 2025-09-09판은 광둥어 튜닝이라 한국어 테스트 음성을 중국어 섞인 결과로 냈다.
   SenseVoice는 프롬프트(단어장·Style example) 미지원, 단어장 사후 교정만 적용.
 - ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
@@ -57,7 +59,7 @@
   모델 라이브러리 libencoder/libdecoder.so). 첫 로드 때 폰이 NPU 컨텍스트 바이너리(encoder.bin/decoder.bin, 모델 폴더)를 만들어 느리고
   이후 빠르다. 30초 고정 입력이라 `LocalSherpaStt.windows`로 28초 이하 창으로 잘라 디코드. 프롬프트 미지원.
   `NpuSupport`(SoC SM8850 = Hexagon v81)일 때만 목록에 보임. CI `sherpa-qnn` 잡이 sherpa v2.0.1 JNI를 QNN 켜고(정적 ORT, TTS 끔) 빌드해
-  QNN 런타임(libQnnHtp/HtpPrepare/System/HtpV81Stub/Skel)과 함께 AAR의 `jni/arm64-v8a`에 덮어넣는다(actions/cache). 
+  QNN 런타임(libQnnHtp/HtpPrepare/System/HtpV81Stub/Skel)과 함께 jniLibs로 넣는다(actions/cache).
   `OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir)`가 없으면 HTP 오류 1008.
 - 디바이스 추천: `DeviceFit.kt` (6GB+ → small-acft).
 

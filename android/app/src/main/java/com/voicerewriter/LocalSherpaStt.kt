@@ -115,6 +115,7 @@ object LocalSherpaStt {
                             backendLib = "libQnnHtp.so",
                             systemLib = "libQnnSystem.so",
                             contextBinary = "${File(dir, "encoder.bin").absolutePath},${File(dir, "decoder.bin").absolutePath}",
+                            htpPerfMode = true, // burst clocks: dictation is short and someone is waiting
                         ),
                     ),
                     tokens = File(dir, "tokens.txt").absolutePath,
