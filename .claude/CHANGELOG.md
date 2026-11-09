@@ -3,6 +3,11 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — 안 쓰는 모델 제거, Small ACFT (NPU) 추가
+- Transpose 4스레드(build-79) 측정: 363ms → 120ms. 같은 측정에서 NPU 실행이 약 150ms 늘어 전체는 3098 → 3068ms로 거의 그대로. 남은 시간 대부분이 NPU 실행(스텝당 약 60ms)이라 모델을 줄이는 방향으로 전환.
+- 설정 목록에서 Tiny, Base, Small, SenseVoice Small 제거(사용자 요청). 기본 모델은 Small ACFT, 폰의 해당 파일은 업데이트 후 자동 삭제. 커밋 296ce40.
+- Small ACFT (NPU) 추가: FUTO 가중치를 sherpa QNN 방식으로 변환(`npu-acft.yml`, 컨텍스트 바이너리 578MB). 변환 전 가중치는 HF 출력과 일치 확인. 커밋 a71c5ac, b8e3d3f → build-80 CI 성공. 폰에서의 속도·정확도는 미측정(audio context 30초 고정이라 ACFT 이점이 줄 수 있음).
+
 ## 2026-11-09 — Medium (NPU) 진단 로그(단계별 시간, QNN 프로파일)
 - 토큰당 약 65ms의 정체를 재기 위해 sherpa 패치를 `.github/patches/sherpa-qnn.patch`로 옮기고 `QNN timing us`, `QNN profile` 로그를 추가. 원인을 찾으면 진단 코드는 뺀다. 커밋 a6168d9 → build-78 CI 성공.
 - 측정(build-78, 9.7초 음성, 33토큰, 전체 3098ms): NPU 디코더 37스텝 실행 2211ms(스텝당 약 60ms, 마지막 스텝 프로파일 기준 NPU 연산 44ms·QNN 호스트 12.5ms·RPC 2ms), 인코더 364ms(NPU 350ms), **출력 Transpose 363ms(CPU 단일 스레드)**, self 캐시 복사 105ms, cross 복사 10ms. NPU 연산이 절반 이상이라 패치만으로는 크게 못 줄인다.
