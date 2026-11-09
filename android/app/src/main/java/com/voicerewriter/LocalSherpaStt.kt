@@ -178,21 +178,27 @@ object LocalSherpaStt {
     suspend fun transcribe(context: Context, settings: Settings, samples: FloatArray): String =
         withContext(Dispatchers.Default) {
             lock.withLock {
+                val t0 = System.nanoTime()
                 val rec = ensureLoaded(context, settings.sttModel, DictationLanguage.normalize(settings.sttLanguage))
+                val loadMs = (System.nanoTime() - t0) / 1_000_000
                 val qnn = WhisperModelManager.model(settings.sttModel).engine == SpeechEngine.QNN_WHISPER
                 val parts = if (qnn) windows(samples) else listOf(0 until samples.size)
+                val partLog = ArrayList<String>(parts.size)
                 val text = parts.joinToString(" ") { r ->
                     val stream = rec.createStream()
                     try {
                         val part = if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1)
                         stream.acceptWaveform(if (qnn) paddedForTokenBudget(part) else part, 16_000)
+                        val d0 = System.nanoTime()
                         rec.decode(stream)
-                        clean(rec.getResult(stream).text)
+                        val result = rec.getResult(stream)
+                        partLog += "${(System.nanoTime() - d0) / 1_000_000}ms/${result.tokens.size}tok"
+                        clean(result.text)
                     } finally {
                         stream.release()
                     }
                 }.trim()
-                Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s in ${parts.size} part(s) -> ${text.length} chars")
+                Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s, load ${loadMs}ms, decode $partLog -> ${text.length} chars")
                 // Whisper on silence recites stock TV/YouTube lines; SenseVoice doesn't, but it costs nothing.
                 HallucinationFilter.clean(text)
             }

@@ -23,7 +23,8 @@ import kotlin.math.sqrt
  * pause-y takes (whole-clip decoding dropped entire sentences past ~30s: 45% vs 14% CER on real
  * speech), and ~3s instead of ~20s of waiting after stop.
  *
- * Only for Whisper models; SenseVoice decodes a whole take in about a second.
+ * Only for Whisper models, on the CPU or the NPU; SenseVoice decodes a whole take in about a
+ * second. The NPU path takes no prompt, so its pieces don't see the text before them.
  * Saved recordings (Retry, Compare) still decode whole.
  */
 class StreamingWhisper(
@@ -44,8 +45,10 @@ class StreamingWhisper(
 
         /** Whether a take with these settings should stream (setting on, a Whisper model in use). */
         fun applies(context: Context, s: Settings): Boolean =
-            s.pipelinedWhisper &&
-                WhisperModelManager.model(OnDeviceStt.resolveModel(context, s.sttModel)).engine == SpeechEngine.WHISPER
+            s.pipelinedWhisper && streams(WhisperModelManager.model(OnDeviceStt.resolveModel(context, s.sttModel)).engine)
+
+        internal fun streams(engine: SpeechEngine): Boolean =
+            engine == SpeechEngine.WHISPER || engine == SpeechEngine.QNN_WHISPER
 
         const val TAIL_MARGIN_S = 0.4
 
@@ -166,9 +169,11 @@ class StreamingWhisper(
         }
         if (voiced < MIN_VOICED_S * SR) return
         val t0 = System.nanoTime()
-        val text = LocalWhisperStt.transcribe(
-            context, s, WavIo.toFloats(pcm), bias(), previousText = texts.joinToString(" "),
-        ).trim()
+        val samples = WavIo.toFloats(pcm)
+        val text = when (WhisperModelManager.model(model).engine) {
+            SpeechEngine.WHISPER -> LocalWhisperStt.transcribe(context, s, samples, bias(), previousText = texts.joinToString(" "))
+            else -> LocalSherpaStt.transcribe(context, s, samples)
+        }.trim()
         Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${(System.nanoTime() - t0) / 1_000_000}ms")
         if (text.isNotEmpty()) texts.add(text)
     }

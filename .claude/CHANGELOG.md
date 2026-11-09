@@ -3,6 +3,11 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-09 — Medium (NPU)에도 말하는 동안 변환 적용 + 시간 로그
+- 배경: 사용자 "NPU를 안 쓰는 것보다 느린 느낌". NPU는 멈춘 뒤에야 전체를 처리했다(Whisper 모델은 말하는 동안 미리 처리).
+- 수정: `StreamingWhisper`를 NPU에도 적용. 프롬프트 미지원이라 조각 간 문맥 연결은 없다. 5초 미만 발화는 조각이 안 생겨 대기 시간이 그대로다.
+- 로그(`LocalSherpaStt`): 모델 로드 ms, 구간별 디코드 ms·토큰 수(설정 → 디버그 로그 복사).
+
 ## 2026-11-09 — Compose BOM 2026.09.00(Compose 1.12.1, Material3 1.4.0), Coroutines 1.11.0
 - Compose 1.12가 compileSdk 37 이상을 요구해 앱 모듈만 37로 올렸다. targetSdk는 36 유지(런타임 동작 변화 없음).
 - 로컬 `:app:assembleDebug :app:testDebugUnitTest` 성공. 로컬 APK 39.6→45.8MB. 커밋 8c0c0c3 → build-75 CI 성공. UI 라이브러리 교체라 폰에서 화면 확인 필요.
