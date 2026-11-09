@@ -4,7 +4,7 @@
 새 작업을 끝내면 맨 위에 추가한다.
 
 ## 2026-11-09 — Medium (NPU) 진단 로그(단계별 시간, QNN 프로파일)
-- 토큰당 약 65ms의 정체를 재기 위해 sherpa 패치를 `.github/patches/sherpa-qnn.patch`로 옮기고 `QNN timing us`, `QNN profile` 로그를 추가. 원인을 찾으면 진단 코드는 뺀다.
+- 토큰당 약 65ms의 정체를 재기 위해 sherpa 패치를 `.github/patches/sherpa-qnn.patch`로 옮기고 `QNN timing us`, `QNN profile` 로그를 추가. 원인을 찾으면 진단 코드는 뺀다. 커밋 a6168d9 → build-78 CI 성공.
 
 ## 2026-11-09 — Medium (NPU) 토큰당 295MB 재복사 제거(sherpa 패치)
 - 측정(build-76, Compare): NPU 디코드 = 고정 약 1.0초 + 토큰당 약 73ms(19/21/35토큰 2412/2586/3595ms). 14.5초 음성에서 NPU 6.0초, Small 1.9초, Small ACFT 2.6초, SenseVoice 0.2초, Turbo 10.2초(모두 모델 로드 제외). 모델 로드 3.4~3.8초는 Compare처럼 모델을 바꿀 때만 든다.
