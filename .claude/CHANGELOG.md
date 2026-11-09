@@ -8,6 +8,7 @@
 - 조치: sherpa 패치에 OpenAI 비음성 토큰 82개 억제 추가. 커밋 52f6416 → build-81 CI 성공.
 - 폰 확인(build-81, 같은 속삭임 17초 Compare, 시간은 모델 로드 포함): `(댓글 읽음)` 사라지고 첫 창 문장 복구. Medium NPU 11.3초로 네 모델 중 가장 정확(첫 창 끝의 "Compare models를 돌리면"만 누락), Small ACFT NPU 4.3초("키우고 싶죠", "병원으로" 등 오류), Turbo ACFT 15.3초("결호 50초" 등 오류). 표본 1개.
 - 폰 확인(build-81, 평소 목소리 14초 Compare, 로드 포함): Medium NPU 9.2초 거의 정확(`small a c f t m p u`만 어긋남, `compare models` 그대로), Small ACFT NPU 2.0초와 Small ACFT CPU 2.6초는 정확도 비슷("정화터는", "녹음에" 등 오류). 30초 고정 입력으로 인한 Small NPU의 정확도 손실은 이 표본에서 안 보임. 표본 1개.
+- 폰 확인(build-81, 평소 목소리 31초 Compare, 로드 포함): 세 모델 모두 끝까지 받아 적어 30초 초과 입력 정상. Medium NPU 15.0초 가장 정확("MP5", "로고에", "finished 줄" 누락), Small ACFT NPU 6.0초와 CPU 10.6초는 비슷("기다립니다", "재질", 모델명 오류). 세 표본 모두 Medium이 가장 정확.
 
 ## 2026-11-09 — 안 쓰는 모델 제거, Small ACFT (NPU) 추가
 - Transpose 4스레드(build-79) 측정: 363ms → 120ms. 같은 측정에서 NPU 실행이 약 150ms 늘어 전체는 3098 → 3068ms로 거의 그대로. 남은 시간 대부분이 NPU 실행(스텝당 약 60ms)이라 모델을 줄이는 방향으로 전환.
