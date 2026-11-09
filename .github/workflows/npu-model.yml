@@ -1,0 +1,89 @@
+# Builds the Medium (NPU) model as Qualcomm QNN context binaries for SM8850 (Snapdragon 8 Elite
+# Gen 5 = the user's Galaxy S26 Ultra) and publishes them as a private pre-release of this repo,
+# which the app downloads with the GitHub token from Settings.
+#
+# Why: sherpa-onnx ships whisper-medium for QNN only as model libraries that the phone compiles
+# into context binaries on first load. On the phone that compile ran out of road at the decoder
+# (the process ended mid "Finalizing graph 'decoder'", builds 67-70). Compiling here, on x86 with
+# QAIRT's qnn-context-binary-generator (sherpa-onnx's qnn-sdk image, QAIRT 2.40 — the same version
+# as the runtime libs in the APK), takes that off the phone, exactly as sherpa does for its own
+# SM8850 "binary" bundles.
+name: Build NPU model (SM8850)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/npu-model.yml]
+
+permissions:
+  contents: write
+
+env:
+  SHERPA: 347ec768a01ca53e766780f7759b14e145b643e6
+  NAME: sherpa-onnx-qnn-SM8850-binary-whisper-medium
+  TAG: model-qnn-whisper-medium-sm8850
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/k2-fsa/qnn-sdk:2.40
+    steps:
+      - name: Compile context binaries
+        shell: bash
+        run: |
+          set -ex
+          df -h .; free -g || true
+          echo "QNN_SDK_ROOT=$QNN_SDK_ROOT"
+          pushd "$QNN_SDK_ROOT/bin" && source envsetup.sh && popd
+          for f in generate_config.py device_info.py; do
+            curl -fsSL --retry 5 -o "$f" "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/$SHERPA/scripts/qnn/$f"
+          done
+          src=sherpa-onnx-qnn-whisper-medium-linux-x64
+          curl -fSL --retry 5 --retry-all-errors -o "$src.tar.bz2" \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-2/$src.tar.bz2"
+          tar xf "$src.tar.bz2" && rm "$src.tar.bz2"
+          ls -la "$src"
+          mkdir -p out
+          for m in encoder decoder; do
+            python3 generate_config.py --soc SM8850 --graph-name "$m" --output-dir "cfg-$m" --qnn-sdk-root "$QNN_SDK_ROOT"
+            cat "cfg-$m/htp_config.json"
+            "$QNN_SDK_ROOT/bin/x86_64-linux-clang/qnn-context-binary-generator" \
+              --backend "$QNN_SDK_ROOT/lib/x86_64-linux-clang/libQnnHtp.so" \
+              --model "$src/lib$m.so" \
+              --output_dir out \
+              --binary_file "$m" \
+              --config_file "cfg-$m/htp_backend_extensions.json" > "gen-$m.txt" 2>&1 || { tail -60 "gen-$m.txt"; exit 1; }
+            tail -5 "gen-$m.txt"
+            rm "$src/lib$m.so"
+          done
+          mkdir "$NAME"
+          mv out/encoder.bin out/decoder.bin "$NAME/"
+          cp "$src/tokens.txt" "$NAME/"
+          ls -la "$NAME"
+          tar cjf "$NAME.tar.bz2" "$NAME"
+          ls -la "$NAME.tar.bz2"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npu-model
+          path: ${{ env.NAME }}.tar.bz2
+          compression-level: 0
+
+  publish:
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npu-model
+      - name: Publish as a private pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -ex
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --title "Medium (NPU) for SM8850" \
+              --notes "QNN context binaries of OpenAI whisper-medium for Snapdragon 8 Elite Gen 5 (SM8850), compiled from sherpa-onnx's QNN model libraries with QAIRT 2.40. Built by .github/workflows/npu-model.yml."
+          gh release upload "$TAG" "$NAME.tar.bz2" -R "$GITHUB_REPOSITORY" --clobber
