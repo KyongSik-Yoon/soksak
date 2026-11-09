@@ -1,0 +1,238 @@
+diff --git i/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc w/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc
+index 863d752..c20bb45 100644
+--- i/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc
++++ w/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.h"
+ 
++#include <chrono>  // NOLINT
++
+ #include <algorithm>
+ #include <array>
+ #include <memory>
+@@ -60,6 +62,12 @@ static WhisperModelType ParseWhisperModelFromPrefix(const std::string &prefix) {
+   return ParseWhisperModelType(name);
+ }
+ 
++static int64_t QnnNowUs() {
++  return std::chrono::duration_cast<std::chrono::microseconds>(
++             std::chrono::steady_clock::now().time_since_epoch())
++      .count();
++}
++
+ class OfflineWhisperModelQnn::Impl {
+  public:
+   explicit Impl(const OfflineModelConfig &config) : config_(config) {
+@@ -108,7 +116,11 @@ class OfflineWhisperModelQnn::Impl {
+     features.resize(num_frames_ * feat_dim_, 0);
+ 
+     // For QNN, encoder input shape is (1, T, C), no transpose needed
++    t_set_self_ = t_set_cross_ = t_exec_ = t_get_ = t_update_ = 0;
++    steps_ = 0;
++    int64_t t0 = QnnNowUs();
+     RunEncoder(features);
++    int64_t t1 = QnnNowUs();
+ 
+     // Get encoder outputs and transpose for decoder
+     // cross_kv layout: [cross_k_0, cross_v_0, cross_k_1, cross_v_1, ...]
+@@ -123,6 +135,8 @@ class OfflineWhisperModelQnn::Impl {
+           Transpose(cross_v.data(), num_out_frames_, n_text_state_);
+     }
+ 
++    int64_t t2 = QnnNowUs();
++
+     // Initialize self kv cache to zeros (flat vector for better cache locality)
+     // Layout: [layer0_k, layer0_v, layer1_k, layer1_v, ...]
+     // Each layer has mask_size * n_text_state elements
+@@ -199,6 +213,18 @@ class OfflineWhisperModelQnn::Impl {
+       idx = MaxElementIndex(logits.data(), logits.size());
+     }
+ 
++    if (config_.debug) {
++      SHERPA_ONNX_LOGE(
++          "QNN timing us: encoder %lld transpose %lld | steps %d set_self %lld "
++          "set_cross %lld exec %lld get_logits %lld update_self %lld | total %lld",
++          (long long)(t1 - t0), (long long)(t2 - t1), steps_,
++          (long long)t_set_self_, (long long)t_set_cross_, (long long)t_exec_,
++          (long long)t_get_, (long long)t_update_,
++          (long long)(QnnNowUs() - t0));
++      encoder_model_->LogProfile("encoder");
++      decoder_model_->LogProfile("decoder");
++    }
++
+     return r;
+   }
+ 
+@@ -583,6 +609,7 @@ class OfflineWhisperModelQnn::Impl {
+       const std::vector<std::vector<float>> &cross_kv,
+       const float *self_kv_data,
+       const std::vector<int32_t> &mask) const {
++    int64_t s0 = QnnNowUs();
+     // Set tokens
+     decoder_model_->SetInputTensorData(tokens_name_, &token, 1);
+ 
+@@ -597,7 +624,11 @@ class OfflineWhisperModelQnn::Impl {
+                                          self_kv_size_);
+     }
+ 
++    int64_t s1 = QnnNowUs();
++    t_set_self_ += s1 - s0;
++
+     // Set cross kv cache (from encoder, transposed)
++    if (offset == 0)  // same for every token of a decode: 295MB per token on Medium
+     for (int32_t i = 0; i < n_text_layer_; ++i) {
+       decoder_model_->SetInputTensorData(decoder_cross_k_[i],
+                                          cross_kv[i * 2].data(),
+@@ -608,6 +639,9 @@ class OfflineWhisperModelQnn::Impl {
+                                          cross_kv[i * 2 + 1].size());
+     }
+ 
++    int64_t s2 = QnnNowUs();
++    t_set_cross_ += s2 - s1;
++
+     // Set offset
+     decoder_model_->SetInputTensorData(offset_name_, &offset, 1);
+ 
+@@ -615,13 +649,20 @@ class OfflineWhisperModelQnn::Impl {
+     decoder_model_->SetInputTensorData(mask_name_, mask.data(), mask.size());
+ 
+     // Run decoder
++    int64_t s3 = QnnNowUs();
+     decoder_model_->Run();
++    int64_t s4 = QnnNowUs();
++    t_exec_ += s4 - s3;
++    steps_ += 1;
+ 
+     // Get logits
+-    return decoder_model_->GetOutputTensorData(logits_name_);
++    auto logits_out = decoder_model_->GetOutputTensorData(logits_name_);
++    t_get_ += QnnNowUs() - s4;
++    return logits_out;
+   }
+ 
+   void UpdateSelfKvCache(float *self_kv_data, int32_t offset) const {
++    int64_t u0 = QnnNowUs();
+     for (int32_t i = 0; i < n_text_layer_; ++i) {
+       // Update self_k
+       auto delta_k =
+@@ -639,6 +680,7 @@ class OfflineWhisperModelQnn::Impl {
+         self_v[r * self_kv_stride_ + offset] += delta_v[r];
+       }
+     }
++    t_update_ += QnnNowUs() - u0;
+   }
+ 
+   int32_t DetectLanguage(
+@@ -690,6 +732,12 @@ class OfflineWhisperModelQnn::Impl {
+   int32_t n_text_state_ = 0;
+   int32_t vocab_size_ = 0;
+   int32_t mask_size_ = 0;
++  mutable int64_t t_set_self_ = 0;
++  mutable int64_t t_set_cross_ = 0;
++  mutable int64_t t_exec_ = 0;
++  mutable int64_t t_get_ = 0;
++  mutable int64_t t_update_ = 0;
++  mutable int32_t steps_ = 0;
+   int32_t self_kv_size_ = 0;
+   int32_t self_kv_stride_ = 0;
+ 
+diff --git i/sherpa-onnx/csrc/qnn/qnn-model.cc w/sherpa-onnx/csrc/qnn/qnn-model.cc
+index b008913..7dc897a 100644
+--- i/sherpa-onnx/csrc/qnn/qnn-model.cc
++++ w/sherpa-onnx/csrc/qnn/qnn-model.cc
+@@ -8,6 +8,7 @@
+ 
+ #include <cstdint>
+ #include <fstream>
++#include <map>
+ #include <memory>
+ #include <string>
+ #include <unordered_map>
+@@ -485,14 +486,54 @@ class QnnModel::Impl {
+       output_tensors_raw.push_back(*p);
+     }
+ 
++    if (debug_ && !profile_) {
++      backend_->QnnInterface().profileCreate(
++          backend_->BackendHandle(), QNN_PROFILE_LEVEL_BASIC, &profile_);
++    }
++
+     auto ret = backend_->QnnInterface().graphExecute(
+         graph_handle_, input_tensors_raw.data(), input_tensors_raw.size(),
+-        output_tensors_raw.data(), output_tensors_raw.size(), nullptr, nullptr);
++        output_tensors_raw.data(), output_tensors_raw.size(), profile_, nullptr);
+     SHERPA_ONNX_QNN_CHECK(ret, "Failed to run graphExecute");
+ 
+     return true;
+   }
+ 
++  void CollectProfile(QnnProfile_EventId_t id,
++                      std::map<std::string, std::pair<uint64_t, int32_t>> *out) {
++    auto qi = backend_->QnnInterface();
++    QnnProfile_EventData_t d = QNN_PROFILE_EVENT_DATA_INIT;
++    if (qi.profileGetEventData(id, &d) == QNN_SUCCESS) {
++      std::string key = std::string(d.identifier ? d.identifier : "?") + "#" +
++                        std::to_string(d.type) + "/u" + std::to_string(d.unit);
++      auto &e = (*out)[key];
++      e.first += d.value;
++      e.second += 1;
++    }
++    const QnnProfile_EventId_t *sub = nullptr;
++    uint32_t n = 0;
++    if (qi.profileGetSubEvents(id, &sub, &n) == QNN_SUCCESS) {
++      for (uint32_t i = 0; i != n; ++i) CollectProfile(sub[i], out);
++    }
++  }
++
++  void LogProfile(const char *tag) {
++    if (!profile_) return;
++    auto qi = backend_->QnnInterface();
++    const QnnProfile_EventId_t *events = nullptr;
++    uint32_t n = 0;
++    if (qi.profileGetEvents(profile_, &events, &n) == QNN_SUCCESS) {
++      std::map<std::string, std::pair<uint64_t, int32_t>> sum;
++      for (uint32_t i = 0; i != n; ++i) CollectProfile(events[i], &sum);
++      for (const auto &p : sum) {
++        SHERPA_ONNX_LOGE("QNN profile %s: %s = %llu (x%d)", tag, p.first.c_str(),
++                         (unsigned long long)p.second.first, p.second.second);
++      }
++    }
++    qi.profileFree(profile_);
++    profile_ = nullptr;
++  }
++
+   bool IsInitialized() const { return is_initialized_; }
+ 
+  private:
+@@ -624,6 +665,8 @@ class QnnModel::Impl {
+     }
+   }
+ 
++  Qnn_ProfileHandle_t profile_ = nullptr;
++
+   void AllocateBuffer() {
+     uint32_t n = 0;
+     for (const auto &p : name2tensor_) {
+@@ -726,6 +769,8 @@ bool QnnModel::HasTensor(const std::string &name) const {
+   return impl_->HasTensor(name);
+ }
+ 
++void QnnModel::LogProfile(const char *tag) const { impl_->LogProfile(tag); }
++
+ bool QnnModel::SetInputTensorData(const std::string &name, const float *p,
+                                   int32_t n) const {
+   return impl_->SetInputTensorData(name, p, n);
+diff --git i/sherpa-onnx/csrc/qnn/qnn-model.h w/sherpa-onnx/csrc/qnn/qnn-model.h
+index d5d93c4..933081c 100644
+--- i/sherpa-onnx/csrc/qnn/qnn-model.h
++++ w/sherpa-onnx/csrc/qnn/qnn-model.h
+@@ -47,6 +47,8 @@ class QnnModel {
+   bool Run() const;
+   bool IsInitialized() const;
+ 
++  void LogProfile(const char *tag) const;
++
+  private:
+   class Impl;
+   std::unique_ptr<Impl> impl_;

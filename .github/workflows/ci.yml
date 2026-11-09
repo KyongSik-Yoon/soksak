@@ -28,11 +28,12 @@ jobs:
     name: sherpa-onnx JNI with QNN
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/cache@v4
         id: cache
         with:
           path: qnn-out
-          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-v81-r2
+          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-v81-${{ hashFiles('.github/patches/sherpa-qnn.patch') }}
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         env:
@@ -43,11 +44,7 @@ jobs:
           SHERPA=347ec768a01ca53e766780f7759b14e145b643e6
           mkdir s && cd s && git init -q && git remote add origin https://github.com/k2-fsa/sherpa-onnx
           git fetch -q --depth 1 origin "$SHERPA" && git checkout -q FETCH_HEAD
-          # The decoder re-copied the encoder output before every token, though it only changes
-          # per decode. Bump the cache key's -rN when changing this patch.
-          F=sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc
-          sed -i '/Set cross kv cache (from encoder, transposed)/a\    if (offset == 0)  // same for every token of a decode: 295MB per token on Medium' "$F"
-          grep -q 'if (offset == 0)  // same' "$F"
+          git apply ../.github/patches/sherpa-qnn.patch
           gh release download asr-models-qnn -R k2-fsa/sherpa-onnx -p "qnn-include-$V.tar.bz2" -p "qnn-libs-$V.tar.bz2"
           tar xf "qnn-include-$V.tar.bz2" && tar xf "qnn-libs-$V.tar.bz2"
           ls qnn-libs-$V
