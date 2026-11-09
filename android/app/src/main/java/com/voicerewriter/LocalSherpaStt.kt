@@ -152,6 +152,7 @@ object LocalSherpaStt {
         val t0 = System.currentTimeMillis()
         val guard = if (m.engine == SpeechEngine.QNN_WHISPER) NpuLoadGuard(dir, AppUpdater.installedVersionCode(context)) else null
         guard?.begin()
+        Log.i(TAG, "loading $id from $dir (${dir.list()?.joinToString()})")
         return try {
             build(context, dir, m, language).also {
                 recognizer = it

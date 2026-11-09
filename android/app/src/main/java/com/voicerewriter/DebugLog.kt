@@ -10,10 +10,19 @@ import android.os.Process
  */
 object DebugLog {
     fun recent(lines: Int = 3000): String = runCatching {
-        val p = ProcessBuilder("logcat", "-d", "-b", "main,crash", "-v", "time,pid", "-t", lines.toString())
-            .redirectErrorStream(true).start()
-        val out = p.inputStream.bufferedReader().readText()
-        p.waitFor()
+        // threadtime carries the pid; plain "-v pid" isn't accepted by every logcat (Samsung's).
+        val tries = listOf(
+            listOf("logcat", "-d", "-b", "main,crash", "-v", "threadtime", "-t", lines.toString()),
+            listOf("logcat", "-d", "-v", "threadtime", "-t", lines.toString()),
+            listOf("logcat", "-d", "-t", lines.toString()),
+        )
+        var out = ""
+        for (cmd in tries) {
+            val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
+            out = p.inputStream.bufferedReader().readText()
+            p.waitFor()
+            if (p.exitValue() == 0 && out.lines().size > 3) break
+        }
         "OpenWispr pid ${Process.myPid()} ${android.os.Build.MODEL} ${android.os.Build.SOC_MODEL.takeIf { android.os.Build.VERSION.SDK_INT >= 31 } ?: ""}\n$out"
     }.getOrElse { "logcat failed: $it" }
 }
