@@ -13,6 +13,7 @@ import com.voicerewriter.textproc.HallucinationFilter
 import com.whispercpp.whisper.WhisperCpuConfig
 import java.io.BufferedInputStream
 import java.io.File
+import kotlin.math.ceil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -38,9 +39,20 @@ object LocalSherpaStt {
     private const val QNN_ENCODER = "encoder.bin"
     private const val QNN_DECODER = "decoder.bin"
 
-    /** The QNN Whisper input is fixed at 30s and longer audio is cut off; decode in windows. */
-    internal const val QNN_WINDOW_S = 28.0
-    private const val QNN_MIN_WINDOW_S = 18.0
+    /**
+     * sherpa's QNN Whisper stops decoding at (input seconds × 6) tokens, 4 of them the start
+     * sequence, even mid-word. Korean runs about a token per syllable, so a quickly spoken 3s
+     * clip lost its last syllables. [paddedForTokenBudget] and the window size below give every
+     * window at least [QNN_TOKENS_PER_S]. Doubling the speech rate rather than always padding to
+     * 30s keeps a bound on how much a decoder stuck repeating itself can produce.
+     */
+    private const val QNN_TOKENS_PER_S = 12
+    private const val QNN_START_TOKENS = 4
+    private const val QNN_LIMIT_TOKENS_PER_INPUT_S = 6.0
+
+    /** The input is fixed at 30s, which at 6 tokens/s allows 176 tokens: 14s at [QNN_TOKENS_PER_S]. */
+    internal const val QNN_WINDOW_S = 14.0
+    private const val QNN_MIN_WINDOW_S = 9.0
 
     /** Files a bundle must contain to be usable. */
     fun requiredFiles(m: WhisperModelManager.WhisperModel): List<String> = when (m.engine) {
@@ -172,7 +184,8 @@ object LocalSherpaStt {
                 val text = parts.joinToString(" ") { r ->
                     val stream = rec.createStream()
                     try {
-                        stream.acceptWaveform(if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1), 16_000)
+                        val part = if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1)
+                        stream.acceptWaveform(if (qnn) paddedForTokenBudget(part) else part, 16_000)
                         rec.decode(stream)
                         clean(rec.getResult(stream).text)
                     } finally {
@@ -188,6 +201,14 @@ object LocalSherpaStt {
     suspend fun warm(context: Context, settings: Settings) = withContext(Dispatchers.Default) {
         runCatching { lock.withLock { ensureLoaded(context, settings.sttModel, DictationLanguage.normalize(settings.sttLanguage)) } }
             .onFailure { Log.w(TAG, "warm failed", it) }
+    }
+
+    /** [chunk] followed by enough silence that sherpa's token limit allows [QNN_TOKENS_PER_S]. */
+    internal fun paddedForTokenBudget(chunk: FloatArray, sr: Int = 16_000): FloatArray {
+        // +1: the limit is rounded down, and the feature count can come up a frame or two short.
+        val tokens = QNN_START_TOKENS + 1 + chunk.size.toDouble() / sr * QNN_TOKENS_PER_S
+        val target = ceil(tokens / QNN_LIMIT_TOKENS_PER_INPUT_S * sr).toInt()
+        return if (target > chunk.size) chunk.copyOf(target) else chunk
     }
 
     /**
