@@ -68,12 +68,12 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
-import com.voicerewriter.ui.BrandCoral
-import com.voicerewriter.ui.MarkCream
+import com.voicerewriter.ui.BrandViolet
+import com.voicerewriter.ui.MarkLight
 import com.voicerewriter.ui.Mulish
 import com.voicerewriter.ui.SoksakTheme
 import com.voicerewriter.ui.PlexMono
-import com.voicerewriter.ui.SunsetBrush
+import com.voicerewriter.ui.DuskBrush
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,7 +93,7 @@ private const val UNFINISHED_PREVIEW = 3
 
 class HomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge() // draw under the status/nav bars; the cream/plum bg fills the whole screen
+        enableEdgeToEdge() // draw under the status/nav bars; the mist/night bg fills the whole screen
         super.onCreate(savedInstanceState)
         setContent { SoksakTheme { HomeScreen(); UpdatePrompt() } }
         // First launch: route once into onboarding (it returns here when finished).
@@ -387,7 +387,7 @@ class HomeActivity : ComponentActivity() {
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Box(Modifier.size(11.dp).clip(CircleShape).background(SunsetBrush))
+                Box(Modifier.size(11.dp).clip(CircleShape).background(DuskBrush))
                 Eyebrow("Ready")
             }
         }
@@ -891,8 +891,8 @@ class HomeActivity : ComponentActivity() {
         ) {
             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(Modifier.size(46.dp).clip(CircleShape).background(SunsetBrush), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_mark), null, tint = MarkCream, modifier = Modifier.size(26.dp))
+                Box(Modifier.size(46.dp).clip(CircleShape).background(DuskBrush), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_mark), null, tint = MarkLight, modifier = Modifier.size(26.dp))
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("History is off", fontFamily = Mulish, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,

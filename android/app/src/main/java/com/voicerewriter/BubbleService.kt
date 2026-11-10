@@ -1127,5 +1127,5 @@ private const val FLICK_MAX_MS = 250L
 private const val FLICK_MIN_DP = 36f
 
 /** Rail colours, from the design's OKLCH values. */
-private const val RAIL_ON = 0xFFE1815B.toInt()
-private const val RAIL_OFF = 0xB2DDCABB.toInt()
+private const val RAIL_ON = 0xFF8E77C6.toInt()
+private const val RAIL_OFF = 0xB2D5CEE0.toInt()

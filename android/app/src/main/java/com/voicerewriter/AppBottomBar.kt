@@ -32,9 +32,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.voicerewriter.ui.MarkCream
+import com.voicerewriter.ui.MarkLight
 import com.voicerewriter.ui.Mulish
-import com.voicerewriter.ui.SunsetBrush
+import com.voicerewriter.ui.DuskBrush
 
 enum class AppTab { HOME, SETTINGS }
 
@@ -80,11 +80,11 @@ fun AppBottomBar(selected: AppTab, onHome: () -> Unit, onTalk: () -> Unit, onSet
             // Talk (raised FAB)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
-                    Modifier.offset(y = (-18).dp).size(58.dp).clip(CircleShape).background(SunsetBrush)
+                    Modifier.offset(y = (-18).dp).size(58.dp).clip(CircleShape).background(DuskBrush)
                         .clickable { haptic(); onTalk() },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(painterResource(R.drawable.ic_mark), null, tint = MarkCream,
+                    Icon(painterResource(R.drawable.ic_mark), null, tint = MarkLight,
                         modifier = Modifier.size(30.dp))
                 }
                 Text("Talk", fontFamily = Mulish, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,

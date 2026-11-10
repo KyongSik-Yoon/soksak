@@ -71,10 +71,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
-import com.voicerewriter.ui.MarkCream
+import com.voicerewriter.ui.MarkLight
 import com.voicerewriter.ui.MonoEyebrow
 import com.voicerewriter.ui.SoksakTheme
-import com.voicerewriter.ui.SunsetBrush
+import com.voicerewriter.ui.DuskBrush
 import com.voicerewriter.ui.Wordmark
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -931,12 +931,12 @@ private fun keyPlaceholder(provider: String) = when (provider) {
 @Composable
 private fun HeroHeader() {
     Column(
-        Modifier.fillMaxWidth().background(SunsetBrush).statusBarsPadding().padding(24.dp, 22.dp, 24.dp, 24.dp),
+        Modifier.fillMaxWidth().background(DuskBrush).statusBarsPadding().padding(24.dp, 22.dp, 24.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = MarkCream, modifier = Modifier.size(40.dp))
-            Text(tr("Settings"), color = MarkCream, style = Wordmark)
+            Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = MarkLight, modifier = Modifier.size(40.dp))
+            Text(tr("Settings"), color = MarkLight, style = Wordmark)
         }
     }
 }

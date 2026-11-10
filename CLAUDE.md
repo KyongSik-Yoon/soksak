@@ -15,7 +15,8 @@
   플로팅 버튼 사용성을 **로컬 Whisper**로 구현한다. 앱스토어 배포 없음, 개인용.
 - 원본: RohitAg13/openWispr (MIT). 포크 네트워크에서 분리(detach). 2026-11-10 공개 전환(저작권 점검·고지·서명 키 교체·앱 ID 변경 후). 원본 업데이트는 `upstream` remote로 수동 반영.
 - 이름: 2026-11-10 OpenWispr → **속삭(Soksak)**으로 바꿨다. 원작이 Play 스토어에 같은 이름으로 있어 혼동을 피하고, README 맨 위에 포크임을 밝힌다.
-  저장소도 `soksak`으로 rename(옛 주소는 GitHub가 리다이렉트). 아이콘은 말풍선+음파 마크(`ic_mark`), 런처·스플래시 배경은 자주색 #3B2F4A, 앱 안 색 테마는 원작 것 유지.
+  저장소도 `soksak`으로 rename(옛 주소는 GitHub가 리다이렉트). 아이콘은 말풍선+음파 마크(`ic_mark`), 런처·스플래시 배경은 자주색 #3B2F4A.
+  앱 색도 원작의 코랄 "muted sunset"에서 보라 계열 "dusk"(`android/app/src/main/java/com/voicerewriter/ui/Theme.kt`, 버블·모델 메뉴·레일은 같은 값을 자체 상수로)로 바꿨다 — 원작과 똑같아 보이지 않게. 레이아웃·폰트는 원작 것 유지.
   화면 문구만 바꾸고 저장·등록된 식별자는 유지: `OpenWisprAccessibilityService`(접근성 활성화가 컴포넌트 이름에 묶임), 로그 태그 `OpenWisprA11y`,
   Kotlin 패키지 `com.voicerewriter`. 앱 ID는 공개 준비 때 서명 키와 함께 바꿨다(아래 빌드·배포 절).
 - 확정된 결정
@@ -96,7 +97,7 @@
   버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T SN MN)를 표시. 느린 끌기는 그대로 위치 이동.
 - **조용히 말하기**(설정 "Quiet mode", 버블 메뉴 맨 위 행): 받아쓰기 때 `Settings.forDictation()`이 모델을 `quietModel`
   (기본 Small ACFT)로 바꾸고, `AudioRecorder.start(quiet = true)`가 Silero 대신 `QuietSpeechDetector`(소음 바닥 대비 2.5배·절대 3e-4 이상을
-  말로 봄)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 파란색, 메뉴에서 고른 모델은 quietModel에 저장.
+  말로 봄)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 청록색(보라 마크와 구분), 메뉴에서 고른 모델은 quietModel에 저장.
 - 버블 축소: 3.5초 무활동이면 작아지고(`scheduleShrink`), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, CPU·NPU 공통, 헤드리스 경로만):

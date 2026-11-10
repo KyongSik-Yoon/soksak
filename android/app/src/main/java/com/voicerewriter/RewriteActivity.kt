@@ -9,12 +9,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import com.voicerewriter.textproc.VocabCorrector
-import com.voicerewriter.ui.BrandAmber
-import com.voicerewriter.ui.BrandCoral
-import com.voicerewriter.ui.BrandRose
-import com.voicerewriter.ui.MarkCream
+import com.voicerewriter.ui.BrandLavender
+import com.voicerewriter.ui.BrandViolet
+import com.voicerewriter.ui.BrandDusk
+import com.voicerewriter.ui.MarkLight
 import com.voicerewriter.ui.SoksakTheme
-import com.voicerewriter.ui.SunsetBrush
+import com.voicerewriter.ui.DuskBrush
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -789,7 +789,7 @@ class RewriteActivity : ComponentActivity() {
     private fun SheetHeader(title: String) {
         // Mono uppercase "eyebrow" caption (handoff label spec).
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(10.dp).clip(CircleShape).background(SunsetBrush))
+            Box(Modifier.size(10.dp).clip(CircleShape).background(DuskBrush))
             Text(
                 title.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
@@ -805,7 +805,7 @@ class RewriteActivity : ComponentActivity() {
         }
     }
 
-    /** Transcribing/Polishing: a rotating sunset ring around the cream Aperture mark. */
+    /** Transcribing/Polishing: a rotating dusk ring around the mark. */
     @Composable
     private fun TranscribingRing(label: String) {
         val t = rememberInfiniteTransition(label = "ring")
@@ -821,7 +821,7 @@ class RewriteActivity : ComponentActivity() {
                         val w = 4.dp.toPx()
                         drawArc(
                             brush = Brush.sweepGradient(
-                                listOf(BrandAmber.copy(alpha = 0f), BrandAmber, BrandCoral, BrandRose),
+                                listOf(BrandLavender.copy(alpha = 0f), BrandLavender, BrandViolet, BrandDusk),
                             ),
                             startAngle = 0f,
                             sweepAngle = 300f,
@@ -847,7 +847,7 @@ class RewriteActivity : ComponentActivity() {
         }
     }
 
-    /** Listening: a sunset-gradient disc with live equalizer bars and outward ripple rings. */
+    /** Listening: a dusk-gradient disc with live equalizer bars and outward ripple rings. */
     @Composable
     private fun ListeningOrb(amps: List<Float>, modifier: Modifier = Modifier) {
         val t = rememberInfiniteTransition(label = "orb")
@@ -867,7 +867,7 @@ class RewriteActivity : ComponentActivity() {
                     val p = (ripple + k * 0.5f) % 1f
                     val r = baseR * (1f + p * 1.7f)
                     drawCircle(
-                        color = BrandCoral.copy(alpha = (1f - p) * 0.35f),
+                        color = BrandViolet.copy(alpha = (1f - p) * 0.35f),
                         radius = r,
                         center = center,
                         style = Stroke(width = 2.dp.toPx()),
@@ -876,9 +876,9 @@ class RewriteActivity : ComponentActivity() {
 
                 // Gradient disc, gently breathing with the live level.
                 val discR = baseR * (1f + level * 0.12f)
-                drawCircle(brush = SunsetBrush, radius = discR, center = center)
+                drawCircle(brush = DuskBrush, radius = discR, center = center)
 
-                // Cream equalizer bars over the disc.
+                // Light equalizer bars over the disc.
                 val bars = amps.takeLast(9)
                 if (bars.isNotEmpty()) {
                     val span = discR * 1.25f
@@ -888,7 +888,7 @@ class RewriteActivity : ComponentActivity() {
                         val h = (a * discR * 1.6f).coerceIn(barW, discR * 1.7f)
                         val x = center.x - span + i * slot + slot / 2f
                         drawRoundRect(
-                            color = MarkCream,
+                            color = MarkLight,
                             topLeft = Offset(x - barW / 2f, center.y - h / 2f),
                             size = Size(barW, h),
                             cornerRadius = CornerRadius(barW / 2f, barW / 2f),

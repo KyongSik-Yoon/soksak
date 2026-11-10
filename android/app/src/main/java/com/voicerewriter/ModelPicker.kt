@@ -203,14 +203,14 @@ class ModelPicker(
     private companion object {
         const val AUTO_CLOSE_MS = 6000L
         // The bubble's palette (BubbleView).
-        const val SURFACE = 0xFFFFFDF9.toInt()
-        const val EDGE = 0xFFE0D6CA.toInt()
-        const val SURFACE_DK = 0xFF2F231E.toInt()
-        const val EDGE_DK = 0xFF594941.toInt()
-        const val MARK = 0xFFCD6E4C.toInt()
-        const val INK = 0xFF3B2921.toInt()
-        const val SUB = 0xFF8A7466.toInt()
-        const val SUB_DK = 0xFFB9A79A.toInt()
-        const val CREAM = 0xFFFFFBF4.toInt()
+        const val SURFACE = 0xFFFDFCFE.toInt()
+        const val EDGE = 0xFFDCD5E6.toInt()
+        const val SURFACE_DK = 0xFF282233.toInt()
+        const val EDGE_DK = 0xFF4A4258.toInt()
+        const val MARK = 0xFF6E56A8.toInt()
+        const val INK = 0xFF2E2A38.toInt()
+        const val SUB = 0xFF6B6478.toInt()
+        const val SUB_DK = 0xFFC5BDD3.toInt()
+        const val CREAM = 0xFFF7F5FB.toInt()
     }
 }

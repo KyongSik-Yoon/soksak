@@ -1,32 +1,32 @@
-<!-- Soksak mark: a speech bubble holding a quiet waveform ("속삭" = whisper). viewBox 0 0 100 100, stroke 7; baked cream stroke, recolor via tint. -->
+<!-- Soksak mark: a speech bubble holding a quiet waveform ("속삭" = whisper). viewBox 0 0 100 100, stroke 7; baked light stroke, recolor via tint. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="100dp"
     android:height="100dp"
     android:viewportWidth="100"
     android:viewportHeight="100">
     <path
-        android:strokeColor="@color/mark_cream"
+        android:strokeColor="@color/mark_light"
         android:strokeWidth="7"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="@android:color/transparent"
         android:pathData="M34,20 H66 A16,16 0 0 1 82,36 V54 A16,16 0 0 1 66,70 H46 L29,83 L33,70 A16,16 0 0 1 18,54 V36 A16,16 0 0 1 34,20 Z" />
     <path
-        android:strokeColor="@color/mark_cream"
+        android:strokeColor="@color/mark_light"
         android:strokeWidth="7"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="@android:color/transparent"
         android:pathData="M38,40 V50" />
     <path
-        android:strokeColor="@color/mark_cream"
+        android:strokeColor="@color/mark_light"
         android:strokeWidth="7"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="@android:color/transparent"
         android:pathData="M50,35 V55" />
     <path
-        android:strokeColor="@color/mark_cream"
+        android:strokeColor="@color/mark_light"
         android:strokeWidth="7"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"

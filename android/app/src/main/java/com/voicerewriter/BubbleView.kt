@@ -103,28 +103,30 @@ class BubbleView(context: Context) : View(context) {
 
         // --- Palette, converted from the design's OKLCH values ---
         // Light
-        private const val SURFACE = 0xFFFFFDF9.toInt()
-        private const val EDGE = 0xFFE0D6CA.toInt()
-        private const val MARK = 0xFFCD6E4C.toInt()
-        private const val LIFT_EDGE = 0xFFDE8D6A.toInt()
-        private const val GLOW_LIGHT = 0xFFFFCCA1.toInt()
-        private const val COPIED_BG_LIGHT = 0xFF3B2921.toInt()
+        private const val SURFACE = 0xFFFDFCFE.toInt()
+        private const val EDGE = 0xFFDCD5E6.toInt()
+        private const val MARK = 0xFF6E56A8.toInt()
+        private const val LIFT_EDGE = 0xFF8E77C6.toInt()
+        private const val GLOW_LIGHT = 0xFFD9CCF5.toInt()
+        private const val COPIED_BG_LIGHT = 0xFF2E2A38.toInt()
         private const val COPIED_ICON_LIGHT = 0xFFA1E4AE.toInt()
-        private const val COPIED_TEXT_LIGHT = 0xFFFFFBF4.toInt()
+        private const val COPIED_TEXT_LIGHT = 0xFFF7F5FB.toInt()
         // Dark — a charcoal surface and a brighter mark, so it doesn't vanish on dark screens.
-        private const val SURFACE_DK = 0xFF2F231E.toInt()
-        private const val EDGE_DK = 0xFF594941.toInt()
-        private const val MARK_DK = 0xFFF4A16D.toInt()
-        private const val GLOW_DK = 0xFFB46B40.toInt()
-        private const val COPIED_BG_DK = 0xFFF6F1E9.toInt()
+        private const val SURFACE_DK = 0xFF282233.toInt()
+        private const val EDGE_DK = 0xFF4A4258.toInt()
+        private const val MARK_DK = 0xFFBBA6EE.toInt()
+        private const val GLOW_DK = 0xFF5E4A8C.toInt()
+        private const val COPIED_BG_DK = 0xFFF2EFF7.toInt()
         private const val COPIED_ICON_DK = 0xFF137738.toInt()
-        private const val COPIED_TEXT_DK = 0xFF36241D.toInt()
+        private const val COPIED_TEXT_DK = 0xFF2A2433.toInt()
         // Shared
-        private const val LISTEN_FROM = 0xFFF4AD67.toInt()
-        private const val LISTEN_TO = 0xFFD86A4D.toInt()
-        private const val HALO = 0xFFE67D58.toInt()
-        private const val CREAM = 0xFFFFFBF4.toInt()
+        private const val LISTEN_FROM = 0xFFA894DD.toInt()
+        private const val LISTEN_TO = 0xFF4B3A6B.toInt()
+        private const val HALO = 0xFF8E77C6.toInt()
+        private const val CREAM = 0xFFF7F5FB.toInt()
         private const val GREEN = 0xFF3B9555.toInt()
+        /** Quiet-mode badge: teal, so it reads apart from the violet brand mark. */
+        private const val QUIET_BADGE = 0xFF2F8C85.toInt()
     }
 
     private val d = resources.displayMetrics.density
@@ -266,13 +268,13 @@ class BubbleView(context: Context) : View(context) {
         canvas.drawRoundRect(r, radius, radius, paint)
     }
 
-    /** Idle and (undimmed) the shape everything else starts from: cream disc, hairline edge. */
+    /** Idle and (undimmed) the shape everything else starts from: light disc, hairline edge. */
     private fun drawQuiet(canvas: Canvas, dimmed: Boolean) {
         val alpha = if (!dimmed) 255 else if (dark) 204 else 184 // design: 0.8 dark / 0.72 light
         val layer = canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), alpha)
         fillPaint.shader = null
         fillPaint.color = surface()
-        shadow(9f, 4f, if (dark) 0xA6000000.toInt() else 0x4D5A4232)
+        shadow(9f, 4f, if (dark) 0xA6000000.toInt() else 0x4D2E2A38)
         roundRect(canvas, content, fillPaint)
         fillPaint.clearShadowLayer()
         edgePaint.color = edge()
@@ -294,7 +296,7 @@ class BubbleView(context: Context) : View(context) {
         scratch.set(content.centerX() - w / 2f, cy - h / 2f, content.centerX() + w / 2f, cy + h / 2f)
         fillPaint.shader = null
         fillPaint.clearShadowLayer()
-        fillPaint.color = if (badgeQuiet) 0xFF5A78A8.toInt() else markColor()
+        fillPaint.color = if (badgeQuiet) QUIET_BADGE else markColor()
         roundRect(canvas, scratch, fillPaint)
         badgePaint.color = surface()
         val fm = badgePaint.fontMetrics
@@ -310,7 +312,7 @@ class BubbleView(context: Context) : View(context) {
         canvas.scale(1.12f, 1.12f, content.centerX(), content.centerY())
         fillPaint.shader = null
         fillPaint.color = surface()
-        shadow(14f, 7f, if (dark) 0xB3000000.toInt() else 0x735A4232)
+        shadow(14f, 7f, if (dark) 0xB3000000.toInt() else 0x732E2A38)
         roundRect(canvas, content, fillPaint)
         fillPaint.clearShadowLayer()
         edgePaint.color = LIFT_EDGE
@@ -334,7 +336,7 @@ class BubbleView(context: Context) : View(context) {
     }
 
     /**
-     * Listening. The sunset fill is reserved for this one state — it is the only time the
+     * Listening. The dusk fill is reserved for this one state — it is the only time the
      * bubble is warm and filled, which is what makes "we are recording you" unmistakable at a
      * glance and from the corner of the eye.
      */
@@ -350,7 +352,7 @@ class BubbleView(context: Context) : View(context) {
         scratch.inset(-grow, -grow)
         roundRect(canvas, scratch, haloPaint)
 
-        // Sunset fill. CSS `linear-gradient(140deg, ...)`: the gradient line points 140deg
+        // Dusk fill. CSS `linear-gradient(140deg, ...)`: the gradient line points 140deg
         // clockwise from straight up, i.e. (sin a, -cos a).
         val a = Math.toRadians(140.0)
         val dx = sin(a).toFloat()
@@ -364,7 +366,7 @@ class BubbleView(context: Context) : View(context) {
             LISTEN_FROM, LISTEN_TO, Shader.TileMode.CLAMP,
         )
         fillPaint.color = Color.WHITE
-        shadow(11f, 5f, 0x99A24A2E.toInt())
+        shadow(11f, 5f, 0x995A44A0.toInt())
         roundRect(canvas, content, fillPaint)
         fillPaint.clearShadowLayer()
         fillPaint.shader = null
@@ -401,7 +403,7 @@ class BubbleView(context: Context) : View(context) {
     private fun drawProcessing(canvas: Canvas, t: Float) {
         fillPaint.shader = null
         fillPaint.color = surface()
-        shadow(9f, 4f, if (dark) 0xA6000000.toInt() else 0x4D5A4232)
+        shadow(9f, 4f, if (dark) 0xA6000000.toInt() else 0x4D2E2A38)
         roundRect(canvas, content, fillPaint)
         fillPaint.clearShadowLayer()
         edgePaint.color = edge()
@@ -482,7 +484,7 @@ class BubbleView(context: Context) : View(context) {
         canvas.scale(pop(t), pop(t), content.centerX(), content.centerY())
         fillPaint.shader = null
         fillPaint.color = if (dark) COPIED_BG_DK else COPIED_BG_LIGHT
-        shadow(10f, 5f, if (dark) 0x99000000.toInt() else 0x80231A14.toInt())
+        shadow(10f, 5f, if (dark) 0x99000000.toInt() else 0x801A1622.toInt())
         roundRect(canvas, content, fillPaint)
         fillPaint.clearShadowLayer()
 

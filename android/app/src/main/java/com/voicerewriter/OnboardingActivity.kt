@@ -67,7 +67,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.voicerewriter.ui.MonoEyebrow
 import com.voicerewriter.ui.SoksakTheme
-import com.voicerewriter.ui.SunsetBrush
+import com.voicerewriter.ui.DuskBrush
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -383,12 +383,12 @@ private fun Eyebrow(text: String) {
 @Composable
 private fun LogoCircle(diameter: Int) {
     Box(
-        Modifier.size(diameter.dp).clip(CircleShape).background(SunsetBrush),
+        Modifier.size(diameter.dp).clip(CircleShape).background(DuskBrush),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null,
-            tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size((diameter * 0.5f).dp),
+            tint = com.voicerewriter.ui.MarkLight, modifier = Modifier.size((diameter * 0.5f).dp),
         )
     }
 }
@@ -552,8 +552,8 @@ private fun ModelCard(icon: ImageVector, name: String, state: String, pct: Float
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(SunsetBrush), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size(20.dp))
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(DuskBrush), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = com.voicerewriter.ui.MarkLight, modifier = Modifier.size(20.dp))
             }
             Text(
                 name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
@@ -725,10 +725,10 @@ private fun MockSettingsRow(label: String, subtitle: String, on: Boolean) {
             .border(1.5.dp, cs.primary, RoundedCornerShape(12.dp)).padding(13.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(SunsetBrush), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(DuskBrush), contentAlignment = Alignment.Center) {
             Icon(
                 androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null,
-                tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size(16.dp),
+                tint = com.voicerewriter.ui.MarkLight, modifier = Modifier.size(16.dp),
             )
         }
         Column(Modifier.weight(1f)) {
@@ -741,7 +741,7 @@ private fun MockSettingsRow(label: String, subtitle: String, on: Boolean) {
                 .background(if (on) cs.primary else cs.outline),
             contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
         ) {
-            Box(Modifier.padding(horizontal = 3.dp).size(17.dp).clip(CircleShape).background(com.voicerewriter.ui.MarkCream))
+            Box(Modifier.padding(horizontal = 3.dp).size(17.dp).clip(CircleShape).background(com.voicerewriter.ui.MarkLight))
         }
     }
 }
@@ -811,11 +811,11 @@ private fun TryItStep(
                 Spacer(Modifier.height(28.dp))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Box(
-                        Modifier.size(96.dp).clip(CircleShape).background(SunsetBrush)
+                        Modifier.size(96.dp).clip(CircleShape).background(DuskBrush)
                             .clickable(enabled = modelReady && micGranted) { onTry() },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size(48.dp))
+                        Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = com.voicerewriter.ui.MarkLight, modifier = Modifier.size(48.dp))
                     }
                 }
                 Spacer(Modifier.height(16.dp))

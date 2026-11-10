@@ -9,61 +9,63 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 /**
- * Colour theme carried over from upstream OpenWispr — "muted sunset" (its handoff identity): amber → coral → rose,
- * warm cream surfaces and plum ink. Centralized so every screen shares one identity.
+ * Soksak's "dusk" palette: lavender → violet → deep dusk, cool mist surfaces and plum ink, matching
+ * the launcher icon's plum (#3B2F4A). Replaced the upstream OpenWispr "muted sunset" colours on
+ * 2026-11-10 so the fork no longer looks like the original app. Centralized so every screen shares
+ * one identity; the bubble and model menu (plain Views) mirror these values in their own constants.
  */
 
 // ---- brand constants (also used for gradients / the bubble) ----
-val BrandAmber = Color(0xFFEDB079)
-val BrandCoral = Color(0xFFE07B52) // primary
-val BrandCoralDeep = Color(0xFFC7623C)
-val BrandRose = Color(0xFFC16560)
-val BrandPlum = Color(0xFF4A2E27)
-val MarkCream = Color(0xFFFCF8F4)
+val BrandLavender = Color(0xFFA894DD)
+val BrandViolet = Color(0xFF6E56A8) // primary
+val BrandVioletDeep = Color(0xFF574289)
+val BrandDusk = Color(0xFF4B3A6B)
+val BrandPlum = Color(0xFF3B2F4A)
+val MarkLight = Color(0xFFF7F5FB)
 
-/** The signature muted-sunset gradient (≈140°): amber → coral → rose. */
-val SunsetBrush: Brush
-    get() = Brush.linearGradient(0f to BrandAmber, 0.52f to BrandCoral, 1f to BrandRose)
+/** The signature dusk gradient (≈140°): lavender → violet → dusk. */
+val DuskBrush: Brush
+    get() = Brush.linearGradient(0f to BrandLavender, 0.52f to BrandViolet, 1f to BrandDusk)
 
 private val LightColors = lightColorScheme(
-    primary = BrandCoral,
-    onPrimary = MarkCream,
-    primaryContainer = Color(0xFFF3E6D6),       // tint_panel
-    onPrimaryContainer = BrandPlum,
-    secondary = BrandRose,
-    onSecondary = MarkCream,
-    secondaryContainer = Color(0xFFF7E1DC),
-    onSecondaryContainer = Color(0xFF5A2520),
-    tertiary = BrandAmber,
-    onTertiary = BrandPlum,
-    background = Color(0xFFF6EFE6),             // cream_bg
-    onBackground = Color(0xFF4B3A2E),           // ink
-    surface = Color(0xFFFFFDFA),               // card
-    onSurface = Color(0xFF4B3A2E),
-    surfaceVariant = Color(0xFFF3E6D6),         // tint_panel
-    onSurfaceVariant = Color(0xFF7E6B5B),       // ink_soft
-    outline = Color(0xFFE7DECF),               // hairline
-    outlineVariant = Color(0xFFE7DECF),
+    primary = BrandViolet,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFECE6F6),
+    onPrimaryContainer = Color(0xFF2E2440),
+    secondary = BrandDusk,
+    onSecondary = MarkLight,
+    secondaryContainer = Color(0xFFE9E3F2),
+    onSecondaryContainer = Color(0xFF2E2440),
+    tertiary = BrandLavender,
+    onTertiary = Color(0xFF2E2440),
+    background = Color(0xFFF5F3F8),             // mist
+    onBackground = Color(0xFF2E2A38),           // ink
+    surface = Color(0xFFFDFCFE),               // card
+    onSurface = Color(0xFF2E2A38),
+    surfaceVariant = Color(0xFFECE8F2),         // tint panel
+    onSurfaceVariant = Color(0xFF6B6478),       // ink soft
+    outline = Color(0xFFE1DCE9),               // hairline
+    outlineVariant = Color(0xFFE1DCE9),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFE68C66),               // lighter coral for contrast on plum
-    onPrimary = Color(0xFF3A1F17),
-    primaryContainer = Color(0xFF6B3A2A),
-    onPrimaryContainer = Color(0xFFF3E6D6),
-    secondary = BrandAmber,
-    onSecondary = Color(0xFF3A1F17),
-    secondaryContainer = Color(0xFF5A3A2A),
-    onSecondaryContainer = Color(0xFFF6EFE6),
-    tertiary = BrandAmber,
-    background = Color(0xFF2E1D18),
-    onBackground = Color(0xFFF6EFE6),
-    surface = Color(0xFF3A2620),
-    onSurface = Color(0xFFF6EFE6),
-    surfaceVariant = Color(0xFF4A352C),
-    onSurfaceVariant = Color(0xFFD8C4B4),
-    outline = Color(0xFF5C463B),
-    outlineVariant = Color(0xFF4A352C),
+    primary = Color(0xFFBBA6EE),               // lighter violet for contrast on night
+    onPrimary = Color(0xFF2A1F45),
+    primaryContainer = Color(0xFF4A3A6B),
+    onPrimaryContainer = Color(0xFFECE6F6),
+    secondary = BrandLavender,
+    onSecondary = Color(0xFF2A1F45),
+    secondaryContainer = Color(0xFF3E3352),
+    onSecondaryContainer = Color(0xFFEEEAF4),
+    tertiary = BrandLavender,
+    background = Color(0xFF1E1A26),
+    onBackground = Color(0xFFEEEAF4),
+    surface = Color(0xFF282233),
+    onSurface = Color(0xFFEEEAF4),
+    surfaceVariant = Color(0xFF352E42),
+    onSurfaceVariant = Color(0xFFC5BDD3),
+    outline = Color(0xFF4A4258),
+    outlineVariant = Color(0xFF352E42),
 )
 
 @Composable
