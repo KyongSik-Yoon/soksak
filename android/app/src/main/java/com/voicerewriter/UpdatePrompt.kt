@@ -38,8 +38,8 @@ object UpdateCheck {
 
 /**
  * Game-style update prompt: when Soksak opens and a newer build is published, offer it in a
- * dialog with one Update button that downloads and installs in place. Silent when no token is
- * set, when offline, or when already current.
+ * dialog with one Update button that downloads and installs in place. Silent when the check
+ * fails (offline, private repo without a token, rate limit) or when already current.
  */
 @Composable
 fun UpdatePrompt() {
@@ -53,7 +53,6 @@ fun UpdatePrompt() {
     LaunchedEffect(Unit) {
         if (!UpdateCheck.due()) return@LaunchedEffect
         val t = runCatching { SettingsRepository(context.applicationContext).get().githubToken }.getOrDefault("")
-        if (t.isBlank()) return@LaunchedEffect
         val r = runCatching { AppUpdater.latest(t) }.getOrNull() ?: return@LaunchedEffect
         if (r.versionCode > AppUpdater.installedVersionCode(context) && r.run != UpdateCheck.dismissedRun) {
             token = t

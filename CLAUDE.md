@@ -106,7 +106,7 @@
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.
 
 ## 앱 내 업데이트
-- `AppUpdater.kt`: Releases API(사용자가 설정에 넣은 fine-grained 토큰, Contents: Read-only) → APK를 캐시에 받고
+- `AppUpdater.kt`: Releases API(토큰은 선택 — 공개 저장소는 익명 호출, 시간당 60회/IP. 비공개일 때만 설정의 fine-grained 토큰 Contents: Read-only 필요. 2026-11-10 공개 준비로 필수 → 선택. 모델 다운로드도 같은 경로) → APK를 캐시에 받고
   FileProvider(`update_paths.xml`) URI로 **시스템 패키지 설치 관리자**를 연다(ACTION_VIEW, 브라우저 다운로드와 같은 경로).
 - 설정 Updates 카드는 열 때 자동으로 Check하고 "Build N is available"을 우선 표시한다.
 - 앱이 직접 PackageInstaller 세션을 만드는 방식은 쓰지 않는다. 사용자 폰(Galaxy)에서 그 방식은 "self update"로 분류돼,

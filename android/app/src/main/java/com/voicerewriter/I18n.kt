@@ -128,9 +128,9 @@ object I18n {
 
         // Updates
         "Updates" to "업데이트",
-        "GitHub token" to "GitHub 토큰",
-        "Fine-grained token with Contents: Read-only on %s. Stored only on this phone; used to fetch new builds." to
-            "%s 저장소에 Contents: Read-only 권한만 준 fine-grained 토큰. 이 폰에만 저장되고 새 빌드를 받는 데만 쓰여요.",
+        "GitHub token (optional)" to "GitHub 토큰 (선택)",
+        "Optional. Only needed while %s is private: a fine-grained token with Contents: Read-only. Stored only on this phone." to
+            "선택 사항이에요. %s 저장소가 비공개일 때만 필요해요: Contents: Read-only 권한만 준 fine-grained 토큰. 이 폰에만 저장돼요.",
         "Checking…" to "확인 중…",
         "Build %s is available." to "빌드 %s 업데이트가 있어요.",
         "Up to date (build %s)." to "최신이에요 (빌드 %s).",

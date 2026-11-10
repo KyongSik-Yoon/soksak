@@ -310,12 +310,10 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
 
     // Check on open, so the card says whether a newer build exists without a tap.
     LaunchedEffect(loaded) {
-        if (loaded && githubToken.isNotBlank()) checkUpdate()
+        if (loaded) checkUpdate()
     }
 
-    fun needsImport(id: String): Boolean = WhisperModelManager.model(id).let {
-        it.importOnly || (it.githubHosted && githubToken.isBlank() && it.engine == SpeechEngine.WHISPER)
-    }
+    fun needsImport(id: String): Boolean = WhisperModelManager.model(id).importOnly
 
     fun downloadStt(id: String) {
         dlId = id; dlProgress = 0f
@@ -441,8 +439,6 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                                 ModelRow(
                                     name = m.name, meta = m.meta, recommended = m.recommended,
                                     state = sttModelState(m.id), progress = dlProgress,
-                                    // A GitHub-hosted model downloads like the rest once a token is
-                                    // set; without one, importing the file is the way in.
                                     getLabel = if (needsImport(m.id)) tr("Import") else tr("Get"),
                                     onGet = {
                                         if (needsImport(m.id)) {
@@ -664,9 +660,9 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             Section(tr("Updates")) {
                 Card {
                     Padded {
-                        Label(tr("GitHub token"))
+                        Label(tr("GitHub token (optional)"))
                         Spacer(Modifier.height(6.dp))
-                        Text(trf("Fine-grained token with Contents: Read-only on %s. Stored only on this phone; used to fetch new builds.", AppUpdater.REPO),
+                        Text(trf("Optional. Only needed while %s is private: a fine-grained token with Contents: Read-only. Stored only on this phone.", AppUpdater.REPO),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         KeyField(githubToken, "github_pat_…", secret = true) { githubToken = it; persist() }

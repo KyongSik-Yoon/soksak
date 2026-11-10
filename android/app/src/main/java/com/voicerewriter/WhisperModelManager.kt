@@ -31,8 +31,8 @@ object WhisperModelManager {
          */
         val acft: Boolean = false,
         /**
-         * Hosted as an asset of this release in the private fork (built by the convert-model
-         * workflow), fetched with the user's GitHub token from Settings > Updates.
+         * Hosted as an asset of this release in this repo (built by the convert-model or NPU
+         * workflows). Fetched anonymously, or with the optional GitHub token while the repo is private.
          */
         val releaseTag: String? = null,
         /** Which runtime decodes it. NPU models are sherpa-onnx bundles (a directory). */

@@ -50,7 +50,7 @@ data class Settings(
     val npuDiagnostics: Boolean = false,
     /** Settings screen language: "auto" (phone), "ko" or "en". See [I18n]. */
     val uiLanguage: String = "auto",
-    /** Read-only GitHub token for in-app updates from the private fork ([AppUpdater]). */
+    /** Optional read-only GitHub token for [AppUpdater]; only needed while the repo is private. */
     val githubToken: String = "",
     /**
      * Show the result and wait before inserting it. Off by default: the field the user is

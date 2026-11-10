@@ -17,9 +17,11 @@ import java.util.concurrent.TimeUnit
  * `build-<run>` carrying the APK, and stamps the APK with versionCode `1000 + run`. This checks
  * the latest release, downloads its APK and opens it in the system package installer.
  *
- * The repo is private, so the GitHub API needs a token: a fine-grained, read-only ("Contents:
- * Read") token the user creates and pastes into Settings. It is only ever sent to api.github.com
- * (OkHttp drops the Authorization header when the asset download redirects to the storage host).
+ * The GitHub token is optional. A public repo's releases need no login (anonymous API calls are
+ * limited to 60 an hour per IP, plenty for a check per app open); a private repo needs a
+ * fine-grained, read-only ("Contents: Read") token pasted into Settings. When set, it is only
+ * ever sent to api.github.com (OkHttp drops the Authorization header when the asset download
+ * redirects to the storage host).
  *
  * The system installer asks the user to confirm (plus Play Protect and biometrics on the user's
  * phone); see [downloadAndInstall] for why it is not a session of our own.
@@ -38,23 +40,34 @@ object AppUpdater {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    /** Adds the token when there is one; without it the call goes out anonymously. */
+    private fun Request.Builder.auth(token: String): Request.Builder =
+        apply { if (token.isNotBlank()) header("Authorization", "Bearer ${token.trim()}") }
+
+    /** The message for a failed API call, which depends on whether a token was sent. */
+    internal fun failure(code: Int, token: String, what: String): String = when {
+        code == 401 -> "GitHub rejected the token (expired or wrong)."
+        code == 403 && token.isBlank() -> "GitHub's hourly limit for checks without a token is used up. Try again later, or add a token in Settings > Updates."
+        code == 404 && token.isBlank() -> "Couldn't see $what. If $REPO is private, add a GitHub token in Settings > Updates."
+        code == 403 || code == 404 -> "The token can't read $REPO. Give it Contents: Read on that repo."
+        else -> "GitHub returned $code."
+    }
+
     private val noRedirect = http.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
     /**
      * A short-lived, unauthenticated download URL for asset [name] of release [tag] — what the
      * API's asset endpoint redirects to. Handing that to [ModelDownloader] keeps its resume and
-     * size checks, and the token never leaves api.github.com.
+     * size checks, and the token (if any) never leaves api.github.com.
      */
     suspend fun releaseAssetUrl(token: String, tag: String, name: String): String = withContext(Dispatchers.IO) {
-        require(token.isNotBlank()) { "Add a GitHub token in Settings > Updates first." }
         val rel = Request.Builder()
             .url("https://api.github.com/repos/$REPO/releases/tags/$tag")
-            .header("Authorization", "Bearer ${token.trim()}")
+            .auth(token)
             .header("Accept", "application/vnd.github+json")
             .build()
         val assetId = http.newCall(rel).execute().use { res ->
-            if (res.code == 401) throw IllegalStateException("GitHub rejected the token (expired or wrong).")
-            if (!res.isSuccessful) throw IllegalStateException("Couldn't find release $tag (${res.code}).")
+            if (!res.isSuccessful) throw IllegalStateException(failure(res.code, token, "release $tag"))
             val assets = JSONObject(res.body?.string().orEmpty()).optJSONArray("assets")
             (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
                 .firstOrNull { it.optString("name") == name }?.getLong("id")
@@ -62,7 +75,7 @@ object AppUpdater {
         }
         val dl = Request.Builder()
             .url("https://api.github.com/repos/$REPO/releases/assets/$assetId")
-            .header("Authorization", "Bearer ${token.trim()}")
+            .auth(token)
             .header("Accept", "application/octet-stream")
             .build()
         noRedirect.newCall(dl).execute().use { res ->
@@ -78,21 +91,15 @@ object AppUpdater {
 
     /** The newest build release, or throws with a message fit for a toast. */
     suspend fun latest(token: String): Release = withContext(Dispatchers.IO) {
-        require(token.isNotBlank()) { "Add a GitHub token first." }
         val req = Request.Builder()
             .url("https://api.github.com/repos/$REPO/releases/latest")
-            .header("Authorization", "Bearer ${token.trim()}")
+            .auth(token)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .build()
         http.newCall(req).execute().use { res ->
             val body = res.body?.string().orEmpty()
-            when (res.code) {
-                200 -> {}
-                401 -> throw IllegalStateException("GitHub rejected the token (expired or wrong).")
-                403, 404 -> throw IllegalStateException("The token can't read $REPO. Give it Contents: Read on that repo.")
-                else -> throw IllegalStateException("GitHub returned ${res.code}.")
-            }
+            if (res.code != 200) throw IllegalStateException(failure(res.code, token, "the releases"))
             val o = JSONObject(body)
             val tag = o.optString("tag_name")
             val run = tag.removePrefix(TAG_PREFIX).toIntOrNull()
@@ -147,11 +154,11 @@ object AppUpdater {
             val out = java.io.File(dir, "soksak-${release.run}.apk")
             val req = Request.Builder()
                 .url("https://api.github.com/repos/$REPO/releases/assets/${release.assetId}")
-                .header("Authorization", "Bearer ${token.trim()}")
+                .auth(token)
                 .header("Accept", "application/octet-stream")
                 .build()
             http.newCall(req).execute().use { res ->
-                if (!res.isSuccessful) throw IllegalStateException("Download failed (${res.code}).")
+                if (!res.isSuccessful) throw IllegalStateException(failure(res.code, token, "the APK"))
                 val body = res.body ?: throw IllegalStateException("Empty download.")
                 val total = body.contentLength().takeIf { it > 0 } ?: release.size
                 out.outputStream().use { o ->
