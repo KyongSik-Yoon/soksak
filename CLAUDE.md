@@ -127,6 +127,7 @@
 - 새 기능에는 가능한 범위의 JVM 단위 테스트를 `android/app/src/test`에 추가.
 - Settings에 필드를 추가하면 `Settings.kt`(필드·Key·read·write)와 `SettingsActivity.snapshot()`을 함께 고친다
   (snapshot이 UI 상태로 Settings 전체를 다시 만들기 때문에 빠지면 기본값으로 덮인다).
+- APK에 들어가는 라이브러리·폰트·네이티브 바이너리를 추가하거나 빼면 `android/app/src/main/assets/third_party_notices.txt`(설정 → General → Open source licenses, `ThirdPartyNoticesTest`)를 함께 고친다. 라이선스가 MIT/Apache/OFL가 아니면 배포 조건을 먼저 확인한다 — Moonshine 한국어 모델은 Community License(사본·Notice·"Powered by Moonshine AI" 표시 의무)라 Release에서 내렸다(2026-11-10).
 - 비밀정보(토큰, 키)는 Claude가 웹 입력란에 직접 넣지 않는다 — 사용자가 입력.
 - 공개 저장소/공개 리소스 생성은 자동 승인되지 않는다 — 비공개 Release + 토큰 다운로드 방식을 쓴다.
 

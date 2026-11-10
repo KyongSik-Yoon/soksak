@@ -755,6 +755,10 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                         }
                     }
                     Divider()
+                    NavRow(tr("Open source licenses"), tr("Libraries, fonts and models this app uses")) {
+                        context.startActivity(Intent(context, LicensesActivity::class.java))
+                    }
+                    Divider()
                     // remember: this is a binder call into PackageManager, and the version can't
                     // change while the screen is up.
                     val version = remember { appVersion(context) }

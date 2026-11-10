@@ -83,6 +83,10 @@
             android:exported="false"
             android:label="Learned words" />
         <activity
+            android:name=".LicensesActivity"
+            android:exported="false"
+            android:label="Open source licenses" />
+        <activity
             android:name=".ContactsImportActivity"
             android:exported="false"
             android:label="Import from contacts" />

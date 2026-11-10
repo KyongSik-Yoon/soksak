@@ -174,6 +174,8 @@ object I18n {
         "General" to "일반",
         "Replay onboarding" to "온보딩 다시 보기",
         "Walk through setup again" to "설정 과정을 다시 진행해요",
+        "Open source licenses" to "오픈소스 라이선스",
+        "Libraries, fonts and models this app uses" to "이 앱이 쓰는 라이브러리·폰트·모델",
         "Version" to "버전",
         "Language" to "언어",
         "Follow phone (%s)" to "휴대폰 설정 따름 (%s)",
