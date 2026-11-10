@@ -188,6 +188,8 @@ object LocalSherpaStt {
                 val qnn = WhisperModelManager.model(settings.sttModel).engine == SpeechEngine.QNN_WHISPER
                 val parts = if (qnn) windows(samples) else listOf(0 until samples.size)
                 val hint = qnnHint(settings.sttModel, DictationLanguage.normalize(settings.sttLanguage))
+                // Silero doesn't hear whispers, so in Quiet mode a real whispered "네." would go too.
+                val dropEchoes = hint.isNotEmpty() && !settings.quietMode
                 val partLog = ArrayList<String>(parts.size)
                 val text = parts.mapNotNull { r ->
                     val stream = rec.createStream()
@@ -198,7 +200,7 @@ object LocalSherpaStt {
                         rec.decode(stream)
                         val result = rec.getResult(stream)
                         partLog += "${(System.nanoTime() - d0) / 1_000_000}ms/${result.tokens.size}tok"
-                        clean(result.text).takeUnless { it.isEmpty() || hint.isNotEmpty() && isHintEcho(it) && !hasSpeech(context, part) }
+                        clean(result.text).takeUnless { it.isEmpty() || dropEchoes && isHintEcho(it) && !hasSpeech(context, part) }
                     } finally {
                         stream.release()
                     }

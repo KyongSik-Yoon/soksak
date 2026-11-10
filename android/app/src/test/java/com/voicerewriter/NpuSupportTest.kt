@@ -78,6 +78,7 @@ class QnnWindowsTest {
 
     @Test fun strayVadFramesAreNotSpeech() {
         assertFalse(SileroVad.enoughSpeech(listOf(0.9f, 0.1f, 0.9f, 0.1f)))
+        assertFalse(SileroVad.enoughSpeech(listOf(0.9f, 0.1f, 0.9f, 0.1f, 0.9f, 0.2f, 0.8f)))
         assertTrue(SileroVad.enoughSpeech(listOf(0.1f, 0.9f, 1f, 0.6f)))
     }
 

@@ -35,12 +35,19 @@ class SileroVad private constructor(
 
         @Volatile private var shared: SileroVad? = null
 
-        /** Stray frames over the threshold happen; a word is at least this many (~0.1s). */
+        /** Stray frames over the threshold happen, scattered through noise; a word is this many in a row (~0.1s). */
         private const val MIN_SPEECH_FRAMES = 3
         /** A frame at or above this is speech (the recorder's auto-stop uses it too). */
         const val SPEECH_PROB = 0.5f
 
-        internal fun enoughSpeech(probs: List<Float>): Boolean = probs.count { it >= SPEECH_PROB } >= MIN_SPEECH_FRAMES
+        internal fun enoughSpeech(probs: List<Float>): Boolean {
+            var run = 0
+            for (p in probs) {
+                run = if (p >= SPEECH_PROB) run + 1 else 0
+                if (run >= MIN_SPEECH_FRAMES) return true
+            }
+            return false
+        }
 
         /** Process-wide cached instance (the model loads once); null if unavailable. */
         fun shared(context: Context): SileroVad? {
