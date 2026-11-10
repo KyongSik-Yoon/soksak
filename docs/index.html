@@ -7,103 +7,94 @@
 <meta name="description" content="한국어로 말하면 지금 쓰는 앱의 입력창에 글로 넣어 주는 Android 받아쓰기 앱. 음성 인식은 전부 기기 안에서 돕니다.">
 <meta property="og:title" content="속삭 (Soksak)">
 <meta property="og:description" content="말하면 글이 됩니다. 소리는 폰 밖으로 나가지 않습니다.">
-<meta name="theme-color" content="#3B2F4A">
+<meta name="theme-color" content="#F5F3F8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%233B2F4A'/%3E%3Cg fill='none' stroke='%23F7F5FB' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z'/%3E%3Cpath d='M38 40V50M50 35V55M62 40V50'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gaegu:wght@400;700&family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
+  --bg: #F5F3F8; --card: #FFFFFF; --soft: #ECE8F3; --line: #DDD6E8;
+  --ink: #241D2E; --ink-2: #5C536B; --ink-3: #8A8198;
   --plum: #3B2F4A; --dusk: #4B3A6B; --violet: #6E56A8; --violet-deep: #574289; --lavender: #A894DD;
-  --mark: #F7F5FB; --teal: #2F8C85; --mint: #7FD0C8; --cream: #F2EDE3; --paper: #F5F0E1;
+  --mark: #F7F5FB; --teal: #2F8C85; --mint: #7FD0C8; --night: #1A1530;
   --serif: "Gowun Batang", "Noto Serif KR", "AppleMyungjo", serif;
   --sans: "Mulish", system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --block: "Black Han Sans", "Mulish", "Apple SD Gothic Neo", sans-serif;
-  --hand: "Gaegu", "Nanum Pen Script", cursive;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--plum); color: #241D2E; font: 16px/1.7 var(--sans); -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: anywhere; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 var(--sans); -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: anywhere; overflow-x: hidden; }
 p, h1, h2, h3 { margin: 0; }
 a { color: inherit; text-underline-offset: 3px; }
 code { font-family: var(--mono); font-size: .9em; }
-.wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+.wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 22px; min-width: 0; }
 :focus-visible { outline: 2px solid var(--lavender); outline-offset: 3px; border-radius: 6px; }
-.scene { position: relative; min-height: 100svh; display: grid; align-items: center; padding: 96px 0 80px; overflow: hidden; }
-.chap { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; display: flex; gap: 10px; align-items: center; margin-bottom: 18px; }
-.chap::before { content: ""; width: 26px; height: 2px; background: currentColor; }
-/* reveal: children with .r slide in once the scene is on */
-.r { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); transition-delay: calc(var(--i, 0) * 110ms); }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--violet); margin-bottom: 18px; }
+h2 { font: 700 clamp(30px, 5vw, 52px)/1.22 var(--serif); letter-spacing: -.015em; }
+h2 em, h1 em { font-style: normal; color: var(--violet); }
+.lede { margin-top: 18px; font-size: clamp(16px, 1.9vw, 18px); color: var(--ink-2); max-width: 52ch; }
+.center { text-align: center; } .center .lede { margin-left: auto; margin-right: auto; }
+/* sheets: each section is a rounded sheet laid over the one before */
+.sheet { position: relative; border-radius: 44px 44px 0 0; margin-top: -44px; padding: 104px 0 148px; }
+.sheet.last { padding-bottom: 0; }
+.dark { background: var(--plum); color: #EEEAF5; --ink-2: #C3BAD3; --ink-3: #9d93ae; --line: #55476c; }
+.dark .eyebrow, .night .eyebrow { color: #C9B8F5; } .dark h2 em { color: #C9B8F5; }
+.night { background: linear-gradient(180deg, #120E22 0%, var(--night) 50%, #2a2140 100%); color: #EEEAF5; --ink-2: #B9B0C8; overflow: hidden; }
+.night .eyebrow, .night h2 em { color: var(--mint); }
+.light { background: var(--bg); } .soft { background: var(--soft); }
+.r { opacity: 0; transform: translateY(20px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); transition-delay: calc(var(--i, 0) * 110ms); }
 .on .r { opacity: 1; transform: none; }
 
-/* pill nav + chapter dots */
-nav { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 14px; border-radius: 999px; background: rgba(43, 34, 55, .82); backdrop-filter: blur(12px); color: #EEEAF5; box-shadow: 0 10px 30px -14px rgba(0,0,0,.6); white-space: nowrap; }
+/* nav */
+nav { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 14px; border-radius: 999px; background: rgba(255,255,255,.78); backdrop-filter: blur(14px); border: 1px solid rgba(221,214,232,.9); box-shadow: 0 10px 30px -18px rgba(59,47,74,.5); white-space: nowrap; }
 nav .brand { display: flex; align-items: center; gap: 8px; font: 700 16px var(--serif); text-decoration: none; margin-right: 8px; }
-nav .brand svg { width: 22px; height: 22px; }
-nav a.link { text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 999px; color: #cfc6e0; }
-nav a.link:hover { color: #fff; background: rgba(255,255,255,.08); }
-nav a.get { background: var(--lavender); color: #2A1F45; font-weight: 700; font-size: 13px; padding: 7px 14px; border-radius: 999px; text-decoration: none; }
+nav .brand svg { width: 24px; height: 24px; border-radius: 7px; }
+nav a.link { text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 999px; color: var(--ink-2); }
+nav a.link:hover { background: var(--soft); color: var(--ink); }
+nav a.get { background: var(--plum); color: var(--mark); font-weight: 700; font-size: 13px; padding: 7px 14px; border-radius: 999px; text-decoration: none; }
 @media (max-width: 560px) { nav a.link.hide { display: none; } }
-.dots { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 40; display: grid; gap: 10px; }
-.dots a { width: 9px; height: 9px; border-radius: 50%; background: rgba(140,125,170,.45); border: 1.5px solid rgba(255,255,255,.55); transition: transform .25s, background .25s; }
-.dots a.cur { background: var(--lavender); transform: scale(1.5); }
-@media (max-width: 700px) { .dots { display: none; } }
 
-/* ───── 00 title ───── */
-.s-title { background: radial-gradient(120% 90% at 50% 110%, #5a4585 0%, var(--plum) 55%, #2c2338 100%); color: var(--mark); text-align: center; }
-.s-title .mk { width: clamp(96px, 16vw, 150px); margin: 0 auto 26px; display: block; }
-.s-title .mk .shell { stroke-dasharray: 260; stroke-dashoffset: 260; }
-.s-title.on .mk .shell { animation: draw 1.5s .2s cubic-bezier(.6,0,.2,1) forwards; }
-.s-title .mk .bar { transform-box: fill-box; transform-origin: center; transform: scaleY(0); }
-.s-title.on .mk .bar { animation: pop .5s 1.4s ease forwards, hum 1.3s 1.9s ease-in-out infinite; }
-.s-title.on .mk .bar:nth-of-type(2) { animation-delay: 1.55s, 2.05s; }
-.s-title.on .mk .bar:nth-of-type(3) { animation-delay: 1.7s, 2.2s; }
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes pop { to { transform: scaleY(1); } }
+/* hero */
+.hero { padding: 128px 0 110px; text-align: center; }
+.hero h1 { font: 700 clamp(46px, 9vw, 104px)/1.14 var(--serif); letter-spacing: -.025em; }
+.hero h1 span { display: block; overflow: hidden; padding-bottom: .06em; }
+.hero h1 i { display: block; font-style: normal; transform: translateY(108%); transition: transform 1s cubic-bezier(.2,.8,.2,1); }
+.hero h1 span:nth-child(2) i { transition-delay: .25s; color: var(--violet); }
+.hero.on h1 i { transform: none; }
+.hero .lede { margin: 24px auto 0; max-width: 36ch; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; justify-content: center; }
+.btn { display: inline-flex; align-items: center; padding: 13px 24px; border-radius: 999px; font-weight: 700; font-size: 15px; text-decoration: none; border: 1.5px solid transparent; transition: transform .2s, background .2s; }
+.btn:hover { transform: translateY(-1px); }
+.btn.primary { background: var(--plum); color: var(--mark); } .btn.primary:hover { background: var(--dusk); }
+.btn.ghost { border-color: var(--line); color: var(--ink); } .btn.ghost:hover { background: var(--soft); }
+.avail { margin-top: 16px; font: 500 12px var(--mono); color: var(--ink-3); }
+/* sound flows in as a wave, leaves the mark as text */
+.flow { display: block; width: 100%; height: clamp(170px, 24vw, 250px); margin-top: 34px; }
+.flow .wave { fill: none; stroke: var(--lavender); stroke-width: 2.6; stroke-linecap: round; }
+.flow .wave.b { stroke: var(--violet); opacity: .35; stroke-width: 1.6; }
+.flow .ribbon { fill: none; stroke: var(--plum); stroke-width: 44; stroke-linecap: round; }
+.flow text { font: 600 19px var(--sans); fill: var(--mark); letter-spacing: .01em; }
+.flow .bar { transform-box: fill-box; transform-origin: center; animation: hum 1.3s ease-in-out infinite; }
+.flow .bar:nth-of-type(2) { animation-delay: .15s; } .flow .bar:nth-of-type(3) { animation-delay: .3s; }
 @keyframes hum { 50% { transform: scaleY(.45); } }
-.s-title h1 { font: 700 clamp(44px, 9.5vw, 112px)/1.12 var(--serif); letter-spacing: -.02em; }
-.s-title h1 span { display: block; overflow: hidden; }
-.s-title h1 i { display: block; font-style: normal; transform: translateY(105%); transition: transform .9s cubic-bezier(.2,.8,.2,1); }
-.s-title h1 span:nth-child(2) i { transition-delay: .35s; color: #C9B8F5; }
-.s-title.on h1 i { transform: none; }
-.s-title .sub { margin: 26px auto 0; max-width: 34ch; font-size: clamp(16px, 2.2vw, 19px); color: #cfc6e0; }
-.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; justify-content: center; }
-.btn { display: inline-flex; align-items: center; padding: 13px 22px; border-radius: 999px; font-weight: 700; font-size: 15px; text-decoration: none; border: 1.5px solid transparent; }
-.btn.primary { background: var(--mark); color: var(--plum); }
-.btn.ghost { border-color: rgba(247,245,251,.35); color: var(--mark); }
-.btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
-.down { position: absolute; bottom: 22px; left: 50%; margin-left: -11px; width: 22px; height: 36px; border: 1.5px solid rgba(247,245,251,.5); border-radius: 12px; }
-.down::after { content: ""; position: absolute; left: 50%; top: 7px; width: 3px; height: 7px; margin-left: -1.5px; border-radius: 2px; background: var(--mark); animation: wheel 1.6s ease-in-out infinite; }
-@keyframes wheel { 60% { transform: translateY(11px); opacity: 0; } 100% { opacity: 0; } }
+.flow-cap { display: flex; justify-content: space-between; max-width: 760px; margin: 6px auto 0; padding: 0 22px; font: 500 12px var(--mono); color: var(--ink-3); }
 
-/* ───── 01 bubble: blocks ───── */
-.s-bubble { background: var(--cream); color: #2a2233; }
-.s-bubble .wrap { display: grid; grid-template-columns: 1fr auto; gap: 56px; align-items: center; }
-.s-bubble .chap { color: var(--violet); }
-.s-bubble h2 { font: 400 clamp(40px, 6.6vw, 78px)/1.08 var(--block); letter-spacing: -.01em; }
-.s-bubble h2 em { font-style: normal; color: var(--violet); }
-.s-bubble .txt p { margin-top: 20px; font-size: 17px; color: #564d63; max-width: 38ch; }
-.s-bubble ul { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 10px; font-size: 15px; color: #40374c; }
-.s-bubble li { display: flex; gap: 10px; align-items: baseline; }
-.s-bubble li b { font: 500 11px var(--mono); background: #2a2233; color: var(--cream); border-radius: 5px; padding: 2px 6px; flex: none; }
-@media (max-width: 860px) { .s-bubble .wrap { grid-template-columns: 1fr; gap: 36px; } }
-.cube { position: absolute; width: var(--s, 70px); pointer-events: none; opacity: 0; transform: translateY(-140px); transition: opacity .5s, transform .9s cubic-bezier(.3,1.4,.5,1); transition-delay: calc(var(--i) * 90ms); }
-.on .cube { opacity: 1; transform: none; }
-.cube svg { display: block; width: 100%; animation: bob 5s ease-in-out infinite; animation-delay: calc(var(--i) * -.8s); }
-@keyframes bob { 50% { transform: translateY(-12px); } }
-@media (max-width: 860px) { .cube.wide { display: none; } .cube { --s: 40px !important; } }
-.c-v { --t: #A894DD; --l: #6E56A8; --rr: #574289; } .c-p { --t: #6b5890; --l: #4B3A6B; --rr: #3B2F4A; }
-.c-t { --t: #7FD0C8; --l: #2F8C85; --rr: #23706a; } .c-y { --t: #F4D58A; --l: #E0B24C; --rr: #C4932C; }
-
-.stage { position: relative; display: grid; justify-items: center; gap: 14px; }
-.phone { position: relative; width: min(320px, 82vw); aspect-ratio: 9 / 17; border-radius: 40px; padding: 10px; background: linear-gradient(160deg, #57467a, #2c2338); box-shadow: 18px 22px 0 rgba(59,47,74,.16), 0 30px 60px -30px rgba(59,47,74,.6); }
-.screen { position: relative; height: 100%; border-radius: 31px; overflow: hidden; background: #fbfaf8; color: #26222b; display: flex; flex-direction: column; font-size: 13.5px; line-height: 1.55; }
+/* bubble */
+.two { display: grid; grid-template-columns: 1fr auto; gap: 64px; align-items: center; }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; gap: 44px; } }
+.points { list-style: none; padding: 0; margin: 30px 0 0; display: grid; gap: 18px; max-width: 46ch; }
+.points li { padding-left: 18px; border-left: 2px solid var(--line); color: var(--ink-2); font-size: 15.5px; }
+.points b { display: block; color: inherit; font: 700 19px var(--serif); margin-bottom: 2px; }
+.dark .points b { color: #fff; }
+.stage { display: grid; justify-items: center; gap: 14px; }
+.phone { position: relative; width: min(320px, 82vw); aspect-ratio: 9 / 17; border-radius: 40px; padding: 10px; background: linear-gradient(160deg, #6a5890, #241c30); box-shadow: 0 40px 80px -30px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.1); }
+.screen { position: relative; height: 100%; border-radius: 31px; overflow: hidden; background: #fbfaf8; color: #26222b; display: flex; flex-direction: column; font-size: 13.5px; line-height: 1.55; text-align: left; }
 .appbar { padding: 14px 16px 10px; font-weight: 700; font-size: 13px; border-bottom: 1px solid #ece8e2; display: flex; justify-content: space-between; color: #4d4656; }
 .appbar small { font: 500 11px var(--mono); color: #9a93a3; }
 .chat { flex: 1; padding: 14px 14px 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; justify-content: flex-end; }
 .msg { max-width: 78%; padding: 9px 12px; border-radius: 14px; background: #f0ece6; animation: rise .35s ease both; }
-.msg.me { align-self: flex-start; background: #e8e1f6; }
+.msg.me { background: #e8e1f6; }
 .msg .who { display: block; font: 500 10px var(--mono); color: #9a93a3; margin-bottom: 2px; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 .field { margin: 12px; padding: 11px 13px; min-height: 76px; border-radius: 16px; border: 1.5px solid #d9d2e6; background: #fff; }
@@ -118,8 +109,8 @@ nav a.get { background: var(--lavender); color: #2A1F45; font-weight: 700; font-
 .bubble:hover { transform: scale(1.06); }
 .bubble svg { width: 34px; height: 34px; }
 .bubble .bar { transform-box: fill-box; transform-origin: center; }
-.bubble[data-state="idle"] { animation: nudge 2.6s ease-in-out infinite; }
-@keyframes nudge { 8% { transform: scale(1.12); } 16% { transform: none; } }
+.bubble[data-state="idle"] { animation: nudge 2.8s ease-in-out infinite; }
+@keyframes nudge { 8% { transform: scale(1.1); } 16% { transform: none; } }
 .bubble[data-state="rec"] { animation: halo 1.4s ease-out infinite; }
 .bubble[data-state="rec"] .shell { opacity: 0; }
 .bubble[data-state="work"] .bar { animation: hum .9s ease-in-out infinite; }
@@ -135,180 +126,154 @@ nav a.get { background: var(--lavender); color: #2A1F45; font-weight: 700; font-
 .menu button[aria-checked="true"] { background: rgba(168,148,221,.22); }
 .menu .k { font: 500 10px var(--mono); width: 22px; color: #bba6ee; }
 .menu hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 4px 6px; }
-.status { font: 500 12.5px var(--mono); color: #6f6680; min-height: 1.7em; text-align: center; }
-.hint { font-size: 12.5px; color: #857c93; text-align: center; max-width: 34ch; }
+.status { font: 500 12.5px var(--mono); color: var(--ink-2); min-height: 1.7em; text-align: center; }
+.hint { font-size: 12.5px; color: var(--ink-3); text-align: center; max-width: 34ch; }
 
-/* ───── 02 streaming: arcade ───── */
-.s-arcade { background: #0c0a1c; color: #e9e6ff; font-family: var(--mono); }
-.s-arcade::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 4px); pointer-events: none; }
-.s-arcade .chap { color: #ffd84a; }
-.s-arcade h2 { font: 500 clamp(24px, 4vw, 40px)/1.3 var(--mono); color: #fff; text-shadow: 3px 3px 0 #6E56A8; }
-.s-arcade .cab { margin-top: 28px; border: 3px solid #6E56A8; box-shadow: 0 0 0 3px #0c0a1c, 0 0 0 6px #2a2250, 0 0 60px -10px rgba(168,148,221,.55); background: #100d24; }
-.s-arcade canvas { display: block; width: 100%; aspect-ratio: 16 / 9; image-rendering: pixelated; }
-.s-arcade .cap { margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 28px; font-size: 13.5px; color: #a9a3cf; }
-.s-arcade .cap b { color: #7FD0C8; font-weight: 500; display: block; margin-bottom: 2px; }
-.s-arcade .cap b.p1 { color: #ff7a90; }
+/* race */
+.race { margin: 48px auto 0; max-width: 880px; display: grid; gap: 30px; text-align: left; }
+.lane-h { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 10px; }
+.lane-h b { font: 700 20px var(--serif); }
+.lane-h span { font: 500 13px var(--mono); color: var(--ink-3); }
+.lane-h .wait { font: 700 clamp(22px, 3.4vw, 32px) var(--serif); color: var(--ink-3); transition: color .3s; min-width: 5.2em; text-align: right; }
+.lane-h .wait.done { color: var(--violet); }
+.lane.b .lane-h .wait.done { color: var(--teal); }
+.track { position: relative; display: flex; height: 56px; padding: 8px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); }
+.seg { position: relative; height: 100%; border-radius: 10px; overflow: hidden; background: var(--soft); }
+.seg i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); border-radius: 10px; }
+.seg .rec { background: repeating-linear-gradient(90deg, var(--lavender) 0 3px, transparent 3px 6px); opacity: .75; }
+.seg .dec { background: var(--violet); } .lane.b .seg .dec { background: var(--teal); }
+.gapx { height: 100%; }
+.race-note { display: flex; justify-content: space-between; font: 500 12px var(--mono); color: var(--ink-3); margin-top: 8px; }
+.facts { margin: 44px auto 0; max-width: 880px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; text-align: left; }
+.fact { padding: 20px 22px; border-radius: 22px; background: var(--card); border: 1px solid var(--line); font-size: 14.5px; color: var(--ink-2); }
+.fact b { display: block; font: 700 26px var(--serif); color: var(--ink); margin-bottom: 4px; }
 
-/* ───── 03 quiet: night ───── */
-.s-night { background: linear-gradient(180deg, #0f0c1d 0%, #1b1530 55%, #2a2140 100%); color: #EEEAF5; text-align: center; }
-.s-night .chap { color: var(--mint); justify-content: center; }
-.s-night h2 { font: 700 clamp(34px, 6vw, 68px)/1.2 var(--serif); }
-.s-night h2 small { display: block; font: 400 clamp(15px, 2vw, 18px)/1.7 var(--sans); color: #b3aac6; margin-top: 18px; }
+/* quiet */
 .star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; animation: twinkle 3s ease-in-out infinite; }
 @keyframes twinkle { 50% { opacity: .15; } }
-.moon { position: absolute; top: 13%; right: 14%; width: 74px; height: 74px; border-radius: 50%; box-shadow: -16px 10px 0 0 #EDE6C8; transform: rotate(-18deg) translateX(16px); opacity: .9; }
-@media (max-width: 700px) { .moon { top: 26px; right: 26px; width: 40px; height: 40px; box-shadow: -9px 6px 0 0 #EDE6C8; } .strip { gap: 2px !important; height: 110px !important; } .labels { font-size: 10.5px !important; } }
-.wrap { min-width: 0; }
-.strip { position: relative; margin: 46px auto 0; max-width: 760px; height: 150px; display: flex; align-items: center; gap: 4px; padding: 0 6px; }
+.moon { position: absolute; top: 90px; right: 12%; width: 64px; height: 64px; border-radius: 50%; box-shadow: -14px 9px 0 0 #EDE6C8; transform: rotate(-18deg); opacity: .9; }
+.strip { position: relative; margin: 50px auto 0; max-width: 760px; height: 150px; display: flex; align-items: center; gap: 4px; padding: 0 6px; }
 .strip i { flex: 1; min-width: 2px; border-radius: 3px; height: calc(var(--h) * 1%); background: var(--lavender); transform: scaleY(0); transition: transform .5s cubic-bezier(.3,1.5,.5,1); transition-delay: calc(var(--n) * 22ms); }
 .strip i.w { background: var(--mint); }
 .on .strip i { transform: scaleY(1); animation: sway 1.8s ease-in-out infinite; animation-delay: calc(1.6s + var(--n) * -137ms); }
 @keyframes sway { 50% { transform: scaleY(.6); } }
-.strip .cut { position: absolute; left: 0; right: 0; top: 50%; height: 0; }
 .strip .cut::before, .strip .cut::after { content: ""; position: absolute; left: 0; right: 0; border-top: 1.5px dashed rgba(255,255,255,.35); }
+.strip .cut { position: absolute; left: 0; right: 0; top: 50%; }
 .strip .cut::before { top: -19px; } .strip .cut::after { top: 19px; }
 .labels { max-width: 760px; margin: 8px auto 0; display: flex; justify-content: space-between; font: 500 12px var(--mono); color: #9d93b5; gap: 12px; }
 .labels span:last-child { color: var(--mint); text-align: right; }
-.heard { margin: 30px auto 0; max-width: 640px; padding: 16px 20px; border-radius: 18px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); font-size: 16px; text-align: left; display: flex; gap: 12px; align-items: center; }
+.heard { margin: 30px auto 0; max-width: 620px; padding: 16px 20px; border-radius: 20px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); font-size: 16px; text-align: left; display: flex; gap: 12px; align-items: center; }
 .heard .q { font: 500 10px var(--mono); background: var(--teal); color: #fff; padding: 4px 7px; border-radius: 6px; flex: none; }
-.s-night .foot { margin-top: 22px; font-size: 14px; color: #9d93b5; }
+@media (max-width: 700px) { .moon { top: 60px; right: 26px; width: 40px; height: 40px; box-shadow: -9px 6px 0 0 #EDE6C8; } .strip { gap: 2px; height: 110px; } .labels { font-size: 10.5px; } }
 
-/* ───── 04 on-device: stack ───── */
-.s-stack { background: #E6DFF3; color: #2a2233; }
-.s-stack .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
-.s-stack .chap { color: var(--violet-deep); }
-.s-stack h2 { font: 400 clamp(38px, 6vw, 72px)/1.08 var(--block); }
-.s-stack h2 em { font-style: normal; color: var(--violet-deep); }
-.s-stack p { margin-top: 20px; font-size: 17px; color: #51475f; max-width: 40ch; }
-.s-stack .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
-.s-stack .chips span { font: 500 12px var(--mono); padding: 6px 10px; border-radius: 8px; background: #fff; border: 1.5px solid #2a2233; box-shadow: 3px 3px 0 #2a2233; }
-.s-stack svg { width: 100%; max-width: 480px; justify-self: center; overflow: visible; }
-.slab { opacity: 0; transform: translateY(-220px); transition: opacity .35s, transform .8s cubic-bezier(.3,1.35,.5,1); transition-delay: calc(var(--i) * 260ms + 200ms); }
-.on .slab { opacity: 1; transform: none; }
-.slab text { font: 500 13px var(--mono); fill: #2a2233; }
-.nocloud { opacity: 0; transition: opacity .6s 1.6s; } .on .nocloud { opacity: 1; }
-@media (max-width: 860px) { .s-stack .wrap { grid-template-columns: 1fr; } }
+/* on-device */
+.device { margin: 46px auto 0; max-width: 900px; position: relative; padding: 34px 28px 30px; border-radius: 36px; border: 2px solid var(--plum); background: var(--card); }
+.device::before { content: "폰 안"; position: absolute; top: -13px; left: 34px; background: var(--plum); color: var(--mark); font: 500 12px var(--mono); padding: 3px 12px; border-radius: 999px; }
+.pipe { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.step { position: relative; padding: 20px 16px; border-radius: 20px; background: var(--soft); text-align: left; font-size: 13.5px; color: var(--ink-2); }
+.step b { display: block; font: 700 19px var(--serif); color: var(--ink); margin-bottom: 4px; }
+.step:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 50%; transform: translate(50%, -50%); color: var(--violet); font-weight: 700; z-index: 1; }
+.step:nth-child(2) { background: var(--plum); color: #C3BAD3; } .step:nth-child(2) b { color: #fff; }
+@media (max-width: 760px) { .pipe { grid-template-columns: 1fr; } .step:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -14px; transform: translate(50%, 50%); } }
+.outside { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: center; font: 500 13px var(--mono); color: var(--ink-3); }
+.outside s { text-decoration-color: #d65858; text-decoration-thickness: 2px; }
 
-/* ───── 05 numbers: notebook ───── */
-.s-note { background: var(--paper) repeating-linear-gradient(0deg, transparent 0 35px, rgba(110,86,168,.16) 35px 36px); color: #2b2a33; font-family: var(--hand); }
-.s-note::after { content: ""; position: absolute; top: 0; bottom: 0; left: max(28px, calc(50% - 560px)); border-left: 2px solid rgba(214, 88, 88, .45); }
-.s-note .wrap { padding-left: max(46px, 20px); }
-.s-note .chap { font-family: var(--mono); color: #b3423f; }
-.s-note h2 { font: 700 clamp(40px, 6.4vw, 74px)/1.1 var(--hand); display: inline-block; position: relative; }
-.s-note h2::after { content: ""; position: absolute; left: -4px; right: -8px; bottom: -6px; height: 7px; background: #d65858; border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; transform: scaleX(0) rotate(-.6deg); transform-origin: left; transition: transform .8s .5s ease; }
-.s-note.on h2::after { transform: scaleX(1) rotate(-.6deg); }
-.s-note .lede { font-size: 23px; margin-top: 24px; max-width: 44ch; line-height: 1.5; }
-.s-note .cols { display: grid; grid-template-columns: 1.15fr .85fr; gap: 44px; margin-top: 30px; align-items: start; }
-@media (max-width: 860px) { .s-note .cols { grid-template-columns: 1fr; } }
-.hrow { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; margin-bottom: 14px; font-size: 21px; line-height: 1.2; }
-.hbar { display: grid; grid-template-columns: 1fr 62px; align-items: center; gap: 10px; height: 20px; }
-.hbar u { display: block; height: 13px; width: calc(var(--v) / 70 * 100%); background: var(--c); border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; transform: scaleX(0) rotate(var(--tilt, -.5deg)); transform-origin: left; transition: transform 1s cubic-bezier(.3,.8,.3,1); transition-delay: calc(var(--i) * 140ms + 600ms); opacity: .88; }
-.on .hbar u { transform: scaleX(1) rotate(var(--tilt, -.5deg)); }
-.hbar span { font-size: 19px; }
-.key { display: flex; gap: 20px; font-size: 20px; margin: 4px 0 0 162px; flex-wrap: wrap; }
-.key i { display: inline-block; width: 26px; height: 10px; border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; margin-right: 6px; }
-@media (max-width: 560px) { .hrow { grid-template-columns: 1fr; gap: 2px; } .key { margin-left: 0; } }
-.memo { font-size: 20px; line-height: 1.45; margin-top: 18px; color: #55525f; max-width: 46ch; }
-.xlist { list-style: none; margin: 0; padding: 0; font-size: 22px; line-height: 1.35; }
-.xlist li { margin-bottom: 20px; }
-.xlist b { position: relative; font-size: 28px; display: inline-block; }
-.xlist b::after { content: ""; position: absolute; left: -6px; right: -6px; top: 52%; height: 4px; background: #d65858; border-radius: 4px; transform: scaleX(0) rotate(-2deg); transform-origin: left; transition: transform .5s ease; transition-delay: calc(var(--i) * 350ms + 1.4s); }
-.on .xlist b::after { transform: scaleX(1) rotate(-2deg); }
-.xlist span { display: block; color: #55525f; }
-.xlist-h { font: 700 26px var(--hand); margin-bottom: 14px; }
+/* numbers */
+.cols { display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; margin-top: 44px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: 1fr; gap: 40px; } }
+.row-h { margin-bottom: 20px; }
+.row-h .lab { font-size: 14.5px; color: var(--ink-2); margin-bottom: 6px; }
+.bar-l { display: grid; grid-template-columns: 1fr 56px; gap: 10px; align-items: center; font: 500 12.5px var(--mono); margin-bottom: 5px; }
+.btrack { height: 12px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+.fill { height: 100%; border-radius: 6px; width: calc(var(--v) / 70 * 100%); transform: scaleX(0); transform-origin: left; transition: transform 1.2s cubic-bezier(.2,.7,.2,1); transition-delay: calc(var(--i) * 90ms + 300ms); }
+.on .fill { transform: none; }
+.fill.t { background: #C9B8F5; } .fill.s { background: var(--mint); }
+.legend { display: flex; gap: 18px; font: 500 12px var(--mono); color: var(--ink-2); margin-top: 6px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+.note { font-size: 14px; color: var(--ink-3); margin-top: 18px; }
+.dropped h3 { font: 700 22px var(--serif); margin-bottom: 8px; }
+.dropped div { padding: 16px 0; border-top: 1px solid var(--line); }
+.dropped b { font: 700 18px var(--serif); }
+.dropped b s { text-decoration-color: #C9B8F5; text-decoration-thickness: 2px; }
+.dropped p { color: var(--ink-2); font-size: 14.5px; margin-top: 2px; }
 
-/* ───── 06 install: calm ───── */
-.s-get { background: #F5F3F8; color: #241D2E; min-height: auto; padding: 100px 0 0; display: block; }
-.s-get .chap { color: var(--violet); }
-.s-get h2 { font: 700 clamp(28px, 4.4vw, 42px)/1.25 var(--serif); }
-.s-get .lede { color: #5C536B; max-width: 60ch; margin-top: 14px; }
-ol.steps { list-style: none; padding: 0; margin: 34px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: s; }
-ol.steps li { counter-increment: s; background: #fff; border: 1px solid #DDD6E8; border-radius: 20px; padding: 22px; font-size: 14.5px; color: #5C536B; }
-ol.steps li::before { content: counter(s, decimal-leading-zero); font: 500 12px var(--mono); color: var(--violet); display: block; margin-bottom: 10px; }
-ol.steps b { color: #241D2E; display: block; margin-bottom: 4px; font-size: 16px; }
+/* install */
+ol.steps { list-style: none; padding: 0; margin: 40px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: s; }
+ol.steps li { counter-increment: s; background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 24px; font-size: 14.5px; color: var(--ink-2); }
+ol.steps li::before { content: counter(s, decimal-leading-zero); font: 500 12px var(--mono); color: var(--violet); display: block; margin-bottom: 12px; }
+ol.steps b { color: var(--ink); display: block; margin-bottom: 4px; font: 700 19px var(--serif); }
 ol.steps a, .fork a { color: var(--violet); }
-.big { display: inline-flex; margin-top: 30px; padding: 16px 28px; border-radius: 999px; background: var(--violet); color: #fff; font-weight: 700; text-decoration: none; font-size: 17px; }
-.big:hover { background: var(--violet-deep); }
-.tbl { overflow-x: auto; margin-top: 26px; border: 1px solid #DDD6E8; border-radius: 18px; background: #fff; }
+.tbl { overflow-x: auto; margin-top: 30px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); }
 table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 560px; }
-th, td { text-align: left; padding: 13px 18px; border-bottom: 1px solid #DDD6E8; }
-th { font: 500 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #8A8198; }
+th, td { text-align: left; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+th { font: 500 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 tr:last-child td { border-bottom: 0; }
-td .tag { font: 500 10.5px var(--mono); background: #ECE8F3; padding: 2px 7px; border-radius: 6px; margin-right: 8px; color: var(--violet); }
-td.dim { color: #5C536B; }
-.sub2 { margin-top: 72px; }
-.fork { margin-top: 44px; padding: 24px; border-radius: 20px; background: #ECE8F3; font-size: 15px; color: #5C536B; }
-.fork b { color: #241D2E; }
-footer { margin-top: 64px; padding: 30px 0 48px; color: #8A8198; font-size: 13.5px; border-top: 1px solid #DDD6E8; }
+td .tag { font: 500 10.5px var(--mono); background: var(--soft); padding: 2px 7px; border-radius: 6px; margin-right: 8px; color: var(--violet); }
+td.dim { color: var(--ink-2); }
+.sub2 { margin-top: 90px; }
+.fork { margin-top: 56px; padding: 28px; border-radius: 26px; background: var(--soft); font-size: 15px; color: var(--ink-2); }
+.fork b { color: var(--ink); }
+footer { margin-top: 72px; padding: 30px 0 48px; color: var(--ink-3); font-size: 13.5px; border-top: 1px solid var(--line); }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 26px; justify-content: space-between; }
-footer a { color: #5C536B; }
+footer a { color: var(--ink-2); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   html { scroll-behavior: auto; }
-  .r, .cube, .slab, .nocloud { opacity: 1 !important; transform: none !important; }
-  .s-title h1 i, .strip i, .s-title .mk .bar { transform: none !important; }
-  .s-title .mk .shell { stroke-dashoffset: 0; }
-  .hbar u, .s-note h2::after, .xlist b::after { transform: none !important; }
+  .r { opacity: 1 !important; transform: none !important; }
+  .hero h1 i, .strip i, .fill { transform: none !important; }
 }
 </style>
 </head>
 <body>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="cube" viewBox="0 0 100 112">
-    <polygon points="50,0 100,26 50,52 0,26" style="fill:var(--t)"/>
-    <polygon points="0,26 50,52 50,112 0,86" style="fill:var(--l)"/>
-    <polygon points="100,26 50,52 50,112 100,86" style="fill:var(--rr)"/>
-  </symbol>
-</svg>
-
 <nav aria-label="주 메뉴">
   <a class="brand" href="#top">
-    <svg viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"><path d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/><path d="M38 40V50M50 35V55M62 40V50"/></svg>
+    <svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="24" fill="#3B2F4A"/><g fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/><path d="M38 40V50M50 35V55M62 40V50"/></g></svg>
     속삭
   </a>
   <a class="link hide" href="#bubble">버블</a>
+  <a class="link hide" href="#quiet">조용히</a>
   <a class="link hide" href="#numbers">숫자</a>
   <a class="link" href="https://github.com/KyongSik-Yoon/soksak">GitHub</a>
   <a class="get" href="#install">설치</a>
 </nav>
-<div class="dots" id="dots" aria-hidden="true"></div>
 
-<!-- 00 -->
-<header class="scene s-title" id="top" data-name="처음">
+<header class="hero sec" id="top">
   <div class="wrap">
-    <svg class="mk" viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-      <path class="shell" d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/>
-      <path class="bar" d="M38 40V50"/><path class="bar" d="M50 35V55"/><path class="bar" d="M62 40V50"/>
-    </svg>
+    <p class="eyebrow r">Android · 한국어 받아쓰기 · 온디바이스</p>
     <h1><span><i>말하면,</i></span><span><i>글이 됩니다.</i></span></h1>
-    <p class="sub r" style="--i:8">속삭은 한국어로 말한 것을 지금 쓰던 입력창에 넣어 주는 Android 받아쓰기 앱입니다. 소리는 폰 밖으로 나가지 않습니다.</p>
-    <div class="cta r" style="--i:10">
+    <p class="lede r" style="--i:6">속삭은 말한 것을 지금 쓰던 입력창에 넣어 주는 받아쓰기 앱입니다. 속삭이듯 말해도 되고, 소리는 폰 밖으로 나가지 않습니다.</p>
+    <div class="cta r" style="--i:8">
       <a class="btn primary" href="https://github.com/KyongSik-Yoon/soksak/releases/latest">최신 APK 받기</a>
       <a class="btn ghost" href="https://github.com/KyongSik-Yoon/soksak">소스 보기</a>
     </div>
+    <p class="avail r" style="--i:9">Android 전용 · 무료 · MIT</p>
   </div>
-  <span class="down" aria-hidden="true"></span>
+  <svg class="flow r" style="--i:10" viewBox="0 0 1200 220" preserveAspectRatio="xMidYMid slice" role="img" aria-label="왼쪽에서 들어온 소리가 속삭 마크를 지나 오른쪽으로 글이 되어 나온다">
+    <path class="wave b" id="waveB"/><path class="wave" id="waveA"/>
+    <path class="ribbon" id="rib" d="M600 110 C 760 110, 860 178, 1010 128 S 1200 70 1290 60"/>
+    <text dominant-baseline="central"><textPath href="#rib" id="flowText" startOffset="60"></textPath></text>
+    <rect x="552" y="62" width="96" height="96" rx="28" fill="#3B2F4A" stroke="#F5F3F8" stroke-width="6"/>
+    <g transform="translate(565 75) scale(.7)" fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/>
+      <path class="bar" d="M38 40V50"/><path class="bar" d="M50 35V55"/><path class="bar" d="M62 40V50"/>
+    </g>
+  </svg>
+  <div class="flow-cap"><span>소리</span><span>글</span></div>
 </header>
 
-<!-- 01 -->
-<section class="scene s-bubble" id="bubble" data-name="버블">
-  <div class="cube wide c-v" style="--i:0;--s:84px;left:4%;top:12%"><svg viewBox="0 0 100 112"><use href="#cube"/></svg></div>
-  <div class="cube wide c-t" style="--i:2;--s:46px;left:38%;top:9%"><svg viewBox="0 0 100 112"><use href="#cube"/></svg></div>
-  <div class="cube c-y" style="--i:4;--s:38px;left:9%;bottom:9%"><svg viewBox="0 0 100 112"><use href="#cube"/></svg></div>
-  <div class="cube wide c-p" style="--i:1;--s:64px;right:5%;top:14%"><svg viewBox="0 0 100 112"><use href="#cube"/></svg></div>
-  <div class="cube wide c-v" style="--i:3;--s:40px;right:30%;bottom:6%"><svg viewBox="0 0 100 112"><use href="#cube"/></svg></div>
-  <div class="cube c-t" style="--i:5;--s:58px;right:3%;bottom:16%"><svg viewBox="0 0 100 112"><use href="#cube"/></svg></div>
-  <div class="wrap">
-    <div class="txt">
-      <p class="chap r">01 버블</p>
-      <h2 class="r" style="--i:1">아무 앱에서나,<br><em>버블 하나.</em></h2>
-      <p class="r" style="--i:2">키보드를 바꾸지 않습니다. 화면 가장자리에 떠 있는 버블을 누르고 말하면, 쓰던 앱의 커서 자리에 글이 들어갑니다.</p>
-      <ul class="r" style="--i:3">
-        <li><b>TAP</b>누르면 받아쓰기, 말이 멈추면 알아서 끝</li>
-        <li><b>FLICK</b>위로 휙 밀면 모델 메뉴</li>
-        <li><b>KEEP</b>대상 앱의 포커스와 키보드는 그대로</li>
+<section class="sheet dark sec" id="bubble">
+  <div class="wrap two">
+    <div>
+      <p class="eyebrow r">버블</p>
+      <h2 class="r" style="--i:1">쓰던 앱 그대로,<br><em>버블 하나.</em></h2>
+      <p class="lede r" style="--i:2">키보드를 바꾸지 않습니다. 화면 가장자리에 떠 있는 버블을 누르고 말하면, 쓰던 앱의 커서 자리에 글이 들어갑니다.</p>
+      <ul class="points r" style="--i:3">
+        <li><b>누르고 말하기</b>말이 멈추면 알아서 끝내고 글을 넣습니다.</li>
+        <li><b>위로 휙 밀기</b>모델 메뉴가 버블 옆에 뜹니다.</li>
+        <li><b>포커스는 그대로</b>화면을 띄우지 않아 대상 앱의 커서와 키보드가 남습니다.</li>
+        <li><b>단어장</b>"클로드 코드"를 <code>Claude Code</code>로. 조사와 어미가 붙어도 찾아 바꿉니다.</li>
       </ul>
     </div>
     <div class="stage r" style="--i:2">
@@ -319,7 +284,7 @@ footer a { color: #5C536B; }
           <div class="field" id="field"><span class="ph">메시지 입력…</span></div>
           <div class="bubble-dock">
             <div class="menu" id="menu" role="menu" aria-label="모델 고르기">
-              <button role="menuitemcheckbox" id="quiet" aria-checked="false"><span class="k">☾</span>조용히 말하기</button>
+              <button role="menuitemcheckbox" id="quietBtn" aria-checked="false"><span class="k">☾</span>조용히 말하기</button>
               <hr>
               <button role="menuitemradio" data-m="SA" aria-checked="true"><span class="k">SA</span>Small ACFT</button>
               <button role="menuitemradio" data-m="T" aria-checked="false"><span class="k">T</span>Large v3 Turbo</button>
@@ -342,86 +307,96 @@ footer a { color: #5C536B; }
   </div>
 </section>
 
-<!-- 02 -->
-<section class="scene s-arcade" id="stream" data-name="말하는 동안 변환">
+<section class="sheet light sec center" id="stream">
   <div class="wrap">
-    <p class="chap r">02 말하는 동안 변환</p>
-    <h2 class="r" style="--i:1">다 말할 때까지<br>기다리지 않습니다.</h2>
-    <div class="cab r" style="--i:2"><canvas id="race" width="480" height="270" role="img" aria-label="두 방식의 경주. 통째로 변환은 말이 끝난 뒤 약 20초를 기다리고, 말하는 동안 변환은 약 3초 만에 끝난다."></canvas></div>
-    <div class="cap r" style="--i:3">
-      <p><b class="p1">1P 통째로 변환</b>말이 끝난 뒤에야 처음부터 풉니다. 30초쯤 말하면 약 20초를 기다렸습니다.</p>
-      <p><b>2P 말하는 동안 변환</b>말이 0.5초 쉴 때마다 그 조각을 먼저 풉니다. 멈춘 뒤에는 꼬리만 남아 약 3초.</p>
-      <p><b>보너스</b>쉼이 많은 긴 말에서 통째 변환이 문장을 빠뜨리던 문제도 줄었습니다(오류율 45% → 14%).</p>
+    <p class="eyebrow r">말하는 동안 변환</p>
+    <h2 class="r" style="--i:1">다 말할 때까지<br><em>기다리지 않습니다.</em></h2>
+    <p class="lede r" style="--i:2">말이 0.5초 쉴 때마다 그 조각을 먼저 글로 풉니다. 말을 멈췄을 때는 마지막 조각만 남습니다.</p>
+    <div class="race r" style="--i:3" role="img" aria-label="30초 말했을 때 통째로 변환은 약 20초, 말하는 동안 변환은 약 3초를 기다린다">
+      <div class="lane a">
+        <div class="lane-h"><div><b>통째로 변환</b> <span>말이 끝난 뒤 처음부터</span></div><span class="wait" id="waitA">말하는 중</span></div>
+        <div class="track" id="trackA"></div>
+      </div>
+      <div class="lane b">
+        <div class="lane-h"><div><b>말하는 동안 변환</b> <span>속삭의 기본</span></div><span class="wait" id="waitB">말하는 중</span></div>
+        <div class="track" id="trackB"></div>
+        <div class="race-note"><span>0초</span><span>30초 동안 말함</span></div>
+      </div>
+    </div>
+    <div class="facts r" style="--i:4">
+      <div class="fact"><b>약 20초 → 3초</b>말을 멈춘 뒤 글이 들어오기까지 기다리는 시간.</div>
+      <div class="fact"><b>45% → 14%</b>쉼이 많은 긴 말에서 문장이 통째로 빠지던 오류율.</div>
+      <div class="fact"><b>CPU · NPU 공통</b>어느 모델을 골라도 같은 방식으로 동작합니다.</div>
     </div>
   </div>
 </section>
 
-<!-- 03 -->
-<section class="scene s-night" id="quiet" data-name="조용히 말하기">
+<section class="sheet night sec center" id="quiet">
   <span class="moon" aria-hidden="true"></span>
   <div class="wrap">
-    <p class="chap r">03 조용히 말하기</p>
-    <h2 class="r" style="--i:1">속삭여도,<br>받아씁니다.<small>옆 사람이 일하는 자리에서도 쓸 수 있게, 작은 소리를 침묵으로 치지 않습니다.</small></h2>
-    <div class="strip r" id="strip" style="--i:2" aria-hidden="true"><span class="cut"></span></div>
-    <div class="labels r" style="--i:3"><span>평소 목소리</span><span>속삭임 · 보통은 점선 아래를 침묵으로 보고 끊습니다</span></div>
-    <div class="heard r" style="--i:4"><span class="q">SA</span><span>회의 중이라 조용히 말할게. 이 버그 원인만 찾아 줘.</span></div>
-    <p class="foot r" style="--i:5">켜 두면 버블 배지가 청록색으로 바뀌고, 속삭임을 잘 듣는 모델로 자동 전환합니다.</p>
+    <p class="eyebrow r">조용히 말하기</p>
+    <h2 class="r" style="--i:1">속삭여도,<br><em>받아씁니다.</em></h2>
+    <p class="lede r" style="--i:2">이름이 속삭인 이유입니다. 옆 사람이 일하는 자리에서도 쓸 수 있게, 작은 소리를 침묵으로 치지 않습니다.</p>
+    <div class="strip r" id="strip" style="--i:3" aria-hidden="true"><span class="cut"></span></div>
+    <div class="labels r" style="--i:4"><span>평소 목소리</span><span>속삭임 · 보통은 점선 아래를 침묵으로 보고 끊습니다</span></div>
+    <div class="heard r" style="--i:5"><span class="q">SA</span><span>회의 중이라 조용히 말할게. 이 버그 원인만 찾아 줘.</span></div>
+    <p class="lede r" style="--i:6;font-size:14.5px">켜 두면 버블 배지가 청록색으로 바뀌고, 속삭임을 잘 듣는 모델로 자동 전환합니다.</p>
   </div>
 </section>
 
-<!-- 04 -->
-<section class="scene s-stack" id="device" data-name="기기 안에서">
+<section class="sheet soft sec center" id="device">
   <div class="wrap">
-    <div>
-      <p class="chap r">04 기기 안에서</p>
-      <h2 class="r" style="--i:1">소리부터 글까지,<br><em>전부 폰 안.</em></h2>
-      <p class="r" style="--i:2">음성 인식 모델(Whisper)이 폰에서 직접 돕니다. 서버도 계정도 없어서, 모델을 한 번 받은 뒤에는 비행기 모드에서도 받아씁니다.</p>
-      <div class="chips r" style="--i:3"><span>Snapdragon 8 Elite Gen 5 → NPU</span><span>그 밖의 폰 → CPU</span><span>MIT</span></div>
+    <p class="eyebrow r">기기 안에서</p>
+    <h2 class="r" style="--i:1">소리부터 글까지,<br><em>전부 폰 안.</em></h2>
+    <p class="lede r" style="--i:2">음성 인식 모델(Whisper)이 폰에서 직접 돕니다. 모델을 한 번 받은 뒤에는 비행기 모드에서도 받아씁니다.</p>
+    <div class="device r" style="--i:3">
+      <div class="pipe">
+        <div class="step"><b>소리</b>마이크로 들어온 말. 서버로 보내지 않습니다.</div>
+        <div class="step"><b>Whisper</b>Snapdragon 8 Elite Gen 5는 NPU, 그 밖의 폰은 CPU.</div>
+        <div class="step"><b>단어장</b>이름과 개발 용어를 가르친 대로 고칩니다.</div>
+        <div class="step"><b>글</b>쓰던 앱의 입력창으로 들어갑니다.</div>
+      </div>
     </div>
-    <svg id="stack" viewBox="0 0 470 430" role="img" aria-label="폰 안에 쌓인 네 층: 마이크 소리, Whisper, 단어장 교정, 입력창의 글. 서버는 없음."></svg>
+    <p class="outside r" style="--i:4"><span><s>서버</s></span><span><s>계정</s></span><span><s>로그인</s></span><span><s>업로드</s></span></p>
   </div>
 </section>
 
-<!-- 05 -->
-<section class="scene s-note" id="numbers" data-name="숫자">
+<section class="sheet dark sec" id="numbers">
   <div class="wrap">
-    <p class="chap r">05 숫자</p>
-    <h2 class="r" style="--i:1">잘 안 되는 조건도 적습니다</h2>
-    <p class="lede r" style="--i:2">글자 오류율입니다. 짧을수록 좋아요. 같은 문장에 카페 소음을 섞거나 소리를 아주 작게 줄여서 쟀습니다.</p>
+    <p class="eyebrow r">숫자</p>
+    <h2 class="r" style="--i:1">잘 안 되는 조건도<br><em>같이 적습니다.</em></h2>
+    <p class="lede r" style="--i:2">글자 오류율입니다. 낮을수록 좋습니다. 같은 문장에 카페 소음을 섞거나 소리를 아주 작게 줄여서 쟀습니다.</p>
     <div class="cols">
       <div class="r" style="--i:3">
-        <div id="hchart"></div>
-        <div class="key"><span><i style="background:#6E56A8"></i>Large v3 Turbo</span><span><i style="background:#2F8C85"></i>Small ACFT (기본)</span></div>
-        <p class="memo">소음이 말소리만큼 크면 어느 모델이든 절반 넘게 틀립니다. Small ACFT는 Turbo의 1/5 시간에 끝나요. 낭독 문장에서는 Turbo 3.3%, Small ACFT 5.7%인데, 개발 용어가 섞인 말은 이 숫자에 안 들어 있습니다.</p>
+        <div id="chart"></div>
+        <div class="legend"><span><i style="background:#C9B8F5"></i>Large v3 Turbo</span><span><i style="background:#7FD0C8"></i>Small ACFT (기본, Turbo의 1/5 시간)</span></div>
+        <p class="note">소음이 말소리만큼 크면 어느 모델이든 절반 넘게 틀립니다. 낭독 문장에서는 Turbo 3.3%, Small ACFT 5.7%이고, 개발 용어가 섞인 말은 이 숫자에 반영되지 않습니다.</p>
       </div>
-      <div class="r" style="--i:4">
-        <p class="xlist-h">해 보고 뺀 것</p>
-        <ul class="xlist">
-          <li><b style="--i:0">GPU 가속</b><span>Vulkan, OpenCL 둘 다 붙여 봤는데 CPU보다 느리고 뜨거웠어요.</span></li>
-          <li><b style="--i:1">Moonshine 모델</b><span>빠르지만 소음에 약했어요. 0dB에서 97.5%가 틀림.</span></li>
-          <li><b style="--i:2">LLM 다듬기</b><span>영어에 맞춘 후처리가 한국어 문장을 오히려 망가뜨렸어요.</span></li>
-        </ul>
+      <div class="dropped r" style="--i:4">
+        <h3>해 보고 뺀 것</h3>
+        <div><b><s>GPU 가속</s></b><p>Vulkan과 OpenCL을 둘 다 붙여 봤습니다. CPU보다 느리고 뜨거웠습니다.</p></div>
+        <div><b><s>Moonshine 모델</s></b><p>빠르지만 소음에 약했습니다. 0dB에서 97.5%가 틀렸습니다.</p></div>
+        <div><b><s>LLM 다듬기</s></b><p>영어에 맞춘 후처리가 한국어 문장을 오히려 망가뜨렸습니다.</p></div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- 06 -->
-<section class="scene s-get" id="install" data-name="설치">
+<section class="sheet light last sec" id="install">
   <div class="wrap">
-    <p class="chap">설치</p>
-    <h2>스토어에는 없습니다.<br>APK를 직접 받습니다.</h2>
-    <p class="lede">개인용으로 만든 앱이라 Play 스토어에 올리지 않았습니다. GitHub Release의 APK를 받아 설치합니다.</p>
-    <ol class="steps">
+    <p class="eyebrow r">설치</p>
+    <h2 class="r" style="--i:1">스토어에는 없습니다.<br><em>APK를 직접 받습니다.</em></h2>
+    <p class="lede r" style="--i:2">개인용으로 만든 앱이라 Play 스토어에 올리지 않았습니다. GitHub Release의 APK를 받아 설치합니다.</p>
+    <ol class="steps r" style="--i:3">
       <li><b>APK 받기</b><a href="https://github.com/KyongSik-Yoon/soksak/releases/latest">최신 Release</a>에서 <code>soksak-dev-N.apk</code>를 받아 엽니다. 출처를 알 수 없는 앱 설치를 허용해야 합니다.</li>
       <li><b>권한 주기</b>마이크, 다른 앱 위에 표시, 접근성 서비스. 접근성은 글을 입력창에 넣는 데만 씁니다.</li>
       <li><b>모델 기다리기</b>안내를 따라가는 동안 음성 모델을 받습니다. 그 뒤로는 인터넷 없이 동작합니다.</li>
       <li><b>말하기</b>아무 입력창에서 버블을 누르고 말합니다. 새 빌드가 나오면 앱이 알려 줍니다.</li>
     </ol>
-    <a class="big" href="https://github.com/KyongSik-Yoon/soksak/releases/latest">최신 APK 받기</a>
+    <div class="cta" style="justify-content:flex-start"><a class="btn primary" href="https://github.com/KyongSik-Yoon/soksak/releases/latest">최신 APK 받기</a></div>
 
     <div class="sub2">
-      <p class="chap">모델</p>
+      <p class="eyebrow">모델</p>
       <h2>네 가지 Whisper.</h2>
       <p class="lede">처음에는 Small ACFT 하나만 받습니다. 나머지는 설정에서 고를 때 내려받고, 버블을 위로 밀어 바로 바꿉니다. 단어장과 설정은 파일 하나로 백업하고 복원할 수 있습니다.</p>
       <div class="tbl">
@@ -445,7 +420,7 @@ footer a { color: #5C536B; }
   <footer>
     <div class="wrap">
       <span>MIT · © OpenWispr contributors, Soksak contributors</span>
-      <span><a href="https://github.com/KyongSik-Yoon/soksak/blob/main/android/app/src/main/assets/third_party_notices.txt">오픈소스 고지</a> · <a href="https://github.com/KyongSik-Yoon/soksak/issues">문제 알리기</a> · <a href="classic.html">이전 페이지</a></span>
+      <span><a href="https://github.com/KyongSik-Yoon/soksak/blob/main/android/app/src/main/assets/third_party_notices.txt">오픈소스 고지</a> · <a href="https://github.com/KyongSik-Yoon/soksak/issues">문제 알리기</a> · 이전 페이지 <a href="scenes.html">장면판</a> <a href="classic.html">첫 버전</a></span>
       <span>이 페이지는 Claude가 만들었습니다.</span>
     </div>
   </footer>
@@ -455,24 +430,43 @@ footer a { color: #5C536B; }
 (() => {
   const $ = id => document.getElementById(id);
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const scenes = [...document.querySelectorAll('.scene')];
-
-  // ── scenes switch on as they come into view; dots follow ──
-  const dots = $('dots');
-  scenes.forEach(s => dots.insertAdjacentHTML('beforeend', `<a href="#${s.id}" title="${s.dataset.name}"></a>`));
-  const visible = new Set();
+  const secs = [...document.querySelectorAll('.sec')];
+  const seen = new Set();
   const io = new IntersectionObserver(es => es.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('on'); visible.add(e.target.id); } else visible.delete(e.target.id);
-    const cur = scenes.find(s => { const r = s.getBoundingClientRect(); return r.top <= innerHeight / 2 && r.bottom > innerHeight / 2; });
-    [...dots.children].forEach((d, i) => d.classList.toggle('cur', scenes[i] === cur));
+    if (e.isIntersecting) { e.target.classList.add('on'); seen.add(e.target.id); } else seen.delete(e.target.id);
     e.target.dispatchEvent(new CustomEvent(e.isIntersecting ? 'enter' : 'leave'));
-  }), { threshold: [0, .3, .6] });
-  scenes.forEach(s => io.observe(s));
-  if (still) scenes.forEach(s => s.classList.add('on'));
+  }), { threshold: .18 });
+  secs.forEach(s => io.observe(s));
+  if (still) secs.forEach(s => s.classList.add('on'));
 
-  // ── 01 bubble demo ──
+  // ── hero: a sound wave runs into the mark, text runs out of it ──
+  const waveA = $('waveA'), waveB = $('waveB'), flowText = $('flowText');
+  const said = ['이 PR에서 flaky한 테스트부터 고치고, CI 다시 돌려 줘.', '회의 중이라 조용히 말할게.', 'README 맨 위에 포크라는 걸 밝혀 줘.', '방금 바꾼 설정이 백업에도 들어가는지 확인해 줘.'];
+  const unit = said.join('    ·    ') + '    ·    ';
+  flowText.textContent = unit.repeat(3);
+  let unitLen = 0;
+  const wave = (ph, k, amp) => {
+    let d = '';
+    for (let x = -20; x <= 552; x += 6) {
+      const u = x / 552, base = 110 + 44 * Math.cos(u * Math.PI / 2) * Math.cos(u * 2.2);
+      const env = amp * (.3 + .7 * Math.abs(Math.sin(x * .012 - ph * .5))) * Math.min(1, (556 - x) / 150);
+      d += (d ? 'L' : 'M') + x + ' ' + (base + env * Math.sin(x * k - ph * 3)).toFixed(1);
+    }
+    return d;
+  };
+  function hero(now) {
+    const t = now / 1000;
+    waveA.setAttribute('d', wave(t, .085, 30)); waveB.setAttribute('d', wave(t * .8 + 2, .05, 40));
+    if (!unitLen) unitLen = flowText.getComputedTextLength() / 3;
+    if (unitLen) flowText.setAttribute('startOffset', (60 - unitLen + (t * 46) % unitLen).toFixed(1));
+    if (!still && seen.has('top')) requestAnimationFrame(hero);
+  }
+  $('top').addEventListener('enter', () => requestAnimationFrame(hero));
+  document.fonts?.ready.then(() => { unitLen = 0; requestAnimationFrame(hero); });
+
+  // ── bubble demo ──
   const bubble = $('bubbleBtn'), field = $('field'), status = $('status'), chat = $('chat'),
-        badge = $('badge'), menu = $('menu'), quietBtn = $('quiet');
+        badge = $('badge'), menu = $('menu'), quietBtn = $('quietBtn');
   const bars = [...bubble.querySelectorAll('.bar')];
   const lines = [
     ['이 PR에서 flaky한 테스트부터 고치고,', 'CI 다시 돌려 줘.'],
@@ -486,13 +480,13 @@ footer a { color: #5C536B; }
   const later = (ms, f) => timers.push(setTimeout(f, ms));
   const clear = () => { timers.forEach(clearTimeout); timers = []; };
   const set = s => { state = s; bubble.dataset.state = s; };
-  function wave() {
+  function pulse() {
     const t = performance.now() / 1000, amp = quiet ? .45 : 1;
     bars.forEach((b, i) => {
       const v = .55 + amp * (.5 * Math.sin(t * 9 + i * 1.7) + .35 * Math.sin(t * 15.3 + i * 4.1));
       b.style.transform = `scaleY(${Math.max(.3, Math.min(1.8, v)).toFixed(2)})`;
     });
-    raf = requestAnimationFrame(wave);
+    raf = requestAnimationFrame(pulse);
   }
   const calm = () => { cancelAnimationFrame(raf); bars.forEach(b => b.style.transform = ''); };
   function put(text) {
@@ -504,7 +498,7 @@ footer a { color: #5C536B; }
     const [a, b] = lines[n++ % lines.length], k = speed[model];
     let first = false;
     field.innerHTML = '<span class="caret"></span>'; field.classList.add('live');
-    set('rec'); wave(); say(quiet ? '듣는 중 · 조용히 말하기' : '듣는 중…');
+    set('rec'); pulse(); say(quiet ? '듣는 중 · 조용히 말하기' : '듣는 중…');
     const finish = () => {
       clear(); calm(); set('work'); stopNow = null; say('남은 부분 변환 중…');
       later((first ? 500 : 1100) * k, () => {
@@ -559,107 +553,65 @@ footer a { color: #5C536B; }
     say(b === quietBtn ? (quiet ? '조용히 말하기 켬 · 배지가 청록색' : '조용히 말하기 끔') : `모델: ${name}`);
   });
   document.addEventListener('pointerdown', e => { if (!e.target.closest('.bubble-dock')) closeMenu(); });
-  // Play once by itself the first time the scene is reached.
   let played = false;
   $('bubble').addEventListener('enter', () => { if (!played && !still) { played = true; later(1200, () => state === 'idle' && start()); } });
 
-  // ── 02 arcade race: whole-take decode vs decode-while-talking ──
-  const cv = $('race'), g = cv.getContext('2d');
-  if (innerWidth < 600) cv.width = 320;            // fewer, larger pixels on a phone
-  const W = cv.width, H = cv.height;
-  cv.style.aspectRatio = `${W} / ${H}`;
-  const TALK = 30, A_WAIT = 20, B_WAIT = 3, END = TALK + A_WAIT + 5;   // sim seconds
-  const segs = [[0, 8.5], [9.2, 17.5], [18.3, 24], [24.8, 30]];        // speech between 0.5s+ pauses
-  const X0 = 22, X1 = W - 22, px = t => X0 + (X1 - X0) * t / TALK;
-  const starsBg = Array.from({ length: 46 }, (_, i) => [(i * 97) % W, (i * 53) % 86, i % 3]);
-  const amp = i => 3 + ((i * 7919) % 11);
-  let sparks = [], simT = 0, last = 0, running = false, doneB = false, doneA = false;
-  const text = (s, x, y, c, size = 12, align = 'left') => { g.font = `500 ${size}px "IBM Plex Mono", "Noto Sans KR", monospace`; g.textAlign = align; g.fillStyle = c; g.fillText(s, x, y); };
-  const burst = (x, y, c) => { for (let i = 0; i < 26; i++) sparks.push({ x, y, vx: (Math.random() - .5) * 150, vy: -Math.random() * 130, life: 1, c }); };
-  function lane(y, who, name, col, decoded, wait, done) {
-    text(who, X0, y - 34, col, 12); text(name, X0 + 26, y - 34, '#e9e6ff', 12);
-    g.fillStyle = '#1d1838'; g.fillRect(X0, y - 24, X1 - X0, 48);
-    const head = Math.min(simT, TALK);
-    for (let i = 0, x = X0 + 2; x < X1 - 2; i++, x += 4) {
-      const t = (x - X0) / (X1 - X0) * TALK;
-      if (t > head) break;
-      if (!segs.some(([a, b]) => t >= a && t <= b)) continue;
-      const h = amp(i); g.fillStyle = decoded(t) ? '#7FD0C8' : '#5b4f8f';
-      g.fillRect(x, y - h, 3, h * 2);
-    }
-    if (simT < TALK) { g.fillStyle = '#ffd84a'; g.fillRect(Math.round(px(head)), y - 24, 2, 48); }
-    const w = done ? `대기 ${wait}초` : simT > TALK ? `대기 ${Math.floor(simT - TALK)}초…` : '말하는 중';
-    text(w, X1, y - 34, done ? '#7FD0C8' : simT > TALK ? '#ff7a90' : '#8f88bd', 12, 'right');
-    if (done && Math.floor(simT * 3) % 2) text('CLEAR!', X1 - 4, y + 5, '#ffd84a', 16, 'right');
-  }
-  function frame(now) {
+  // ── race: decode the whole take afterwards vs decode each piece at its pause ──
+  const TALK = 30, A_WAIT = 20, B_WAIT = 3, END = TALK + A_WAIT + 7;
+  const segs = [[0, 8.5], [9.2, 17.5], [18.3, 24], [24.8, 30]];
+  const build = id => {
+    const el = $(id); let at = 0;
+    segs.forEach(([a, b]) => {
+      if (a > at) el.insertAdjacentHTML('beforeend', `<div class="gapx" style="flex:${a - at}"></div>`);
+      el.insertAdjacentHTML('beforeend', `<div class="seg" style="flex:${b - a}"><i class="rec"></i><i class="dec"></i></div>`);
+      at = b;
+    });
+    return [...el.querySelectorAll('.seg')];
+  };
+  const sA = build('trackA'), sB = build('trackB'), wA = $('waitA'), wB = $('waitB');
+  const c01 = v => Math.max(0, Math.min(1, v));
+  let simT = 0, last = 0, racing = false;
+  function race(now) {
     const dt = Math.min(.05, (now - last) / 1000 || 0); last = now;
-    if (!still) simT += dt * 5.5;
-    if (simT > END) { simT = 0; doneA = doneB = false; }
-    g.fillStyle = '#100d24'; g.fillRect(0, 0, W, H);
-    starsBg.forEach(([x, y, k]) => { g.fillStyle = (Math.floor(now / 400) + k) % 3 ? '#4c437a' : '#b9b0ff'; g.fillRect(x, y, 1, 1); });
-    text('STAGE 02', X0, 20, '#ffd84a', 13);
-    text(`TIME ${simT.toFixed(1).padStart(4, '0')}s`, X1, 20, '#e9e6ff', 13, 'right');
-    // 1P: nothing until the talking ends, then left to right over A_WAIT
-    const aProg = (simT - TALK) / A_WAIT;
-    lane(104, '1P', '통째로 변환', '#ff7a90', t => aProg > 0 && t / TALK <= aProg, A_WAIT, aProg >= 1);
-    // 2P: each piece decodes right after its pause; only the tail is left at the end
-    const ready = ([a, b], i) => simT >= (i === segs.length - 1 ? TALK + B_WAIT : b + .5 + (b - a) * .28);
-    lane(196, '2P', '말하는 동안 변환', '#7FD0C8', t => segs.some((s, i) => t >= s[0] && t <= s[1] && ready(s, i)), B_WAIT, simT >= TALK + B_WAIT);
-    segs.forEach((s, i) => { if (ready(s, i)) text(`조각${i + 1}✓`, (px(s[0]) + px(s[1])) / 2, 236, '#7FD0C8', 10, 'center'); });
-    if (!doneB && simT >= TALK + B_WAIT) { doneB = true; burst(X1 - 40, 190, '#7FD0C8'); }
-    if (!doneA && aProg >= 1) { doneA = true; burst(X1 - 40, 98, '#ff7a90'); }
-    sparks = sparks.filter(p => (p.life -= dt * 1.3) > 0);
-    sparks.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; g.fillStyle = p.c; g.fillRect(Math.round(p.x), Math.round(p.y), 2, 2); });
-    text('말이 쉴 때마다 그 조각을 먼저 풉니다', W / 2, 258, '#8f88bd', 11, 'center');
-    if (running) requestAnimationFrame(frame);
+    simT = still ? END - 1 : (simT + dt * 6) % END;
+    segs.forEach(([a, b], i) => {
+      const rec = c01((simT - a) / (b - a));
+      const decA = c01(((simT - TALK) / A_WAIT * TALK - a) / (b - a));
+      const lastSeg = i === segs.length - 1;
+      const decB = lastSeg ? c01((simT - TALK) / B_WAIT) : c01((simT - b - .5) / ((b - a) * .28));
+      sA[i].children[0].style.transform = sB[i].children[0].style.transform = `scaleX(${rec})`;
+      sA[i].children[1].style.transform = `scaleX(${decA})`;
+      sB[i].children[1].style.transform = `scaleX(${decB})`;
+    });
+    const label = (el, wait) => {
+      const done = simT >= TALK + wait;
+      el.textContent = simT < TALK ? '말하는 중' : done ? `${wait}초 대기` : `${Math.floor(simT - TALK)}초…`;
+      el.classList.toggle('done', done);
+    };
+    label(wA, A_WAIT); label(wB, B_WAIT);
+    if (racing && !still) requestAnimationFrame(race);
   }
-  const arcade = $('stream');
-  arcade.addEventListener('enter', () => { if (!running) { running = !still; last = performance.now(); if (still) simT = END - 1; requestAnimationFrame(frame); } });
-  arcade.addEventListener('leave', () => running = false);
-  document.fonts?.ready.then(() => { if (!running) requestAnimationFrame(frame); });
+  $('stream').addEventListener('enter', () => { if (!racing) { racing = true; last = performance.now(); requestAnimationFrame(race); } });
+  $('stream').addEventListener('leave', () => racing = false);
+  if (still) requestAnimationFrame(race);
 
-  // ── 03 night: stars and a take that drops from a normal voice to a whisper ──
+  // ── quiet: stars, and a take that drops from a normal voice to a whisper ──
   const night = $('quiet'), strip = $('strip');
   for (let i = 0; i < 70; i++) {
     const s = document.createElement('span'); s.className = 'star';
-    s.style.cssText = `left:${(i * 137.5) % 100}%;top:${(i * 61.8) % 62}%;animation-delay:${-(i % 9) / 3}s;opacity:${.35 + (i % 5) / 8}`;
+    s.style.cssText = `left:${(i * 137.5) % 100}%;top:${(i * 61.8) % 60}%;animation-delay:${-(i % 9) / 3}s;opacity:${.3 + (i % 5) / 9}`;
     night.prepend(s);
   }
   for (let i = 0; i < 64; i++) {
     const loud = i < 22, base = loud ? 42 + 50 * Math.abs(Math.sin(i * 1.9) * Math.cos(i * .7)) : 7 + 13 * Math.abs(Math.sin(i * 2.3));
-    const gap = !loud && i % 13 === 0;
-    strip.insertAdjacentHTML('beforeend', `<i class="${loud ? '' : 'w'}" style="--h:${gap ? 3 : base.toFixed(0)};--n:${i}"></i>`);
+    strip.insertAdjacentHTML('beforeend', `<i class="${loud ? '' : 'w'}" style="--h:${!loud && i % 13 === 0 ? 3 : base.toFixed(0)};--n:${i}"></i>`);
   }
 
-  // ── 04 stack: isometric slabs dropping into place ──
-  const stack = $('stack'), cx = 190, hw = 140, hd = 70, th = 30;
-  const layers = [
-    ['마이크 소리', '#6b5890', '#4B3A6B', '#3B2F4A'],
-    ['Whisper', '#A894DD', '#6E56A8', '#574289'],
-    ['단어장 교정', '#F4D58A', '#E0B24C', '#C4932C'],
-    ['입력창의 글', '#7FD0C8', '#2F8C85', '#23706a'],
-  ];
-  let svg = `<ellipse cx="${cx}" cy="372" rx="170" ry="34" fill="rgba(59,47,74,.14)"/>`;
-  layers.forEach(([label, t, l, r], i) => {
-    const y = 300 - i * 62;
-    svg += `<g class="slab" style="--i:${i}">
-      <polygon points="${cx - hw},${y} ${cx},${y + hd} ${cx},${y + hd + th} ${cx - hw},${y + th}" fill="${l}"/>
-      <polygon points="${cx + hw},${y} ${cx},${y + hd} ${cx},${y + hd + th} ${cx + hw},${y + th}" fill="${r}"/>
-      <polygon points="${cx},${y - hd} ${cx + hw},${y} ${cx},${y + hd} ${cx - hw},${y}" fill="${t}"/>
-      <line x1="${cx + hw + 4}" y1="${y + th / 2}" x2="${cx + hw + 22}" y2="${y + th / 2}" stroke="#2a2233" stroke-width="1.5"/>
-      <text x="${cx + hw + 28}" y="${y + th / 2 + 4}">${label}</text></g>`;
-  });
-  svg += `<g class="nocloud" transform="translate(338 20)" fill="none" stroke="#2a2233" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M18 44H62A14 14 0 0 0 62 16A20 20 0 0 0 24 12A16 16 0 0 0 18 44Z" fill="#fff"/>
-    <path d="M6 54L76 2" stroke="#d65858" stroke-width="4"/><text x="40" y="72" text-anchor="middle" stroke="none" fill="#2a2233" style="font:500 12px var(--mono)">서버 없음</text></g>`;
-  stack.innerHTML = svg;
-
-  // ── 05 notebook chart ──
-  const rows = [['깨끗한 소리', 12.0, 13.1], ['카페 소음 (10dB)', 15.2, 19.5], ['소음이 말만큼 (0dB)', 63.2, 56.4], ['아주 작은 소리', 12.7, 16.3]];
-  $('hchart').innerHTML = rows.map(([lab, a, b], i) => `<div class="hrow"><span>${lab}</span><div>
-    <div class="hbar"><u style="--v:${a};--c:#6E56A8;--i:${i * 2};--tilt:-.6deg"></u><span>${a.toFixed(1)}%</span></div>
-    <div class="hbar"><u style="--v:${b};--c:#2F8C85;--i:${i * 2 + 1};--tilt:.4deg"></u><span>${b.toFixed(1)}%</span></div></div></div>`).join('');
+  // ── numbers ──
+  const rows = [['깨끗한 소리', 12.0, 13.1], ['카페 소음 (10dB)', 15.2, 19.5], ['소음이 말만큼 클 때 (0dB)', 63.2, 56.4], ['아주 작은 소리', 12.7, 16.3]];
+  $('chart').innerHTML = rows.map(([lab, a, b], i) => `<div class="row-h"><div class="lab">${lab}</div>
+    <div class="bar-l"><div class="btrack"><div class="fill t" style="--v:${a};--i:${i * 2}"></div></div><span>${a.toFixed(1)}%</span></div>
+    <div class="bar-l"><div class="btrack"><div class="fill s" style="--v:${b};--i:${i * 2 + 1}"></div></div><span>${b.toFixed(1)}%</span></div></div>`).join('');
 })();
 </script>
 </body>
