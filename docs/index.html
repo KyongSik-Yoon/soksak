@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>속삭 (Soksak) — 말하면 글이 되는 Android 받아쓰기</title>
+<meta name="description" content="한국어로 말하면 지금 쓰는 앱의 입력창에 글로 넣어 주는 Android 받아쓰기 앱. 음성 인식은 전부 기기 안에서 돕니다.">
+<meta property="og:title" content="속삭 (Soksak)">
+<meta property="og:description" content="말하면 글이 됩니다. 소리는 폰 밖으로 나가지 않습니다.">
+<meta name="theme-color" content="#3B2F4A">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%233B2F4A'/%3E%3Cg fill='none' stroke='%23F7F5FB' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z'/%3E%3Cpath d='M38 40V50M50 35V55M62 40V50'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F5F3F8; --surface: #FFFFFF; --surface-2: #ECE8F3; --line: #DDD6E8;
+  --ink: #241D2E; --ink-2: #5C536B; --ink-3: #8A8198;
+  --violet: #6E56A8; --violet-deep: #574289; --lavender: #A894DD;
+  --plum: #3B2F4A; --dusk: #4B3A6B; --mark: #F7F5FB; --teal: #2F8C85;
+  --accent: var(--violet); --on-accent: #fff;
+  --serif: "Gowun Batang", "Noto Serif KR", "AppleMyungjo", serif;
+  --sans: "Mulish", system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1E1A26; --surface: #2A2434; --surface-2: #332B40; --line: #40374F;
+    --ink: #EEEAF5; --ink-2: #B9B0C8; --ink-3: #8D849C;
+    --accent: #BBA6EE; --on-accent: #2A1F45; --teal: #5FBDB5;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 var(--sans); -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: anywhere; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code, .mono { font-family: var(--mono); font-size: .9em; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+h1, h2 { font-family: var(--serif); font-weight: 700; letter-spacing: -.01em; line-height: 1.25; margin: 0; }
+h2 { font-size: clamp(26px, 4vw, 36px); }
+h3 { font-size: 17px; margin: 0 0 6px; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+.lede { color: var(--ink-2); max-width: 60ch; margin-top: 14px; }
+section { padding: 84px 0; }
+:focus-visible { outline: 2px solid var(--lavender); outline-offset: 3px; border-radius: 6px; }
+
+/* nav */
+nav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+nav .wrap { display: flex; align-items: center; gap: 22px; height: 58px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 19px var(--serif); color: var(--ink); text-decoration: none; margin-right: auto; }
+.brand svg { width: 30px; height: 30px; border-radius: 9px; }
+nav a.link { color: var(--ink-2); text-decoration: none; font-size: 14px; font-weight: 600; }
+nav a.link:hover { color: var(--ink); }
+@media (max-width: 640px) { nav a.link.hide { display: none; } }
+
+/* hero */
+.hero { padding: 56px 0 72px; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
+.hero h1 { font-size: clamp(38px, 6.4vw, 66px); }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero .sub { font-size: 18px; color: var(--ink-2); margin-top: 20px; max-width: 34ch; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; font-weight: 700; font-size: 15px; text-decoration: none; border: 1px solid transparent; cursor: pointer; font-family: inherit; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { border-color: var(--line); color: var(--ink); background: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 26px; font: 500 12.5px var(--mono); color: var(--ink-3); }
+.facts span::before { content: "·"; margin-right: 8px; color: var(--lavender); }
+@media (max-width: 860px) { .hero .wrap { grid-template-columns: 1fr; } .hero { padding-top: 36px; } }
+
+/* phone demo */
+.stage { position: relative; display: grid; justify-items: center; gap: 16px; }
+.phone { position: relative; width: min(330px, 100%); aspect-ratio: 9 / 17.5; border-radius: 40px; padding: 10px; background: linear-gradient(160deg, #57467a, #2c2338); box-shadow: 0 30px 70px -30px rgba(59, 47, 74, .65), inset 0 0 0 1px rgba(255,255,255,.08); }
+.screen { position: relative; height: 100%; border-radius: 31px; overflow: hidden; background: #fbfaf8; color: #26222b; display: flex; flex-direction: column; font-size: 13.5px; line-height: 1.55; }
+.appbar { padding: 14px 16px 10px; font-weight: 700; font-size: 13px; border-bottom: 1px solid #ece8e2; display: flex; justify-content: space-between; color: #4d4656; }
+.appbar small { font: 500 11px var(--mono); color: #9a93a3; }
+.chat { flex: 1; padding: 14px 14px 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; justify-content: flex-end; }
+.msg { max-width: 86%; padding: 9px 12px; border-radius: 14px; background: #f0ece6; animation: rise .35s ease both; }
+.msg.me { align-self: flex-end; background: #e8e1f6; }
+.msg .who { display: block; font: 500 10px var(--mono); color: #9a93a3; margin-bottom: 2px; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+.field { margin: 12px; padding: 11px 13px; min-height: 76px; border-radius: 16px; border: 1.5px solid #d9d2e6; background: #fff; position: relative; }
+.field.live { border-color: #8b74c9; box-shadow: 0 0 0 3px rgba(139,116,201,.15); }
+.field .ph { color: #a8a1b0; }
+.field .piece { animation: land .4s ease both; }
+@keyframes land { from { opacity: 0; filter: blur(3px); background: rgba(168,148,221,.35); } }
+.caret { display: inline-block; width: 1.5px; height: 1.1em; background: #6E56A8; vertical-align: -2px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.bubble-dock { position: absolute; right: 14px; bottom: 108px; display: grid; justify-items: center; }
+.bubble { width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer; background: linear-gradient(150deg, #7a62b6, #4B3A6B); box-shadow: 0 8px 20px -6px rgba(59,47,74,.7); display: grid; place-items: center; touch-action: none; transition: transform .2s ease; position: relative; }
+.bubble:hover { transform: scale(1.05); }
+.bubble svg { width: 34px; height: 34px; }
+.bubble .bar { transform-box: fill-box; transform-origin: center; }
+.bubble[data-state="rec"] { animation: halo 1.4s ease-out infinite; }
+.bubble[data-state="rec"] .shell { opacity: 0; }
+.bubble[data-state="work"] .bar { animation: think .9s ease-in-out infinite; }
+.bubble[data-state="work"] .bar:nth-of-type(2) { animation-delay: .15s; }
+.bubble[data-state="work"] .bar:nth-of-type(3) { animation-delay: .3s; }
+@keyframes halo { 0% { box-shadow: 0 0 0 0 rgba(168,148,221,.6), 0 8px 20px -6px rgba(59,47,74,.7); } 100% { box-shadow: 0 0 0 16px rgba(168,148,221,0), 0 8px 20px -6px rgba(59,47,74,.7); } }
+@keyframes think { 50% { transform: scaleY(.35); opacity: .6; } }
+.badge { margin-top: -7px; z-index: 1; font: 500 9.5px/1 var(--mono); color: #fff; background: #574289; padding: 3px 6px; border-radius: 6px; border: 1.5px solid #fbfaf8; }
+.badge.quiet { background: #2F8C85; }
+.menu { position: absolute; right: 0; bottom: 78px; width: 190px; background: #2e2639; color: #eeeaf5; border-radius: 16px; padding: 6px; box-shadow: 0 18px 40px -14px rgba(0,0,0,.6); display: none; font-size: 12.5px; }
+.menu.open { display: block; animation: rise .2s ease both; }
+.menu button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 9px; border: 0; background: none; color: inherit; border-radius: 10px; font: inherit; cursor: pointer; text-align: left; }
+.menu button:hover { background: rgba(255,255,255,.08); }
+.menu button[aria-checked="true"] { background: rgba(168,148,221,.22); }
+.menu .k { font: 500 10px var(--mono); width: 22px; color: #bba6ee; }
+.menu hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 4px 6px; }
+.status { font: 500 12.5px var(--mono); color: var(--ink-3); min-height: 1.7em; text-align: center; }
+.hint { font-size: 13px; color: var(--ink-3); text-align: center; max-width: 34ch; }
+.hint kbd { font: 500 11px var(--mono); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+
+/* features */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 36px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 22px; }
+.card p { color: var(--ink-2); font-size: 14.5px; }
+.card .n { font: 500 12px var(--mono); color: var(--accent); display: block; margin-bottom: 12px; }
+.card.wide { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: center; }
+@media (max-width: 700px) { .card.wide { grid-template-columns: 1fr; } }
+.swap { font: 400 13.5px/1.9 var(--mono); background: var(--surface-2); border-radius: 14px; padding: 14px 16px; }
+.swap del { color: var(--ink-3); text-decoration-color: color-mix(in srgb, var(--ink-3) 60%, transparent); }
+.swap ins { text-decoration: none; color: var(--accent); font-weight: 500; }
+
+/* numbers */
+.band { background: var(--plum); color: #EEEAF5; --ink-2: #B9B0C8; --ink-3: #9d93ae; --accent: #BBA6EE; --line: #54466b; }
+.band .lede { color: var(--ink-2); }
+.chart { margin-top: 36px; display: grid; gap: 22px; }
+.row-h { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; }
+.row-h .lab { font-size: 14px; color: var(--ink-2); }
+.bars { display: grid; gap: 6px; }
+.bar-l { display: grid; grid-template-columns: 1fr 108px; gap: 10px; align-items: center; font: 500 12px var(--mono); }
+.track { height: 12px; border-radius: 6px; background: rgba(255,255,255,.07); overflow: hidden; }
+.fill { height: 100%; border-radius: 6px; width: 0; transition: width 1.1s cubic-bezier(.2,.7,.2,1); }
+.fill.t { background: #BBA6EE; } .fill.s { background: #7FD0C8; }
+.legend { display: flex; gap: 18px; font: 500 12px var(--mono); color: var(--ink-2); margin-top: 26px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+.note { font-size: 13.5px; color: var(--ink-3); margin-top: 20px; max-width: 70ch; }
+@media (max-width: 560px) { .row-h { grid-template-columns: 1fr; gap: 6px; } }
+
+/* dropped */
+.dropped { margin-top: 32px; border-top: 1px solid var(--line); }
+.dropped div { display: grid; grid-template-columns: 190px 1fr; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.dropped b { font-weight: 700; }
+.dropped b s { text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
+.dropped p { color: var(--ink-2); font-size: 14.5px; }
+@media (max-width: 560px) { .dropped div { grid-template-columns: 1fr; gap: 4px; } }
+
+/* table */
+.tbl { overflow-x: auto; margin-top: 30px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 560px; }
+th, td { text-align: left; padding: 13px 18px; border-bottom: 1px solid var(--line); }
+th { font: 500 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+tr:last-child td { border-bottom: 0; }
+td .tag { font: 500 10.5px var(--mono); background: var(--surface-2); padding: 2px 7px; border-radius: 6px; margin-right: 8px; color: var(--accent); }
+td.dim { color: var(--ink-2); }
+
+/* install */
+ol.steps { list-style: none; padding: 0; margin: 34px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: s; }
+ol.steps li { counter-increment: s; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 22px; font-size: 14.5px; color: var(--ink-2); }
+ol.steps li::before { content: counter(s, decimal-leading-zero); font: 500 12px var(--mono); color: var(--accent); display: block; margin-bottom: 10px; }
+ol.steps b { color: var(--ink); display: block; margin-bottom: 4px; font-size: 16px; }
+
+.fork { margin-top: 44px; padding: 24px; border-radius: 20px; background: var(--surface-2); font-size: 15px; color: var(--ink-2); }
+.fork b { color: var(--ink); }
+footer { padding: 36px 0 56px; color: var(--ink-3); font-size: 13.5px; border-top: 1px solid var(--line); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 26px; justify-content: space-between; }
+footer a { color: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="속삭 홈">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="24" fill="#3B2F4A"/><g fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/><path d="M38 40V50M50 35V55M62 40V50"/></g></svg>
+      속삭
+    </a>
+    <a class="link hide" href="#features">기능</a>
+    <a class="link hide" href="#numbers">숫자</a>
+    <a class="link hide" href="#models">모델</a>
+    <a class="link" href="#install">설치</a>
+    <a class="link" href="https://github.com/KyongSik-Yoon/soksak">GitHub</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">Android · 한국어 받아쓰기 · 온디바이스</p>
+      <h1>말하면,<br><em>글이 됩니다.</em></h1>
+      <p class="sub">아무 앱에서나 버블을 누르고 말하세요. 지금 쓰던 입력창에 그대로 들어갑니다. 소리는 폰 밖으로 나가지 않습니다.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/KyongSik-Yoon/soksak/releases/latest">최신 APK 받기</a>
+        <a class="btn ghost" href="https://github.com/KyongSik-Yoon/soksak">소스 보기</a>
+      </div>
+      <div class="facts"><span>Whisper, 기기 안에서</span><span>MIT</span><span>계정·서버 없음</span></div>
+    </div>
+
+    <div class="stage">
+      <div class="phone">
+        <div class="screen">
+          <div class="appbar"><span>Claude</span><small>아무 앱이나</small></div>
+          <div class="chat" id="chat">
+            <div class="msg"><span class="who">Claude</span>무엇을 도와드릴까요?</div>
+          </div>
+          <div class="field" id="field"><span class="ph">메시지 입력…</span></div>
+          <div class="bubble-dock">
+            <div class="menu" id="menu" role="menu" aria-label="모델 고르기">
+              <button role="menuitemcheckbox" id="quiet" aria-checked="false"><span class="k">☾</span>조용히 말하기</button>
+              <hr>
+              <button role="menuitemradio" data-m="SA" aria-checked="true"><span class="k">SA</span>Small ACFT</button>
+              <button role="menuitemradio" data-m="T" aria-checked="false"><span class="k">T</span>Large v3 Turbo</button>
+              <button role="menuitemradio" data-m="SN" aria-checked="false"><span class="k">SN</span>Small ACFT · NPU</button>
+              <button role="menuitemradio" data-m="MN" aria-checked="false"><span class="k">MN</span>Medium · NPU</button>
+            </div>
+            <button class="bubble" id="bubble" data-state="idle" aria-label="받아쓰기 시작. 위로 밀거나 위쪽 화살표 키로 모델 메뉴">
+              <svg viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+                <path class="shell" d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/>
+                <path class="bar" d="M38 40V50"/><path class="bar" d="M50 35V55"/><path class="bar" d="M62 40V50"/>
+              </svg>
+            </button>
+            <span class="badge" id="badge">SA</span>
+          </div>
+        </div>
+      </div>
+      <p class="status" id="status" aria-live="polite">버블을 눌러 보세요</p>
+      <p class="hint">누르면 받아쓰기, <b>위로 휙 밀면</b> 모델 메뉴 (<kbd>↑</kbd>). 동작을 보여 주는 시연이고, 실제 음성 인식은 아닙니다.</p>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">기능</p>
+    <h2>키보드를 바꾸지 않습니다.<br>화면 가장자리에 버블 하나.</h2>
+    <p class="lede">속삭은 키보드 앱이 아니라 떠 있는 버튼입니다. 쓰던 키보드, 쓰던 앱 그대로 두고 말로 입력하는 길만 하나 더 냅니다.</p>
+    <div class="grid">
+      <div class="card"><span class="n">01</span><h3>포커스를 뺏지 않는 입력</h3><p>녹음부터 삽입까지 화면을 띄우지 않고 서비스 안에서 끝냅니다. 대상 앱의 커서와 키보드가 그대로 남습니다.</p></div>
+      <div class="card"><span class="n">02</span><h3>말하는 동안 변환</h3><p>말이 0.5초 쉴 때마다 그 조각을 먼저 풀어 둡니다. 다 말하고 기다리는 시간이 약 20초에서 3초로 줄었습니다.</p></div>
+      <div class="card"><span class="n">03</span><h3>조용히 말하기</h3><p>옆 사람이 일하는 자리에서 속삭여도 녹음을 자르지 않습니다. 켜 두면 버블 배지가 청록색으로 바뀝니다.</p></div>
+      <div class="card"><span class="n">04</span><h3>NPU 가속</h3><p>Snapdragon 8 Elite Gen 5에서는 Whisper를 Qualcomm NPU로 돌립니다. 그 밖의 폰은 CPU(whisper.cpp)로 동작합니다.</p></div>
+      <div class="card"><span class="n">05</span><h3>토큰 없는 업데이트</h3><p>새 빌드가 나오면 앱이 알려 주고 바로 설치합니다. 로그인도 계정도 없습니다.</p></div>
+      <div class="card"><span class="n">06</span><h3>백업과 복원</h3><p>단어장과 설정을 파일 하나로 내보내고 다시 불러옵니다. 폰을 바꿔도 가르친 단어가 따라옵니다.</p></div>
+      <div class="card wide">
+        <div><span class="n">07</span><h3>한국어 문장 속 개발 용어</h3><p>"리액트 쿼리 캐시 무효화해 줘" 같은 말이 주 사용처입니다. 단어장에 용어와 별칭을 넣어 두면 조사나 어미가 붙어도 찾아서 바꾸고, 어미는 그대로 둡니다.</p></div>
+        <div class="swap" aria-label="단어장 교정 예">
+          <del>클로드 코드</del>로 <del>깃허브 액션즈</del>를 고쳐 줘<br>
+          → <ins>Claude Code</ins>로 <ins>GitHub Actions</ins>를 고쳐 줘
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="numbers">
+  <div class="wrap">
+    <p class="eyebrow">숫자</p>
+    <h2>잘 안 되는 조건도<br>같이 적습니다.</h2>
+    <p class="lede">글자 오류율(CER)입니다. 낮을수록 좋습니다. 같은 문장에 카페 소음을 섞거나 소리를 아주 작게 줄여서 쟀습니다.</p>
+    <div class="chart" id="chart">
+      <div class="row-h" data-v="12.0,13.1"><div class="lab">깨끗한 소리</div><div class="bars"></div></div>
+      <div class="row-h" data-v="15.2,19.5"><div class="lab">카페 소음 (10dB)</div><div class="bars"></div></div>
+      <div class="row-h" data-v="63.2,56.4"><div class="lab">소음이 말만큼 클 때 (0dB)</div><div class="bars"></div></div>
+      <div class="row-h" data-v="12.7,16.3"><div class="lab">아주 작은 소리</div><div class="bars"></div></div>
+    </div>
+    <div class="legend"><span><i style="background:#BBA6EE"></i>Large v3 Turbo</span><span><i style="background:#7FD0C8"></i>Small ACFT (기본, Turbo의 1/5 시간)</span></div>
+    <p class="note">소음이 말소리만큼 크면 어느 모델이든 절반 넘게 틀립니다. 낭독 문장(FLEURS 한국어 40문장)에서는 Turbo 3.3%, Small ACFT 5.7%입니다. 낭독체 기준이라 개발 용어가 섞인 말은 이 숫자에 반영되지 않습니다.</p>
+
+    <div class="dropped" aria-label="해 보고 뺀 것들">
+      <div><b><s>GPU 가속</s></b><p>Vulkan과 OpenCL을 둘 다 붙여 봤습니다. 동작은 했지만 CPU보다 느리고 뜨거워서 뺐습니다.</p></div>
+      <div><b><s>Moonshine 모델</s></b><p>빠르지만 소음에 약했습니다(0dB에서 97.5% 오류). 다른 모델보다 나은 조건이 없어 뺐습니다.</p></div>
+      <div><b><s>LLM 다듬기</s></b><p>영어에 맞춰진 후처리가 한국어 받아쓰기를 오히려 망가뜨렸습니다. Whisper가 낸 문장을 그대로 씁니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="models">
+  <div class="wrap">
+    <p class="eyebrow">모델</p>
+    <h2>네 가지 Whisper.</h2>
+    <p class="lede">처음에는 Small ACFT 하나만 받습니다. 나머지는 설정에서 고를 때 내려받고, 버블을 위로 밀어 바로 바꿉니다.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>모델</th><th>엔진</th><th>쓰임</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag">SA</span>Small ACFT (FUTO)</td><td class="dim">whisper.cpp · CPU</td><td class="dim">기본값. 짧은 말에 맞춰 조정된 모델</td></tr>
+          <tr><td><span class="tag">T</span>Large v3 Turbo ACFT q4_0</td><td class="dim">whisper.cpp · CPU</td><td class="dim">가장 정확하고 가장 느림</td></tr>
+          <tr><td><span class="tag">SN</span>Small ACFT (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">Snapdragon 8 Elite Gen 5 전용</td></tr>
+          <tr><td><span class="tag">MN</span>Medium (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">Snapdragon 8 Elite Gen 5 전용</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="install" style="padding-top:0">
+  <div class="wrap">
+    <p class="eyebrow">설치</p>
+    <h2>스토어에는 없습니다.<br>APK를 직접 받습니다.</h2>
+    <p class="lede">개인용으로 만든 앱이라 Play 스토어에 올리지 않았습니다. GitHub Release의 APK를 받아 설치합니다.</p>
+    <ol class="steps">
+      <li><b>APK 받기</b><a href="https://github.com/KyongSik-Yoon/soksak/releases/latest">최신 Release</a>에서 <code>soksak-dev-N.apk</code>를 받아 엽니다. 출처를 알 수 없는 앱 설치를 허용해야 합니다.</li>
+      <li><b>권한 주기</b>마이크, 다른 앱 위에 표시, 접근성 서비스. 접근성은 글을 입력창에 넣는 데만 씁니다.</li>
+      <li><b>모델 기다리기</b>안내를 따라가는 동안 음성 모델을 받습니다. 그 뒤로는 인터넷 없이 동작합니다.</li>
+      <li><b>말하기</b>아무 입력창에서 버블을 누르고 말합니다. 멈추면 알아서 끝나고 글이 들어갑니다.</li>
+    </ol>
+    <div class="fork">
+      <b>속삭은 <a href="https://github.com/RohitAg13/openWispr">OpenWispr</a>(MIT)를 포크해 갈라져 나온 프로젝트입니다.</b>
+      원작의 Android 앱을 바탕으로 한국어와 개인 사용에 맞게 크게 고쳤고, 원작과 별개로 관리합니다. 원작자에게 감사드립니다. 원작의 macOS 앱, LLM 다듬기, 클라우드 연동은 여기에 없습니다.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>MIT · © OpenWispr contributors, Soksak contributors</span>
+    <span><a href="https://github.com/KyongSik-Yoon/soksak/blob/main/android/app/src/main/assets/third_party_notices.txt">오픈소스 고지</a> · <a href="https://github.com/KyongSik-Yoon/soksak/issues">문제 알리기</a></span>
+    <span>이 페이지는 Claude가 만들었습니다.</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const bubble = $('bubble'), field = $('field'), status = $('status'), chat = $('chat'),
+        badge = $('badge'), menu = $('menu'), quietBtn = $('quiet');
+  const bars = [...bubble.querySelectorAll('.bar')];
+  const lines = [
+    ['이 PR에서 flaky한 테스트부터 고치고,', 'CI 다시 돌려 줘.'],
+    ['BubbleService의 warm 로직을', '코루틴으로 옮겨 줘.'],
+    ['방금 바꾼 Settings 필드,', 'snapshot에도 들어갔는지 확인해 줘.'],
+    ['README 맨 위에', '포크라는 걸 밝혀 줘.'],
+  ];
+  // Relative only: Turbo is the slow one, NPU the quick ones.
+  const speed = { SA: 1, T: 2.4, SN: .6, MN: .8 };
+  let model = 'SA', quiet = false, n = 0, state = 'idle', timers = [], raf = 0, stopNow = null;
+
+  const say = t => status.textContent = t;
+  const later = (ms, f) => timers.push(setTimeout(f, ms));
+  const clear = () => { timers.forEach(clearTimeout); timers = []; };
+  const set = s => { state = s; bubble.dataset.state = s; };
+
+  function wave() {
+    const t = performance.now() / 1000, amp = quiet ? .45 : 1;
+    bars.forEach((b, i) => {
+      const v = .55 + amp * (.5 * Math.sin(t * 9 + i * 1.7) + .35 * Math.sin(t * 15.3 + i * 4.1));
+      b.style.transform = `scaleY(${Math.max(.3, Math.min(1.8, v)).toFixed(2)})`;
+    });
+    raf = requestAnimationFrame(wave);
+  }
+  const still = () => { cancelAnimationFrame(raf); bars.forEach(b => b.style.transform = ''); };
+
+  function put(text) {
+    field.querySelector('.caret')?.remove();
+    const s = document.createElement('span');
+    s.className = 'piece'; s.textContent = text + ' ';
+    field.append(s);
+    const c = document.createElement('span'); c.className = 'caret'; field.append(c);
+  }
+
+  function start() {
+    const [a, b] = lines[n++ % lines.length], k = speed[model];
+    let first = false;
+    field.innerHTML = '<span class="caret"></span>'; field.classList.add('live');
+    set('rec'); wave();
+    say(quiet ? '듣는 중 · 조용히 말하기' : '듣는 중…');
+    const finish = () => {
+      clear(); still(); set('work'); stopNow = null;
+      say('남은 부분 변환 중…');
+      later((first ? 500 : 1100) * k, () => {
+        if (!first) put(a);
+        put(b); set('idle'); say('입력됨 · 소리는 폰을 떠나지 않았습니다');
+        later(1300, send);
+      });
+    };
+    stopNow = finish;
+    later(1500 + 500 * k, () => { put(a); first = true; say('말하는 동안 앞부분을 먼저 변환'); });
+    later(3300, () => say('말이 멈춤 · 자동으로 끝냄'));
+    later(3700, finish);
+  }
+
+  function send() {
+    const text = field.textContent.trim();
+    if (!text) return;
+    const m = document.createElement('div');
+    m.className = 'msg me'; m.textContent = text; chat.append(m);
+    while (chat.children.length > 4) chat.firstElementChild.remove();
+    field.innerHTML = '<span class="ph">메시지 입력…</span>'; field.classList.remove('live');
+    say('버블을 다시 눌러 보세요');
+  }
+
+  function tap() {
+    if (menu.classList.contains('open')) return closeMenu();
+    if (state === 'idle') { clear(); start(); }
+    else if (state === 'rec' && stopNow) stopNow();
+  }
+
+  const openMenu = () => { if (state === 'idle') { menu.classList.add('open'); say('모델 메뉴'); } };
+  const closeMenu = () => menu.classList.remove('open');
+  const paint = () => {
+    badge.textContent = model; badge.classList.toggle('quiet', quiet);
+    quietBtn.setAttribute('aria-checked', quiet);
+    menu.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-checked', b.dataset.m === model));
+  };
+
+  // Tap, or flick up (36px within 250ms, mostly vertical) for the model menu — as in the app.
+  let down = null, flicked = false;
+  bubble.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: e.timeStamp }; flicked = false; bubble.setPointerCapture(e.pointerId); });
+  bubble.addEventListener('pointerup', e => {
+    if (!down) return;
+    const dy = down.y - e.clientY, dx = Math.abs(e.clientX - down.x);
+    if (dy >= 36 && dy > dx && e.timeStamp - down.t <= 250) { flicked = true; openMenu(); }
+    down = null;
+  });
+  bubble.addEventListener('click', () => { if (flicked) { flicked = false; return; } tap(); });
+  bubble.addEventListener('keydown', e => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); openMenu(); menu.querySelector('button').focus(); }
+    if (e.key === 'Escape') closeMenu();
+  });
+  menu.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); bubble.focus(); } });
+  menu.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b === quietBtn) quiet = !quiet; else model = b.dataset.m;
+    paint(); closeMenu(); bubble.focus();
+    const name = menu.querySelector(`[data-m="${model}"]`).lastChild.textContent;
+    say(b === quietBtn ? (quiet ? '조용히 말하기 켬 · 배지가 청록색' : '조용히 말하기 끔') : `모델: ${name}`);
+  });
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('.bubble-dock')) closeMenu(); });
+
+  // Chart: bars grow when scrolled into view. Scale is 0–70% CER.
+  const chart = $('chart');
+  chart.querySelectorAll('.row-h').forEach(r => {
+    const box = r.querySelector('.bars');
+    r.dataset.v.split(',').forEach((v, i) => {
+      box.insertAdjacentHTML('beforeend',
+        `<div class="bar-l"><div class="track"><div class="fill ${i ? 's' : 't'}" data-w="${v / 70 * 100}"></div></div><span>${(+v).toFixed(1)}%</span></div>`);
+    });
+  });
+  const grow = () => chart.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%');
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((es, o) => { if (es.some(e => e.isIntersecting)) { grow(); o.disconnect(); } }, { threshold: .25 }).observe(chart);
+  } else grow();
+})();
+</script>
+</body>
+</html>

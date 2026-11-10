@@ -8,6 +8,7 @@ on:
       - "**.md"
       - ".claude/**"
       - "scripts/**"
+      - "docs/**"   # the homepage (GitHub Pages)
       # Benchmarks and model packaging have their own workflows; they don't change the app.
       - ".github/workflows/bench-models.yml"
       - ".github/workflows/chunk-bench.yml"

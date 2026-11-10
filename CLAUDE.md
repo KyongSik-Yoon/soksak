@@ -28,11 +28,13 @@
   - Android 전용. macOS 앱은 사용자가 맥을 쓰지 않아 2026-11-10 지웠고, 원본의 홍보 사이트·Play 스토어
     메타데이터(fastlane)·태그 릴리스 워크플로·브랜드 자료도 함께 지웠다. 되살리지 않는다.
     벤치·모델 패키징 워크플로 변경은 CI를 돌리지 않는다(paths-ignore).
+  - 홈페이지: `docs/index.html` 한 파일(빌드 없음)을 GitHub Pages(main의 /docs)로 낸다 — https://kyongsik-yoon.github.io/soksak/ (2026-11-10, 저장소 homepage도 이 주소).
+    dusk 팔레트·마크를 그대로 쓰고, 숫자(CER 등)는 이 문서의 벤치 값과 맞춘다. 기능·모델이 바뀌면 함께 고친다. `docs/**`만 바뀐 커밋은 CI를 돌리지 않는다.
 
 ## 빌드·배포 흐름 (폰에 올리는 빌드는 CI가 만든다)
 로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
 로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) NPU 모델은 동작하지 않는다.
-1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
+1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`, `docs/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
 2. 성공하면 Release `build-<run_number>`에 `soksak-dev-<run>.apk`를 올리고 최근 5개만 남긴다.
    versionCode = `1000 + run`, versionName = `1.6.0-dev.<run>` (`android/app/build.gradle.kts`).
   설정 화면에는 `1.6.0 · build N`으로 보인다. `1.6.0`은 원본 기반 버전 그대로 두기로 결정(2026-11-08) — 바꾸지 않는다.
