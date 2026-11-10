@@ -1,4 +1,4 @@
-# 속삭 (Soksak) — Sam의 OpenWispr 포크 (KyongSik-Yoon/soksak, private)
+# 속삭 (Soksak) — Sam의 OpenWispr 포크 (KyongSik-Yoon/soksak, 공개)
 
 이 문서는 어느 세션에서든 개발을 바로 이어가기 위한 기준 문서다. 코드와 어긋나면 `/resync`로 맞춘다.
 변경 이력은 `.claude/CHANGELOG.md`, 경로 검증은 `scripts/check-harness-refs.sh`.
@@ -13,7 +13,7 @@
 ## 목적과 결정 사항
 - 목표: 휴대폰만으로 Claude에게 **한국어 음성 프롬프트**를 내려 개발한다. Typeless/Wispr Flow 수준의 인식과
   플로팅 버튼 사용성을 **로컬 Whisper**로 구현한다. 앱스토어 배포 없음, 개인용.
-- 원본: RohitAg13/openWispr (MIT). 포크 네트워크에서 분리(detach)했고 비공개. 원본 업데이트는 `upstream` remote로 수동 반영.
+- 원본: RohitAg13/openWispr (MIT). 포크 네트워크에서 분리(detach). 2026-11-10 공개 전환(저작권 점검·고지·서명 키 교체·앱 ID 변경 후). 원본 업데이트는 `upstream` remote로 수동 반영.
 - 이름: 2026-11-10 OpenWispr → **속삭(Soksak)**으로 바꿨다. 원작이 Play 스토어에 같은 이름으로 있어 혼동을 피하고, README 맨 위에 포크임을 밝힌다.
   저장소도 `soksak`으로 rename(옛 주소는 GitHub가 리다이렉트). 아이콘은 말풍선+음파 마크(`ic_mark`), 런처·스플래시 배경은 자주색 #3B2F4A, 앱 안 색 테마는 원작 것 유지.
   화면 문구만 바꾸고 저장·등록된 식별자는 유지: `OpenWisprAccessibilityService`(접근성 활성화가 컴포넌트 이름에 묶임), 로그 태그 `OpenWisprA11y`,
@@ -52,16 +52,16 @@
 - 벤치마크: `.github/workflows/bench-models.yml` + `scripts/bench_models.py` — FLEURS ko_kr test 40문장(539초)을 앱과 같은 설정으로.
   2026-11-08 결과(CER / x86 4스레드 RTF): Turbo 3.3%/2.43, Moonshine Base 5.0%/0.20, Small ACFT 5.7%/0.53, SenseVoice int8 7.1%/0.14,
   SenseVoice fp32 7.3%/0.17(→ 제거), Moonshine tiny 7.7%/0.13. 낭독체라 개발 용어 섞인 발화는 반영 못 함. 속도 비율만 폰에 옮겨진다. `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
-- sherpa 모델(`LocalSherpaStt.kt`): NPU용 tar.bz2 번들을 비공개 Release에서 받아 `models/<bundle>/`에 필요한 파일만 풀고
+- sherpa 모델(`LocalSherpaStt.kt`): NPU용 tar.bz2 번들을 이 저장소 Release에서 받아 `models/<bundle>/`에 필요한 파일만 풀고
   압축본은 지운다(commons-compress). sherpa는 AAR을 쓰지 않는다(2026-11-09): Kotlin API를 `android/app/src/main/java/com/k2fsa/sherpa/onnx`에 vendoring(sherpa@347ec76),
   JNI .so는 CI `sherpa-qnn` 잡이 같은 커밋으로 빌드해 `app/src/main/jniLibs/arm64-v8a`(gitignore)에 넣는다. 둘의 커밋이 다르면 JNI가 필드를 못 찾는다.- ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후
-  이 저장소 Release(`model-*`, pre-release)에 올린다. 앱은 GitHub 토큰으로 받는다(`releaseTag` 필드). 토큰이 없으면 Import.
+  이 저장소 Release(`model-*`, pre-release)에 올린다. 앱이 받는다(`releaseTag` 필드, 공개라 토큰 불필요).
 - **Medium (NPU)**(`medium-npu`, `SpeechEngine.QNN_WHISPER`): OpenAI whisper-medium의 SM8850용 QNN 컨텍스트 바이너리
   (encoder.bin/decoder.bin + tokens.txt). `.github/workflows/npu-model.yml`이 sherpa의 QNN 모델 라이브러리(`asr-models-qnn-2`의 linux-x64판)를
-  sherpa `ghcr.io/k2-fsa/qnn-sdk:2.40` 이미지에서 `qnn-context-binary-generator`로 컴파일해 비공개 Release `model-qnn-whisper-medium-sm8850`에 올리고,
-  앱은 토큰으로 받는다. 폰에서 모델 라이브러리를 컴파일하는 방식(build-66~70)은 디코더 그래프 최종 처리 중 프로세스가 끝나 버렸다 → 쓰지 않음
+  sherpa `ghcr.io/k2-fsa/qnn-sdk:2.40` 이미지에서 `qnn-context-binary-generator`로 컴파일해 Release `model-qnn-whisper-medium-sm8850`(pre-release)에 올리고,
+  앱이 받는다. 폰에서 모델 라이브러리를 컴파일하는 방식(build-66~70)은 디코더 그래프 최종 처리 중 프로세스가 끝나 버렸다 → 쓰지 않음
   (APK에서 libQnnHtpPrepare.so도 뺌). sherpa QNN 디코더는 토큰을 `입력 초 × 6`개(시작·힌트 토큰 포함)에서 끊으므로, `LocalSherpaStt.windows`로 14초 이하 창으로 자르고 `paddedForTokenBudget`로 무음을 붙여 초당 12토큰을 보장한다. 단어장 프롬프트는 넣지 않는다 — 토큰마다 디코더 1스텝(창마다 반복, 단어장을 채우면 Medium 31초 기준 약 12초 추가)이라 만들지 않기로 결정(2026-11-10). 단어장 사후 교정(`VocabCorrector.correct`)은 NPU에도 적용된다. 예외로 Medium 한국어에만 문장부호 힌트 6토큰(`<|startofprev|> 네, 알겠어.`, `LocalSherpaStt.qnnHint`, 패치의 `promptTokens`)을 디코드 앞에 넣는다: 힌트가 없으면 14초 창 전체에 부호가 안 찍히는 일이 있었고, PC 비교(같은 가중치, 3분 연기 음성)에서 마침표 30→52, 쉼표 11→23, 누락 없음. Small ACFT는 같은 힌트로 문장이 빠지고 반복 붕괴가 나와 적용하지 않는다. 무음에서는 `네.`/`네, 알겠습니다.`가 나오므로 Silero가 말(0.1초 이상 연속)을 못 찾은 창의 그 출력만 버린다(`isHintEcho`, 자체 인스턴스 — 음량 비교는 실제 환경의 빈 입력에서 뚫렸다). 조용히 말하기에서는 Silero가 속삭임을 못 들어 버리지 않는다. 힌트가 실제 말 앞에 붙는 경우는 "네, 알겠어."가 실제 답이기도 해 잘라내지 않는다(관측된 적 없음). CI는 sherpa 소스에 `.github/patches/sherpa-qnn.patch`를 적용한다(인코더 출력을 디코드당 한 번만 복사, 괄호·음표 같은 non-speech 토큰 억제(CPU의 `suppress_nst`와 동일), 입력·출력 버퍼를 rpcmem 한 덩어리로 등록해 실행마다 복사하지 않음(안 되면 복사로 폴백, 로그 `QNN shared memory`), `promptTokens` 필드로 지정한 토큰을 시작 토큰 앞에서 디코드, 단계별 시간·QNN 프로파일 로그 — 설정 "NPU 진단 로그"(`npuDiagnostics`, 기본 끔)를 켰을 때만 동작. 캐시 키가 패치 해시라 바꾸면 자동 재빌드).
   `NpuSupport`(SoC SM8850 = Hexagon v81)일 때만 목록에 보임. CI `sherpa-qnn` 잡이 sherpa v2.0.1 JNI를 QNN 켜고(정적 ORT, TTS 끔) 빌드해
   QNN 런타임(libQnnHtp/HtpPrepare/System/HtpV81Stub/Skel)과 함께 jniLibs로 넣는다(actions/cache).
@@ -133,7 +133,7 @@
   (snapshot이 UI 상태로 Settings 전체를 다시 만들기 때문에 빠지면 기본값으로 덮인다).
 - APK에 들어가는 라이브러리·폰트·네이티브 바이너리를 추가하거나 빼면 `android/app/src/main/assets/third_party_notices.txt`(설정 → General → Open source licenses, `ThirdPartyNoticesTest`)를 함께 고친다. 라이선스가 MIT/Apache/OFL가 아니면 배포 조건을 먼저 확인한다 — Moonshine 한국어 모델은 Community License(사본·Notice·"Powered by Moonshine AI" 표시 의무)라 Release에서 내렸다(2026-11-10).
 - 비밀정보(토큰, 키)는 Claude가 웹 입력란에 직접 넣지 않는다 — 사용자가 입력.
-- 공개 저장소/공개 리소스 생성은 자동 승인되지 않는다 — 비공개 Release + 토큰 다운로드 방식을 쓴다.
+- 저장소와 Release는 공개다. 새 Release·모델을 올리기 전에 재배포 가능한 라이선스인지 확인하고(위 고지 규칙), 비밀정보는 GitHub Secret으로만 둔다. 다른 공개 저장소·외부 공개 리소스를 새로 만드는 일은 여전히 사용자 확인을 받는다.
 
 ## 백로그
 - Compare models 결과로 기본 모델 확정.
