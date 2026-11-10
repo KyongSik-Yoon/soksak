@@ -4,6 +4,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,10 +48,6 @@ object AppNav {
         context.startActivity(Intent(context, RewriteActivity::class.java).putExtra(RewriteActivity.EXTRA_AUTO_RECORD, true))
     }
 
-    fun settings(context: Context) {
-        context.startActivity(Intent(context, SettingsActivity::class.java))
-    }
-
     /** Back to the Home already underneath (or a new one), closing the screen we're on. */
     fun home(activity: Activity) {
         activity.startActivity(
@@ -55,6 +55,13 @@ object AppNav {
         )
         activity.finish()
     }
+}
+
+/** Content slides toward the tab you picked, in the order the tabs sit on the bar. */
+fun AnimatedContentTransitionScope<AppTab>.tabSlide(): ContentTransform {
+    val dir = if (targetState.ordinal > initialState.ordinal) AnimatedContentTransitionScope.SlideDirection.Left
+    else AnimatedContentTransitionScope.SlideDirection.Right
+    return slideIntoContainer(dir, tween(250)) togetherWith slideOutOfContainer(dir, tween(250))
 }
 
 /**

@@ -107,7 +107,7 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit) -> Unit) {
+internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit) -> Unit) {
     val context = LocalContext.current
     var loaded by remember { mutableStateOf(false) }
 

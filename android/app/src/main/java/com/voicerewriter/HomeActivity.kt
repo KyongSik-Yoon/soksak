@@ -5,8 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -130,6 +133,9 @@ class HomeActivity : ComponentActivity() {
         // Unfinished recordings are capped on first paint: they lead the screen, and an
         // unlucky run of failures used to push Recent and everything below it off the bottom.
         var showAllUnfinished by remember { mutableStateOf(false) }
+        // Settings is a tab here, so only the content slides and the bottom bar stays put.
+        var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+        val settingsRepo = remember { SettingsRepository(applicationContext) }
 
         fun reload() {
             scope.launch {
@@ -153,12 +159,25 @@ class HomeActivity : ComponentActivity() {
 
         fun showToast(m: String) { toast = m }
 
+        // A settings change (history on/off) can change what Home shows.
+        fun goHome() { tab = AppTab.HOME; reload() }
+        BackHandler(enabled = tab == AppTab.SETTINGS) { goHome() }
+
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
+                    AnimatedContent(
+                        targetState = tab,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        transitionSpec = { tabSlide() },
+                        label = "tab",
+                    ) { shown ->
+                    if (shown == AppTab.SETTINGS) {
+                        SettingsScreen(settingsRepo) { lifecycleScope.launch { it() } }
+                    } else
                     // Scroll area
                     Column(
-                        Modifier.weight(1f).fillMaxWidth().statusBarsPadding()
+                        Modifier.fillMaxSize().statusBarsPadding()
                             .verticalScroll(rememberScrollState())
                             .padding(18.dp, 14.dp, 18.dp, 28.dp),
                     ) {
@@ -229,7 +248,7 @@ class HomeActivity : ComponentActivity() {
 
                         when {
                             d == null -> Unit
-                            !d.keepHistory -> HistoryOffCard { openSettings() }
+                            !d.keepHistory -> HistoryOffCard { tab = AppTab.SETTINGS }
                             d.groups.isEmpty() -> EmptyHistoryCard()
                             else -> d.groups.forEach { group ->
                                 DayHeader(group.label)
@@ -303,8 +322,9 @@ class HomeActivity : ComponentActivity() {
                         }
                         Spacer(Modifier.height(8.dp))
                     }
+                    }
 
-                    AppBottomBar(AppTab.HOME, onHome = {}, onTalk = { AppNav.talk(this@HomeActivity) }, onSettings = ::openSettings)
+                    AppBottomBar(tab, onHome = ::goHome, onTalk = { AppNav.talk(this@HomeActivity) }, onSettings = { tab = AppTab.SETTINGS })
                 }
 
                 // Snackbar
@@ -904,7 +924,6 @@ class HomeActivity : ComponentActivity() {
 
     // ---------------- nav ----------------
 
-    private fun openSettings() = AppNav.settings(this)
 
     private fun copyToClipboard(text: String) {
         val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
