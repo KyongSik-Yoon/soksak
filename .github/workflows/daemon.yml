@@ -1,0 +1,21 @@
+name: Daemon
+
+# soksak-daemon (the PC end of "Send to PC"). Separate from CI: it is not part of the app build.
+on:
+  push:
+    branches: [main]
+    paths: ["daemon/**", ".github/workflows/daemon.yml"]
+  pull_request:
+    paths: ["daemon/**", ".github/workflows/daemon.yml"]
+
+jobs:
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --locked
+      - run: cargo clippy --all-targets -- -D warnings

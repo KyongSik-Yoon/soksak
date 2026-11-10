@@ -1,0 +1,13 @@
+[package]
+name = "soksak-daemon"
+version = "0.1.0"
+edition = "2021"
+description = "Receives dictations from the Soksak Android app and puts them on this computer's clipboard"
+license = "MIT"
+repository = "https://github.com/KyongSik-Yoon/soksak"
+
+# No dependencies on purpose: the whole thing is a TCP listener and two child processes.
+[dependencies]
+
+[profile.release]
+strip = true

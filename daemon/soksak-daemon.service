@@ -1,0 +1,13 @@
+[Unit]
+Description=Soksak PC link: dictations from the phone to this computer's clipboard
+# The clipboard belongs to the desktop session; wl-copy needs its WAYLAND_DISPLAY.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/soksak-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

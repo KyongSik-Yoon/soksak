@@ -9,6 +9,8 @@ on:
       - ".claude/**"
       - "scripts/**"
       - "docs/**"   # the homepage (GitHub Pages)
+      - "daemon/**" # the PC daemon has its own workflow
+      - ".github/workflows/daemon.yml"
       # Benchmarks and model packaging have their own workflows; they don't change the app.
       - ".github/workflows/bench-models.yml"
       - ".github/workflows/chunk-bench.yml"
