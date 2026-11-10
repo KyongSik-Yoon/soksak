@@ -127,7 +127,7 @@
   설정 문자열을 추가하면 `I18n.KO`에도 넣는다(`I18nTest`가 자리표시자 수를 검사).
 
 ## 작업 규칙
-- 커밋 작성자: `-c user.name="Sam" -c user.email="sam@jennifersoft.com"`. 세션이 요구하는 attribution 줄을 메시지 끝에 붙인다.
+- 커밋 작성자: `KyongSik-Yoon <sam1287@gmail.com>` — 저장소 로컬 git config에 설정돼 있어 그냥 `git commit`하면 된다(2026-11-10부터, 공개 저장소라 회사 메일을 쓰지 않는다). 세션이 요구하는 attribution 줄을 메시지 끝에 붙인다.
 - push 전에 제거·이름변경한 심볼을 `grep -rn`으로 전부 확인 (CI 한 번이 ~5분).
 - 새 기능에는 가능한 범위의 JVM 단위 테스트를 `android/app/src/test`에 추가.
 - Settings에 필드를 추가하면 `Settings.kt`(필드·Key·read·write)와 `SettingsActivity.snapshot()`을 함께 고친다
