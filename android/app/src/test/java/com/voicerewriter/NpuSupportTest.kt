@@ -54,6 +54,43 @@ class QnnWindowsTest {
         }
     }
 
+    @Test fun hintTokensDoNotEatIntoTheSpeechBudget() {
+        val hint = LocalSherpaStt.qnnHint(WhisperModelManager.MEDIUM_NPU_MODEL, "ko").size
+        assertTrue(hint > 0)
+        for (s in listOf(0.5, 3.0, LocalSherpaStt.QNN_WINDOW_S)) {
+            val n = (s * sr).toInt()
+            val padded = LocalSherpaStt.paddedForTokenBudget(FloatArray(n) { 0.1f }, hintTokens = hint)
+            assertTrue("$s s", textTokenLimit(padded.size) - hint >= (s * 12).toInt())
+            assertTrue("$s s fits the 30s input", padded.size <= 30 * sr)
+        }
+    }
+
+    @Test fun hintIsForKoreanOnMediumOnly() {
+        assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.SMALL_ACFT_NPU_MODEL, "ko").isEmpty())
+        assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.MEDIUM_NPU_MODEL, "en").isEmpty())
+    }
+
+    private fun noise(seconds: Double, rms: Float, seed: Long = 1): FloatArray {
+        val r = java.util.Random(seed)
+        return FloatArray((seconds * sr).toInt()) { (r.nextGaussian() * rms).toFloat() }
+    }
+
+    @Test fun hintEchoIsDroppedOnlyWithoutVoice() {
+        for (quiet in listOf(FloatArray(3 * sr), noise(3.0, 1e-4f), noise(3.0, 1e-2f))) {
+            assertTrue(LocalSherpaStt.isHintEcho("네.", quiet))
+            assertTrue(LocalSherpaStt.isHintEcho("네, 알겠습니다.", quiet))
+        }
+        // A real "네" in a quiet room, at the very start of the window and when whispered.
+        val word = noise(3.0, 1e-3f).also { a -> for (i in 0 until 2 * sr / 5) a[i] += (0.05 * Math.sin(i * 0.1)).toFloat() }
+        val whisper = noise(3.0, 2e-4f).also { a -> for (i in sr until sr + sr / 3) a[i] += (2e-3 * Math.sin(i * 0.9)).toFloat() }
+        assertFalse(LocalSherpaStt.isHintEcho("네.", word))
+        assertFalse(LocalSherpaStt.isHintEcho("네.", whisper))
+    }
+
+    @Test fun otherTextIsNeverAHintEcho() {
+        assertFalse(LocalSherpaStt.isHintEcho("네, 정말 감사합니다.", FloatArray(3 * sr)))
+    }
+
     @Test fun paddingOnlyAppendsSilence() {
         val a = FloatArray(3 * sr) { 0.1f }
         val padded = LocalSherpaStt.paddedForTokenBudget(a)

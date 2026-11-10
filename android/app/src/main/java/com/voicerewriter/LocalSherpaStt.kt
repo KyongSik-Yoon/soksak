@@ -13,6 +13,7 @@ import com.whispercpp.whisper.WhisperCpuConfig
 import java.io.BufferedInputStream
 import java.io.File
 import kotlin.math.ceil
+import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,8 +22,8 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 
 /**
- * On-device STT through sherpa-onnx: Whisper on the Qualcomm NPU (QNN). No prompt/glossary
- * biasing (the dictionary still applies after decoding).
+ * On-device STT through sherpa-onnx: Whisper on the Qualcomm NPU (QNN). No glossary biasing, since
+ * every prompt token costs a decoder step per window (the dictionary still applies after decoding).
  *
  * Models ship as tar.bz2 bundles on this repo's private releases: downloaded with
  * [ModelDownloader] (resume, size check), unpacked into `models/<bundle>/`, archive deleted.
@@ -46,9 +47,23 @@ object LocalSherpaStt {
     private const val QNN_START_TOKENS = 4
     private const val QNN_LIMIT_TOKENS_PER_INPUT_S = 6.0
 
-    /** The input is fixed at 30s, which at 6 tokens/s allows 176 tokens: 14s at [QNN_TOKENS_PER_S]. */
+    /** The input is fixed at 30s, which at 6 tokens/s allows 180 tokens: the start and hint tokens, then 14s at [QNN_TOKENS_PER_S]. */
     internal const val QNN_WINDOW_S = 14.0
     private const val QNN_MIN_WINDOW_S = 9.0
+
+    /**
+     * `<|startofprev|> 네, 알겠어.` decoded before the start sequence. Without it Medium writes whole
+     * windows with no punctuation; with it 3 minutes of Korean went from 30 to 52 periods and 11 to
+     * 23 commas with no sentence lost (PC, same weights, 2026-11-10). Medium only: the same hint made
+     * Small ACFT drop sentences and once repeat a character until the token limit.
+     */
+    private val MEDIUM_KO_HINT = listOf(50361, 8808, 11, 9457, 36711, 13)
+
+    /** What Medium writes under the hint when a window has no voice in it, as [HallucinationFilter.norm] leaves it. */
+    private val HINT_ECHOES = setOf("네", "네알겠어", "네알겠습니다")
+
+    internal fun qnnHint(modelId: String, language: String): List<Int> =
+        if (modelId == WhisperModelManager.MEDIUM_NPU_MODEL && language == "ko") MEDIUM_KO_HINT else emptyList()
 
     /** Files a bundle must contain to be usable. */
     fun requiredFiles(m: WhisperModelManager.WhisperModel): List<String> = when (m.engine) {
@@ -117,6 +132,7 @@ object LocalSherpaStt {
                         decoder = "",
                         language = language.takeUnless { it == "auto" } ?: "",
                         task = "transcribe",
+                        promptTokens = qnnHint(m.id, language).joinToString(","),
                         qnnConfig = QnnConfig(
                             backendLib = "libQnnHtp.so",
                             systemLib = "libQnnSystem.so",
@@ -170,21 +186,22 @@ object LocalSherpaStt {
                 val loadMs = (System.nanoTime() - t0) / 1_000_000
                 val qnn = WhisperModelManager.model(settings.sttModel).engine == SpeechEngine.QNN_WHISPER
                 val parts = if (qnn) windows(samples) else listOf(0 until samples.size)
+                val hint = qnnHint(settings.sttModel, DictationLanguage.normalize(settings.sttLanguage))
                 val partLog = ArrayList<String>(parts.size)
-                val text = parts.joinToString(" ") { r ->
+                val text = parts.map { r ->
                     val stream = rec.createStream()
                     try {
                         val part = if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1)
-                        stream.acceptWaveform(if (qnn) paddedForTokenBudget(part) else part, 16_000)
+                        stream.acceptWaveform(if (qnn) paddedForTokenBudget(part, hintTokens = hint.size) else part, 16_000)
                         val d0 = System.nanoTime()
                         rec.decode(stream)
                         val result = rec.getResult(stream)
                         partLog += "${(System.nanoTime() - d0) / 1_000_000}ms/${result.tokens.size}tok"
-                        clean(result.text)
+                        clean(result.text).takeUnless { hint.isNotEmpty() && isHintEcho(it, part) }.orEmpty()
                     } finally {
                         stream.release()
                     }
-                }.trim()
+                }.filter { it.isNotEmpty() }.joinToString(" ").trim()
                 Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s, load ${loadMs}ms, decode $partLog -> ${text.length} chars")
                 // Whisper on silence recites stock TV/YouTube lines.
                 HallucinationFilter.clean(text)
@@ -197,9 +214,9 @@ object LocalSherpaStt {
     }
 
     /** [chunk] followed by enough silence that sherpa's token limit allows [QNN_TOKENS_PER_S]. */
-    internal fun paddedForTokenBudget(chunk: FloatArray, sr: Int = 16_000): FloatArray {
+    internal fun paddedForTokenBudget(chunk: FloatArray, sr: Int = 16_000, hintTokens: Int = 0): FloatArray {
         // +1: the limit is rounded down, and the feature count can come up a frame or two short.
-        val tokens = QNN_START_TOKENS + 1 + chunk.size.toDouble() / sr * QNN_TOKENS_PER_S
+        val tokens = QNN_START_TOKENS + hintTokens + 1 + chunk.size.toDouble() / sr * QNN_TOKENS_PER_S
         val target = ceil(tokens / QNN_LIMIT_TOKENS_PER_INPUT_S * sr).toInt()
         return if (target > chunk.size) chunk.copyOf(target) else chunk
     }
@@ -230,6 +247,24 @@ object LocalSherpaStt {
         }
         out += start until samples.size
         return out
+    }
+
+    /** [text] is only what the hint produces on silence, and [chunk] has no voice to have said it. */
+    internal fun isHintEcho(text: String, chunk: FloatArray, sr: Int = 16_000): Boolean =
+        HallucinationFilter.norm(text) in HINT_ECHOES && !hasVoice(chunk, sr)
+
+    /** At least 0.1s rises clearly above the window's own quiet frames ([QuietSpeechDetector]'s rule). */
+    internal fun hasVoice(chunk: FloatArray, sr: Int = 16_000): Boolean {
+        val frame = sr / 50
+        val rms = List(chunk.size / frame) { f ->
+            var e = 0.0
+            for (i in f * frame until (f + 1) * frame) e += chunk[i] * chunk[i]
+            sqrt(e / frame).toFloat()
+        }
+        if (rms.isEmpty()) return false
+        val floor = rms.sorted()[rms.size / 10]
+        val voiced = rms.count { it > floor * QuietSpeechDetector.SPEECH_OVER_FLOOR && it > QuietSpeechDetector.ABS_MIN_SPEECH }
+        return voiced * frame >= sr / 10
     }
 
     /**
