@@ -3,6 +3,15 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-10 — 공개 준비: 라이선스 고지, 이름 속삭(Soksak), macOS 제거
+- 저작권 점검: 원작 MIT, 의존성 Apache/MIT, 폰트 OFL, Whisper MIT·ACFT Apache-2.0 — 공개에 걸림 없음. Qualcomm QNN 런타임은 "앱에 포함된 오브젝트 코드로만" 배포 허용(AI Hub Model License) → APK 안이라 허용 범위.
+  Moonshine 한국어는 Community License(사본·Notice·"Powered by Moonshine AI" 의무)라 Release `model-moonshine-base-ko` 삭제 결정(auto mode가 삭제를 막아 사용자가 직접 실행), 벤치에서도 뺌(41ba2d3).
+- 고지(fa1311a): 설정 → General → 오픈소스 라이선스 화면, `third_party_notices.txt`, whisper.cpp LICENSE, 모델 Release 설명에 라이선스. build-94 CI 성공.
+- 제거(fabf591): macOS 앱(사용자가 맥 안 씀), 원작 홍보 사이트·Play 메타데이터·태그 릴리스 워크플로·브랜드 자료.
+- 이름(e9e9e2f): 원작이 Play 스토어에 있어 OpenWispr → 속삭/Soksak. 저장소 `soksak`으로 rename, README 맨 위에 포크 명시, LICENSE에 포크 저작권 줄 추가,
+  말풍선+음파 아이콘(런처 배경 자주색), 원작자 메일·Play 평가 메뉴 삭제(이슈 신고는 이 저장소로). 접근성 서비스 클래스·앱 ID는 유지(업데이트로 설치되고 접근성 설정이 안 풀림).
+- 남은 공개 전 작업: 서명 키 교체 + 앱 ID 변경(재설치 1회), 토큰 없이 업데이트 받기, 공개 전환.
+
 ## 2026-11-10 — 설정을 홈의 탭으로: 하단 바 고정, 내용만 슬라이드
 - 사용자 확인(build-90): 설정에도 바가 보이는 것은 의도대로. 다만 화면(Activity) 전환이라 바까지 함께 밀려 들어왔다.
 - 변경: 홈 안에서 `AnimatedContent`로 홈/설정 탭을 바꾼다(탭 순서 방향으로 0.25초 슬라이드). 설정 탭에서 뒤로 가기는 홈 탭으로, 홈 복귀 시 다시 읽음. 버블의 설정 바로가기는 기존 `SettingsActivity` 그대로. 커밋 9f77cd8, build-91 CI 성공.
