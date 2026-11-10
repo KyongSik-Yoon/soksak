@@ -48,7 +48,7 @@ class AudioRecorder(private val context: Context) {
          */
         fun level(peak: Int): Float =
             sqrt((peak / FULL_SCALE_PEAK).coerceIn(0f, 1f))
-        private const val SPEECH_START_PROB = 0.5f
+        private const val SPEECH_START_PROB = SileroVad.SPEECH_PROB
         private const val SPEECH_END_PROB = 0.35f
 
         /**

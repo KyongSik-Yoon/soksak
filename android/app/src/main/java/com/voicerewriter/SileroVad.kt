@@ -11,7 +11,7 @@ import java.nio.LongBuffer
 /**
  * Silero VAD v5 over ONNX Runtime. Feed fixed [CHUNK]-sample 16 kHz frames and get
  * a speech probability (0..1). The model is stateful (LSTM + context), so call
- * [reset] at the start of each utterance. Best-effort: [createOrNull] returns null
+ * [reset] at the start of each utterance. Best-effort: [create] returns null
  * if the model/runtime is unavailable, and callers simply skip VAD.
  *
  * **The graph wants [CONTEXT] + [CHUNK] samples, not [CHUNK].** Silero v5 keeps a 64-sample
@@ -37,24 +37,23 @@ class SileroVad private constructor(
 
         /** Stray frames over the threshold happen; a word is at least this many (~0.1s). */
         private const val MIN_SPEECH_FRAMES = 3
-        private const val SPEECH_PROB = 0.5f
+        /** A frame at or above this is speech (the recorder's auto-stop uses it too). */
+        const val SPEECH_PROB = 0.5f
 
         internal fun enoughSpeech(probs: List<Float>): Boolean = probs.count { it >= SPEECH_PROB } >= MIN_SPEECH_FRAMES
-
-        /** A separate instance, for callers that can run while [shared] is mid-recording (the model is stateful). */
-        fun create(context: Context): SileroVad? = createOrNull(context)
 
         /** Process-wide cached instance (the model loads once); null if unavailable. */
         fun shared(context: Context): SileroVad? {
             shared?.let { return it }
             synchronized(this) {
                 shared?.let { return it }
-                shared = createOrNull(context)
+                shared = create(context)
                 return shared
             }
         }
 
-        private fun createOrNull(context: Context): SileroVad? = try {
+        /** A separate instance, for callers that can run while [shared] is mid-recording (the model is stateful). */
+        fun create(context: Context): SileroVad? = try {
             val bytes = context.assets.open("silero_vad.onnx").use { it.readBytes() }
             val env = OrtEnvironment.getEnvironment()
             val session = env.createSession(bytes, OrtSession.SessionOptions())

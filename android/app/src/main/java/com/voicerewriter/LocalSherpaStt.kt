@@ -189,7 +189,7 @@ object LocalSherpaStt {
                 val parts = if (qnn) windows(samples) else listOf(0 until samples.size)
                 val hint = qnnHint(settings.sttModel, DictationLanguage.normalize(settings.sttLanguage))
                 val partLog = ArrayList<String>(parts.size)
-                val text = parts.map { r ->
+                val text = parts.mapNotNull { r ->
                     val stream = rec.createStream()
                     try {
                         val part = if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1)
@@ -198,11 +198,11 @@ object LocalSherpaStt {
                         rec.decode(stream)
                         val result = rec.getResult(stream)
                         partLog += "${(System.nanoTime() - d0) / 1_000_000}ms/${result.tokens.size}tok"
-                        clean(result.text).takeUnless { hint.isNotEmpty() && isHintEcho(it) && !hasSpeech(context, part) }.orEmpty()
+                        clean(result.text).takeUnless { it.isEmpty() || hint.isNotEmpty() && isHintEcho(it) && !hasSpeech(context, part) }
                     } finally {
                         stream.release()
                     }
-                }.filter { it.isNotEmpty() }.joinToString(" ").trim()
+                }.joinToString(" ")
                 Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s, load ${loadMs}ms, decode $partLog -> ${text.length} chars")
                 // Whisper on silence recites stock TV/YouTube lines.
                 HallucinationFilter.clean(text)
