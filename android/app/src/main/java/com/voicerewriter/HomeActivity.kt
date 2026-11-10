@@ -24,6 +24,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -190,6 +201,7 @@ class HomeActivity : ComponentActivity() {
                     // Scroll area
                     Column(
                         Modifier.fillMaxSize().graphicsLayer { translationX = -shift.value * size.width }.statusBarsPadding()
+                            .imePadding() // the keyboard shrinks the list instead of panning the whole window
                             .verticalScroll(rememberScrollState())
                             .padding(18.dp, 14.dp, 18.dp, 28.dp),
                     ) {
@@ -709,6 +721,9 @@ class HomeActivity : ComponentActivity() {
      * word in place (no retyping the rest). A "full text" fallback exposes the whole string
      * for bigger changes. On save the caller updates the stored entry and teaches the fix.
      */
+    /** Below the fix row: "Edit full text" and the Save/Cancel row, kept above the keyboard. */
+    private val SAVE_ROOM = 96.dp
+
     @Composable
     private fun EditForm(
         entry: DictationEntry,
@@ -777,7 +792,24 @@ class HomeActivity : ComponentActivity() {
 
                     if (editIdx != null) {
                         val original = tokens.getOrNull(editIdx!!)?.value ?: ""
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // Open the keyboard on the tapped word, and keep the fix row plus the
+                        // Save row under it ([SAVE_ROOM]) clear of the keyboard, not just the field.
+                        val fixArea = remember { BringIntoViewRequester() }
+                        val focus = remember { FocusRequester() }
+                        var fixSize by remember { mutableStateOf(IntSize.Zero) }
+                        val density = LocalDensity.current
+                        val imeBottom = WindowInsets.ime.getBottom(density)
+                        LaunchedEffect(editIdx) { runCatching { focus.requestFocus() } }
+                        LaunchedEffect(editIdx, imeBottom, fixSize) {
+                            if (fixSize != IntSize.Zero) {
+                                val room = with(density) { SAVE_ROOM.toPx() }
+                                fixArea.bringIntoView(Rect(0f, 0f, fixSize.width.toFloat(), fixSize.height + room))
+                            }
+                        }
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.bringIntoViewRequester(fixArea).onSizeChanged { fixSize = it },
+                        ) {
                             Text("Fix “$original”", fontFamily = Mulish, fontSize = 11.sp, color = cs.onSurfaceVariant)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(
@@ -792,7 +824,7 @@ class HomeActivity : ComponentActivity() {
                                                 fontFamily = Mulish, fontSize = 14.sp, color = cs.onSurface,
                                             ),
                                             cursorBrush = SolidColor(cs.primary),
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
                                         )
                                     }
                                 }
