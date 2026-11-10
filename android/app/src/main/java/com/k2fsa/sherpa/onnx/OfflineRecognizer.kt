@@ -100,6 +100,7 @@ data class OfflineWhisperModelConfig(
     var enableTokenTimestamps: Boolean = false,
     var enableSegmentTimestamps: Boolean = false,
     var qnnConfig: QnnConfig = QnnConfig(),
+    var promptTokens: String = "", // this fork: comma-separated ids decoded before the start sequence (QNN)
 )
 
 data class OfflineCanaryModelConfig(

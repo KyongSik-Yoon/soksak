@@ -1,5 +1,19 @@
+diff --git i/sherpa-onnx/csrc/offline-whisper-model-config.h w/sherpa-onnx/csrc/offline-whisper-model-config.h
+index 228282e..1bf107e 100644
+--- i/sherpa-onnx/csrc/offline-whisper-model-config.h
++++ w/sherpa-onnx/csrc/offline-whisper-model-config.h
+@@ -54,6 +54,9 @@ struct OfflineWhisperModelConfig {
+   // segment-level and token-level timestamps.
+   bool enable_segment_timestamps = false;
+ 
++  // Comma-separated token IDs decoded before the start sequence. QNN only.
++  std::string prompt_tokens;
++
+   OfflineWhisperModelConfig() = default;
+   OfflineWhisperModelConfig(const std::string &encoder,
+                             const std::string &decoder,
 diff --git i/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc w/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc
-index 863d752..b6a08eb 100644
+index 863d752..84b9eca 100644
 --- i/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc
 +++ w/sherpa-onnx/csrc/qnn/offline-whisper-model-qnn.cc
 @@ -4,7 +4,12 @@
@@ -89,7 +103,18 @@ index 863d752..b6a08eb 100644
  
      // Initialize self kv cache to zeros (flat vector for better cache locality)
      // Layout: [layer0_k, layer0_v, layer1_k, layer1_v, ...]
-@@ -181,6 +224,7 @@ class OfflineWhisperModelQnn::Impl {
+@@ -169,6 +212,10 @@ class OfflineWhisperModelQnn::Impl {
+       }
+     }
+ 
++    std::vector<int32_t> prompt;
++    SplitStringToIntegers(config_.whisper.prompt_tokens, ",", true, &prompt);
++    sot_sequence.insert(sot_sequence.begin(), prompt.begin(), prompt.end());
++
+     int32_t offset = 0;
+     std::vector<float> logits;
+     float *self_kv_data = self_kv.data();
+@@ -181,6 +228,7 @@ class OfflineWhisperModelQnn::Impl {
        offset += 1;
      }
  
@@ -97,7 +122,7 @@ index 863d752..b6a08eb 100644
      int32_t idx = MaxElementIndex(logits.data(), logits.size());
      if (idx == eot_) {
        return r;
-@@ -196,9 +240,22 @@ class OfflineWhisperModelQnn::Impl {
+@@ -196,9 +244,22 @@ class OfflineWhisperModelQnn::Impl {
        mask[offset] = 0;
        offset += 1;
  
@@ -120,7 +145,7 @@ index 863d752..b6a08eb 100644
      return r;
    }
  
-@@ -583,6 +640,7 @@ class OfflineWhisperModelQnn::Impl {
+@@ -583,6 +644,7 @@ class OfflineWhisperModelQnn::Impl {
        const std::vector<std::vector<float>> &cross_kv,
        const float *self_kv_data,
        const std::vector<int32_t> &mask) const {
@@ -128,7 +153,7 @@ index 863d752..b6a08eb 100644
      // Set tokens
      decoder_model_->SetInputTensorData(tokens_name_, &token, 1);
  
-@@ -597,7 +655,11 @@ class OfflineWhisperModelQnn::Impl {
+@@ -597,7 +659,11 @@ class OfflineWhisperModelQnn::Impl {
                                           self_kv_size_);
      }
  
@@ -140,7 +165,7 @@ index 863d752..b6a08eb 100644
      for (int32_t i = 0; i < n_text_layer_; ++i) {
        decoder_model_->SetInputTensorData(decoder_cross_k_[i],
                                           cross_kv[i * 2].data(),
-@@ -608,6 +670,9 @@ class OfflineWhisperModelQnn::Impl {
+@@ -608,6 +674,9 @@ class OfflineWhisperModelQnn::Impl {
                                           cross_kv[i * 2 + 1].size());
      }
  
@@ -150,7 +175,7 @@ index 863d752..b6a08eb 100644
      // Set offset
      decoder_model_->SetInputTensorData(offset_name_, &offset, 1);
  
-@@ -615,13 +680,20 @@ class OfflineWhisperModelQnn::Impl {
+@@ -615,13 +684,20 @@ class OfflineWhisperModelQnn::Impl {
      decoder_model_->SetInputTensorData(mask_name_, mask.data(), mask.size());
  
      // Run decoder
@@ -172,7 +197,7 @@ index 863d752..b6a08eb 100644
      for (int32_t i = 0; i < n_text_layer_; ++i) {
        // Update self_k
        auto delta_k =
-@@ -639,6 +711,7 @@ class OfflineWhisperModelQnn::Impl {
+@@ -639,6 +715,7 @@ class OfflineWhisperModelQnn::Impl {
          self_v[r * self_kv_stride_ + offset] += delta_v[r];
        }
      }
@@ -180,7 +205,7 @@ index 863d752..b6a08eb 100644
    }
  
    int32_t DetectLanguage(
-@@ -690,6 +763,12 @@ class OfflineWhisperModelQnn::Impl {
+@@ -690,6 +767,12 @@ class OfflineWhisperModelQnn::Impl {
    int32_t n_text_state_ = 0;
    int32_t vocab_size_ = 0;
    int32_t mask_size_ = 0;
@@ -488,3 +513,17 @@ index d5d93c4..933081c 100644
   private:
    class Impl;
    std::unique_ptr<Impl> impl_;
+diff --git i/sherpa-onnx/jni/offline-recognizer.cc w/sherpa-onnx/jni/offline-recognizer.cc
+index ab5948a..8ea5bb5 100644
+--- i/sherpa-onnx/jni/offline-recognizer.cc
++++ w/sherpa-onnx/jni/offline-recognizer.cc
+@@ -171,6 +171,9 @@ static OfflineRecognizerConfig GetOfflineConfig(JNIEnv *env, jobject config,
+   SHERPA_ONNX_JNI_READ_INT(ans.model_config.whisper.tail_paddings, tailPaddings,
+                            whisper_config_cls, whisper_config);
+ 
++  SHERPA_ONNX_JNI_READ_STRING(ans.model_config.whisper.prompt_tokens,
++                              promptTokens, whisper_config_cls, whisper_config);
++
+   SHERPA_ONNX_JNI_READ_BOOL(ans.model_config.whisper.enable_token_timestamps,
+                             enableTokenTimestamps, whisper_config_cls,
+                             whisper_config);
