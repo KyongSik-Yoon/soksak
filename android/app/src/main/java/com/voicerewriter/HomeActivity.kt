@@ -8,8 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
@@ -166,18 +171,25 @@ class HomeActivity : ComponentActivity() {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
-                    AnimatedContent(
-                        targetState = tab,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        transitionSpec = { tabSlide() },
-                        label = "tab",
-                    ) { shown ->
-                    if (shown == AppTab.SETTINGS) {
-                        SettingsScreen(settingsRepo) { lifecycleScope.launch { it() } }
-                    } else
+                    // Home stays composed while Settings is shown: rebuilding up to 100 history cards
+                    // on every return held the slide back ~0.25s on the phone. Only the content moves.
+                    val shift = remember { Animatable(0f) }
+                    val settingsShown by remember { derivedStateOf { tab == AppTab.SETTINGS || shift.value > 0f } }
+                    LaunchedEffect(tab) {
+                        // Settings' first frame is the slow one; start the clock after it, or the
+                        // slide is already over by the time anything is drawn.
+                        if (tab == AppTab.SETTINGS) withFrameNanos { }
+                        shift.animateTo(if (tab == AppTab.SETTINGS) 1f else 0f, tween(250))
+                    }
+                    Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                    if (settingsShown) {
+                        Box(Modifier.fillMaxSize().graphicsLayer { translationX = (1 - shift.value) * size.width }) {
+                            SettingsScreen(settingsRepo) { lifecycleScope.launch { it() } }
+                        }
+                    }
                     // Scroll area
                     Column(
-                        Modifier.fillMaxSize().statusBarsPadding()
+                        Modifier.fillMaxSize().graphicsLayer { translationX = -shift.value * size.width }.statusBarsPadding()
                             .verticalScroll(rememberScrollState())
                             .padding(18.dp, 14.dp, 18.dp, 28.dp),
                     ) {
