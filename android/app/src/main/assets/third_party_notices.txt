@@ -1,8 +1,9 @@
-OpenWispr for Android — open source notices
-============================================
+Soksak (속삭) — open source notices
+==================================
 
-OpenWispr is MIT licensed: Copyright (c) 2026 OpenWispr contributors.
-This build is a modified fork of github.com/RohitAg13/openWispr.
+Soksak is a fork of OpenWispr (github.com/RohitAg13/openWispr), MIT License:
+  Copyright (c) 2026 OpenWispr contributors
+  Copyright (c) 2026 Soksak contributors (changes in this fork)
 
 The app includes the components below. Each component's copyright notice is
 listed with it; the full license texts follow at the end of this file.

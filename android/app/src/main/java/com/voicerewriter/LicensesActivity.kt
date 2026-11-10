@@ -30,7 +30,7 @@ class LicensesActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val notices = assets.open(NOTICES_ASSET).bufferedReader().use { it.readText() }
         setContent {
-            com.voicerewriter.ui.OpenWisprTheme {
+            com.voicerewriter.ui.SoksakTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(
                         Modifier.fillMaxSize().systemBarsPadding().padding(16.dp),

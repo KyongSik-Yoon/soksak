@@ -71,7 +71,7 @@ import androidx.lifecycle.lifecycleScope
 import com.voicerewriter.ui.BrandCoral
 import com.voicerewriter.ui.MarkCream
 import com.voicerewriter.ui.Mulish
-import com.voicerewriter.ui.OpenWisprTheme
+import com.voicerewriter.ui.SoksakTheme
 import com.voicerewriter.ui.PlexMono
 import com.voicerewriter.ui.SunsetBrush
 import kotlinx.coroutines.Dispatchers
@@ -86,7 +86,7 @@ import java.util.Locale
  * The app's home: a stat band over a day-grouped feed of recent dictations, with a
  * Material-3 bottom nav (Home · Talk · Settings). Talk opens the existing dictation
  * sheet; Settings opens the existing full settings screen — only Home is new here.
- * Implements the "OpenWispr Mobile" design handoff (Home tab).
+ * Implements the upstream "OpenWispr Mobile" design handoff (Home tab).
  */
 /** How many unfinished recordings to show before collapsing the rest behind "See all". */
 private const val UNFINISHED_PREVIEW = 3
@@ -95,7 +95,7 @@ class HomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge() // draw under the status/nav bars; the cream/plum bg fills the whole screen
         super.onCreate(savedInstanceState)
-        setContent { OpenWisprTheme { HomeScreen(); UpdatePrompt() } }
+        setContent { SoksakTheme { HomeScreen(); UpdatePrompt() } }
         // First launch: route once into onboarding (it returns here when finished).
         lifecycleScope.launch {
             val done = withContext(Dispatchers.IO) {
@@ -372,13 +372,13 @@ class HomeActivity : ComponentActivity() {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(
-                    painterResource(R.drawable.ic_aperture),
+                    painterResource(R.drawable.ic_mark),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp),
                 )
                 Text(
-                    "OpenWispr",
+                    "Soksak",
                     fontFamily = Mulish,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 19.sp,
@@ -892,7 +892,7 @@ class HomeActivity : ComponentActivity() {
             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Box(Modifier.size(46.dp).clip(CircleShape).background(SunsetBrush), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_aperture), null, tint = MarkCream, modifier = Modifier.size(26.dp))
+                    Icon(painterResource(R.drawable.ic_mark), null, tint = MarkCream, modifier = Modifier.size(26.dp))
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("History is off", fontFamily = Mulish, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,

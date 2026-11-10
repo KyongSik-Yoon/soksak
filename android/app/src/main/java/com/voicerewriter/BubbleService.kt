@@ -120,7 +120,7 @@ class BubbleService : Service() {
          * only become while our UI is visible (Android 14+ while-in-use rule). It then keeps
          * the microphone after the user leaves, which is what lets [HeadlessDictation] record
          * without opening a sheet. False after a background (re)start — boot, or the system
-         * restarting a killed service — until the user opens OpenWispr again.
+         * restarting a killed service — until the user opens Soksak again.
          */
         @Volatile
         var micReady = false
@@ -372,8 +372,8 @@ class BubbleService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setSmallIcon(R.drawable.ic_aperture)
-            .setContentTitle("OpenWispr")
+            .setSmallIcon(R.drawable.ic_mark)
+            .setContentTitle(getString(R.string.app_name))
             .setContentText("Tap to dictate · hold to talk, release to send")
             .setOngoing(true)
             .build()

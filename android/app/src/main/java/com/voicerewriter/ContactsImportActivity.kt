@@ -60,7 +60,7 @@ class ContactsImportActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val repo = VocabRepository(applicationContext)
         setContent {
-            com.voicerewriter.ui.OpenWisprTheme {
+            com.voicerewriter.ui.SoksakTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     ImportScreen(repo)
                 }

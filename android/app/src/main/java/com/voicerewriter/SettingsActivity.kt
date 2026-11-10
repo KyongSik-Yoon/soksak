@@ -73,7 +73,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
 import com.voicerewriter.ui.MarkCream
 import com.voicerewriter.ui.MonoEyebrow
-import com.voicerewriter.ui.OpenWisprTheme
+import com.voicerewriter.ui.SoksakTheme
 import com.voicerewriter.ui.SunsetBrush
 import com.voicerewriter.ui.Wordmark
 import kotlinx.coroutines.Dispatchers
@@ -91,7 +91,7 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val repo = SettingsRepository(applicationContext)
         setContent {
-            OpenWisprTheme {
+            SoksakTheme {
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f)) { SettingsScreen(repo) { lifecycleScope.launch { it() } } }
                     AppBottomBar(
@@ -291,7 +291,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
 
     fun installUpdate(r: AppUpdater.Release) {
         if (!AppUpdater.canInstall(context)) {
-            updateStatus = tr("Allow OpenWispr to install updates, then tap Update again.")
+            updateStatus = tr("Allow Soksak to install updates, then tap Update again.")
             context.startActivity(AppUpdater.installPermissionIntent(context))
             return
         }
@@ -530,7 +530,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                     Divider()
                     ToggleRow(
                         tr("Record without the sheet"),
-                        tr("Keep the app you're typing in focused. On-device only; open OpenWispr once after a reboot"),
+                        tr("Keep the app you're typing in focused. On-device only; open Soksak once after a reboot"),
                         headlessRecording,
                     ) { headlessRecording = it; persist() }
                     Divider()
@@ -637,7 +637,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                         launch {
                             val log = withContext(Dispatchers.IO) { DebugLog.recent() }
                             (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
-                                .setPrimaryClip(android.content.ClipData.newPlainText("openwispr log", log))
+                                .setPrimaryClip(android.content.ClipData.newPlainText("soksak log", log))
                             android.widget.Toast.makeText(context, trf("Copied %s lines", log.lines().size.toString()), android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -652,22 +652,11 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
 
             // ---------------- GENERAL ----------------
             // ---------------- FEEDBACK ----------------
-            // There was no way to reach us from inside the app at all, so the only channel was a
-            // Play review, which we can reply to but not ask questions in. Both rows prefill the
-            // version/device details and then hand off to the user's own mail app or browser;
-            // nothing is transmitted by us.
+            // Prefills version/device details and hands off to the browser; nothing is sent by us.
             Section(tr("Feedback")) {
                 Card {
-                    NavRow(tr("Send feedback"), tr("Email us. Ideas, bugs, anything.")) {
-                        launchOrNotify(context, Feedback.emailIntent(context), trf("No email app found. Write to %s", Feedback.EMAIL))
-                    }
-                    Divider()
                     NavRow(tr("Report a problem"), tr("Open an issue on GitHub")) {
                         launchOrNotify(context, Feedback.issueIntent(context), tr("Couldn't open a browser."))
-                    }
-                    Divider()
-                    NavRow(tr("Rate OpenWispr"), tr("Leave a review on Google Play")) {
-                        launchOrNotify(context, Feedback.playListingIntent(context), tr("Couldn't open Google Play."))
                     }
                 }
             }
@@ -716,8 +705,8 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                     val (shTitle, shSub) = when (shizuku) {
                         ShizukuInstaller.State.READY -> tr("Silent updates: on") to
                             tr("Shizuku is running. Update installs without the confirmation screens.")
-                        ShizukuInstaller.State.NEEDS_PERMISSION -> tr("Silent updates: allow OpenWispr") to
-                            tr("Shizuku is running. Tap to let OpenWispr install updates through it.")
+                        ShizukuInstaller.State.NEEDS_PERMISSION -> tr("Silent updates: allow Soksak") to
+                            tr("Shizuku is running. Tap to let Soksak install updates through it.")
                         ShizukuInstaller.State.NOT_RUNNING -> tr("Silent updates: start Shizuku") to
                             tr("Shizuku isn't running (it stops on reboot). Tap to open it and start it with wireless debugging.")
                         ShizukuInstaller.State.NOT_INSTALLED -> tr("Silent updates (optional)") to
@@ -908,7 +897,7 @@ private fun HeroHeader() {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_aperture), null, tint = MarkCream, modifier = Modifier.size(40.dp))
+            Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = MarkCream, modifier = Modifier.size(40.dp))
             Text(tr("Settings"), color = MarkCream, style = Wordmark)
         }
     }

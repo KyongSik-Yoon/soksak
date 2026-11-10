@@ -73,7 +73,7 @@ fun AppBottomBar(selected: AppTab, onHome: () -> Unit, onTalk: () -> Unit, onSet
         ) {
             val home = selected == AppTab.HOME
             NavItem(label = "Home", selected = home, onClick = { haptic(); if (!home) onHome() }) {
-                Icon(painterResource(R.drawable.ic_aperture), null,
+                Icon(painterResource(R.drawable.ic_mark), null,
                     tint = if (home) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(24.dp))
             }
@@ -84,7 +84,7 @@ fun AppBottomBar(selected: AppTab, onHome: () -> Unit, onTalk: () -> Unit, onSet
                         .clickable { haptic(); onTalk() },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(painterResource(R.drawable.ic_aperture), null, tint = MarkCream,
+                    Icon(painterResource(R.drawable.ic_mark), null, tint = MarkCream,
                         modifier = Modifier.size(30.dp))
                 }
                 Text("Talk", fontFamily = Mulish, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,

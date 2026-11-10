@@ -76,8 +76,8 @@ object I18n {
         "Auto-stop wait" to "자동 중지 대기",
         "Stops after %ss of silence · tap to change" to "%s초 동안 조용하면 멈춰요 · 탭해서 변경",
         "Record without the sheet" to "시트 없이 녹음",
-        "Keep the app you're typing in focused. On-device only; open OpenWispr once after a reboot" to
-            "입력 중인 앱의 포커스를 유지해요. 기기 내 엔진 전용, 재부팅 후 OpenWispr를 한 번 열어 주세요",
+        "Keep the app you're typing in focused. On-device only; open Soksak once after a reboot" to
+            "입력 중인 앱의 포커스를 유지해요. 기기 내 엔진 전용, 재부팅 후 속삭을 한 번 열어 주세요",
         "Review before inserting" to "넣기 전에 확인",
         "Show the text and wait, instead of typing it straight into the field" to "입력창에 바로 넣지 않고 텍스트를 보여 주고 기다려요",
 
@@ -122,15 +122,9 @@ object I18n {
 
         // Feedback
         "Feedback" to "피드백",
-        "Send feedback" to "의견 보내기",
-        "Email us. Ideas, bugs, anything." to "아이디어, 버그, 무엇이든 메일로 보내 주세요.",
-        "No email app found. Write to %s" to "메일 앱이 없어요. %s 로 보내 주세요",
         "Report a problem" to "문제 신고",
         "Open an issue on GitHub" to "GitHub에 이슈 올리기",
         "Couldn't open a browser." to "브라우저를 열 수 없어요.",
-        "Rate OpenWispr" to "OpenWispr 평가하기",
-        "Leave a review on Google Play" to "Google Play에 리뷰 남기기",
-        "Couldn't open Google Play." to "Google Play를 열 수 없어요.",
 
         // Updates
         "Updates" to "업데이트",
@@ -143,15 +137,15 @@ object I18n {
         "Check failed." to "확인에 실패했어요.",
         "Build %s is available (installed: %s)." to "빌드 %s 업데이트가 있어요 (설치됨: %s).",
         "Installed: %s" to "설치됨: %s",
-        "Allow OpenWispr to install updates, then tap Update again." to "OpenWispr의 앱 설치를 허용한 뒤 업데이트를 다시 눌러 주세요.",
+        "Allow Soksak to install updates, then tap Update again." to "속삭의 앱 설치를 허용한 뒤 업데이트를 다시 눌러 주세요.",
         "Installing… confirm if Android asks." to "설치 중… Android가 물으면 확인해 주세요.",
         "Update failed." to "업데이트에 실패했어요.",
         "Update" to "업데이트",
         "Check" to "확인",
         "Silent updates: on" to "무확인 업데이트: 켜짐",
         "Shizuku is running. Update installs without the confirmation screens." to "Shizuku 실행 중. 업데이트가 확인 화면 없이 설치돼요.",
-        "Silent updates: allow OpenWispr" to "무확인 업데이트: OpenWispr 허용 필요",
-        "Shizuku is running. Tap to let OpenWispr install updates through it." to "Shizuku 실행 중. 탭해서 OpenWispr가 Shizuku로 설치하도록 허용하세요.",
+        "Silent updates: allow Soksak" to "무확인 업데이트: 속삭 허용 필요",
+        "Shizuku is running. Tap to let Soksak install updates through it." to "Shizuku 실행 중. 탭해서 속삭이 Shizuku로 설치하도록 허용하세요.",
         "Silent updates: start Shizuku" to "무확인 업데이트: Shizuku 시작 필요",
         "Shizuku isn't running (it stops on reboot). Tap to open it and start it with wireless debugging." to
             "Shizuku가 꺼져 있어요(재부팅하면 꺼져요). 탭해서 열고 무선 디버깅으로 시작하세요.",

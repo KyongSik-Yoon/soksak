@@ -38,7 +38,7 @@ object SttEngine {
      */
     suspend fun transcribe(settings: Settings, audio: File, biasPrompt: String? = null): String = withContext(Dispatchers.IO) {
         if (settings.sttKey.isBlank()) {
-            throw IllegalStateException("No speech-to-text key set. Open OpenWispr settings.")
+            throw IllegalStateException("No speech-to-text key set. Open Soksak settings.")
         }
         val url = settings.sttEndpointResolved
         if (url.isEmpty()) throw IllegalStateException("Speech-to-text endpoint not configured.")

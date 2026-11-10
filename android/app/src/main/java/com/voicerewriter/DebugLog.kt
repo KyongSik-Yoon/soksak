@@ -68,6 +68,6 @@ object DebugLog {
             if (p.exitValue() == 0 && out.lines().size > 3) break
         }
         out = relevant(out.lines(), nowMs = System.currentTimeMillis()).joinToString("\n")
-        "OpenWispr pid ${Process.myPid()} ${android.os.Build.MODEL} ${android.os.Build.SOC_MODEL.takeIf { android.os.Build.VERSION.SDK_INT >= 31 } ?: ""}\n$out"
+        "Soksak pid ${Process.myPid()} ${android.os.Build.MODEL} ${android.os.Build.SOC_MODEL.takeIf { android.os.Build.VERSION.SDK_INT >= 31 } ?: ""}\n$out"
     }.getOrElse { "logcat failed: $it" }
 }

@@ -1,171 +1,46 @@
-# OpenWispr
+# 속삭 (Soksak)
 
-> **Speak. It types.** An open-source, Wispr Flow-style voice tool that turns speech into
-> clean, in-your-voice text and inserts it straight into the field you're in — with the whole
-> pipeline able to run **fully on-device**.
+휴대폰에서 한국어로 말하면, 지금 쓰고 있는 앱의 입력창에 글로 넣어 주는 Android 받아쓰기 앱입니다.
+음성 인식은 전부 기기 안에서(Whisper, CPU 또는 Qualcomm NPU) 돌고, 소리를 서버로 보내지 않습니다.
 
-OpenWispr listens, transcribes, cleans up the transcript deterministically, optionally polishes
-it with a small on-device LLM, and auto-inserts the result into whatever app you're using. It
-learns your vocabulary and style the more you use it, and keeps everything on your device unless
-you explicitly choose a cloud provider.
+> **이 프로젝트는 [RohitAg13/openWispr](https://github.com/RohitAg13/openWispr)(MIT)를 포크해서 갈라져 나온 프로젝트입니다.**
+> 원작의 Android 앱을 바탕으로 한국어·개인 사용에 맞게 크게 고쳤고, 원작과는 별개로 관리합니다.
+> 원작자에게 감사드립니다. 원작의 macOS 앱, LLM 다듬기, 클라우드 연동은 이 포크에 없습니다.
+>
+> *Soksak is a fork of [OpenWispr](https://github.com/RohitAg13/openWispr) (MIT), reworked into an
+> Android-only, on-device Korean dictation app. It is maintained separately from the original.*
 
-## Screenshots
+## 무엇을 하나
 
-<div align="center">
+- **떠 있는 버블**: 아무 앱에서나 버블을 누르고 말하면, 포커스를 뺏지 않고 그 입력창에 글을 넣습니다(접근성 서비스).
+- **한국어 + 개발 용어**: 한국어 문장에 영어 개발 용어가 섞인 말을 주로 다룹니다. 단어장과 별칭 교정으로 이름·용어를 맞춥니다.
+- **말하는 동안 변환**: 말이 쉴 때마다 조각을 미리 변환해서, 멈춘 뒤 기다리는 시간이 짧습니다.
+- **조용히 말하기**: 속삭이듯 말해도 녹음을 자르지 않고 받아씁니다.
+- **모델 고르기**: 버블을 위로 밀면 모델 메뉴가 뜹니다.
 
-**macOS** — a menu-bar app; talk lands in the notch and inserts straight at your cursor.
+## 음성 모델
 
-<img src="docs/screenshots/macos-home.png" alt="OpenWispr on macOS — home, with stats and dictation history" width="720">
-
-<img src="docs/screenshots/macos-listening.png" alt="OpenWispr on macOS — listening in the notch, live transcript, on-device" width="720">
-
-**Android** — home feed and the on-device listening overlay.
-
-<img src="docs/screenshots/android-home.png" alt="OpenWispr on Android — home with stats and recent dictations" width="250">
-&nbsp;&nbsp;&nbsp;
-<img src="docs/screenshots/android-listening.png" alt="OpenWispr on Android — listening overlay with live transcript" width="250">
-
-</div>
-
-## Why OpenWispr
-
-Most voice-dictation tools send your audio to the cloud. OpenWispr can run the entire pipeline
-locally, and it's open source — so you can read exactly what it does, swap the models, and keep
-your words on your own device.
-
-| | OpenWispr | Typical cloud dictation (e.g. Wispr Flow) |
+| 모델 | 엔진 | 비고 |
 |---|---|---|
-| Runs fully on-device | ✅ optional, end-to-end | ☁️ audio processed in the cloud |
-| Open source | ✅ MIT | ❌ |
-| Your audio & text stay local | ✅ (unless you pick a cloud provider) | ❌ sent to a server |
-| Swappable / custom models | ✅ Whisper + any GGUF LLM | ❌ |
-| Custom cleanup model | ✅ our fine-tune, or bring your own | ❌ |
-| Price | ✅ free | 💳 subscription |
+| Small ACFT (FUTO) | whisper.cpp (CPU) | 기본값, 짧은 클립에 맞춘 미세조정 |
+| Large v3 Turbo ACFT q4_0 | whisper.cpp (CPU) | 가장 정확, 느림 |
+| Small ACFT (NPU) | sherpa-onnx + QNN | Snapdragon 8 Elite Gen 5(SM8850) 전용 |
+| Medium (NPU) | sherpa-onnx + QNN | SM8850 전용 |
 
-*(A comparison of approach, not a feature-by-feature benchmark — Wispr Flow is a polished
-cloud product; OpenWispr's bet is local-first and open.)*
+모델은 앱에서 고를 때 내려받습니다. 라이선스는 앱의 설정 → General → 오픈소스 라이선스에 있습니다.
 
-## Platforms
-
-| Platform | Status | Location |
-|---|---|---|
-| Android | Active | [`android/`](android/) |
-| macOS | Beta | [`macos/`](macos/) |
-| iOS / others | Future | — |
-
-Both native apps share one deterministic-cleanup pipeline contract (the Android `textproc`
-package is ported 1:1 to Swift in `macos/OpenWisprCore`) and one prompt/tone contract
-(see [`shared/prompts/`](shared/prompts/)), so behavior stays in sync across platforms.
-
-## Install
-
-Grab the latest build from the [**Releases**](../../releases/latest) page (currently **v0.1.0**,
-the first beta).
-
-### Android
-
-*Requires Android 7.0+ on an **arm64** device.*
-
-1. Download **`OpenWispr-v0.1.0.apk`** from the latest release.
-2. Open it. The first time you sideload, Android asks you to allow your browser / Files app to
-   **install unknown apps** — enable it, then tap back.
-3. Tap **Install**, then open OpenWispr.
-4. Grant the two permissions it requests:
-   - **Microphone** — so it can hear you.
-   - **Accessibility service** (*Settings → Accessibility → OpenWispr*) — so it can type the
-     cleaned text into the focused field of other apps.
-
-Updating later: just install a newer release `.apk` over the top — it's the same signing key, so
-it upgrades in place.
-
-### macOS
-
-*Requires macOS 13.3 (Ventura) or later. Apple Silicon or Intel.*
-
-1. Download **`OpenWispr-0.1.0.dmg`** from the latest release.
-2. Open the `.dmg` and drag **OpenWispr** into **Applications**.
-3. The app is self-signed (not yet notarized), so on first launch Gatekeeper blocks it.
-   **Right-click the app → Open** and confirm once — or run:
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/OpenWispr.app
-   ```
-4. When prompted, grant **Microphone** and **Accessibility**
-   (*System Settings → Privacy & Security → Accessibility*) so it can listen and insert text.
-
-> Prefer to build from source? See the platform folders — [`android/`](android/) and
-> [`macos/`](macos/).
-
-## How it works
-
-```
-mic → VAD → STT → personal-vocab correction → deterministic cleanup
-    → (optional) on-device LLM polish → auto-insert
-```
-
-- **STT** — speech-to-text via on-device **whisper.cpp** (or Apple Speech on macOS), or an
-  OpenAI-compatible cloud endpoint. Your vocabulary biases the decoder so names and jargon land.
-- **Deterministic cleanup** (pure, zero-latency): removes fillers, normalizes spoken forms and
-  numbers, resolves self-corrections ("send it to Mark, I mean John"), formats lists, fixes
-  capitalization. This is the strong default and runs with no model at all.
-- **LLM polish** (opt-in, Off / Light / Medium / Full): a small **local** model (via
-  llama.cpp) — or a cloud provider — refines further, guarded against over-editing so it never
-  invents content or balloons a short phrase. On a guard trip it falls back to the deterministic
-  output, so you always get at least the clean version.
-- **Personalization**: your corrections feed a personal dictionary + STT bias, and your closest
-  past edits become few-shot examples that nudge the polish toward how *you* write. See
-  [`docs/personalization.md`](docs/personalization.md).
-- **Auto-insert**: the cleaned text is typed into the focused field of whatever app you're in
-  (Accessibility on macOS, an accessibility service on Android), with a clipboard fallback.
-
-## Privacy & running locally
-
-In the default local configuration, **nothing leaves your device**: on-device Whisper STT,
-on-device LLM polish, local deterministic cleanup, and a local vocabulary/history. The only
-network access in local mode is a **one-time model download** from Hugging Face the first time
-you enable Whisper or LLM polish. Cloud STT and cloud LLM providers are strictly opt-in, chosen
-in Settings. Your personalization data (dictionary, edit history) never leaves the device.
-
-## The cleanup model (our core competence)
-
-Generic small LLMs are mediocre at "clean up this dictation without changing it" — they
-paraphrase, over-format, and hallucinate. So we fine-tuned our own: **OpenWispr Cleanup**
-(Qwen3-0.6B), trained specifically for faithful, voice-preserving transcript cleanup and
-published as a GGUF on Hugging Face. Select it as the polish model and it downloads once.
-
-The **training pipeline, datasets, and evaluation live in a separate repo**
-(`openwispr-finetune`) and are not part of this tree — this repo ships the app and points at the
-hosted model.
-
-## Repository layout
-
-```
-openwispr/
-├── android/        Android app (Kotlin / Jetpack Compose)
-├── macos/          macOS app (SwiftUI menu-bar) + OpenWisprCore Swift package
-├── shared/         cross-platform prompt + tone contract (source of truth)
-├── docs/           personalization design
-└── design_assets/  brand identity
-```
-
-## Build & test
-
-**Android** (JDK 17 — Android Studio bundles it; NDK + CMake for the on-device modules):
+## 빌드
 
 ```bash
 cd android
 ./gradlew :app:assembleDebug :app:testDebugUnitTest
 ```
 
-**macOS** (Xcode 15+, macOS 13.3+):
+- Android SDK와 JDK 25가 필요합니다(컴파일 대상은 Java 17).
+- NPU용 sherpa-onnx JNI와 QNN 런타임은 CI의 `sherpa-qnn` 잡이 만들어 넣습니다. 로컬 빌드에서는 NPU 모델이 동작하지 않습니다.
+- `main`에 push하면 CI가 APK를 만들어 Release `build-<번호>`에 올리고, 앱이 새 빌드를 알려 줍니다.
 
-```bash
-cd macos/App && ./generate.sh && open OpenWispr.xcodeproj   # build & run in Xcode
-cd macos/OpenWisprCore && swift test                        # deterministic-pipeline tests
-```
+## 라이선스
 
-See [`android/README.md`](android/README.md) and [`macos/README.md`](macos/README.md) for
-per-platform detail.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+MIT — [LICENSE](LICENSE). 원작(OpenWispr contributors)의 저작권 표시를 그대로 유지합니다.
+앱에 들어 있는 제3자 구성요소의 고지는 [`android/app/src/main/assets/third_party_notices.txt`](android/app/src/main/assets/third_party_notices.txt)에 있습니다.

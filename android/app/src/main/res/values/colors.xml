@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- OpenWispr brand: "muted sunset" (handoff identity). Hex column is authoritative. -->
+    <!-- Colours carried over from upstream OpenWispr: "muted sunset" (its handoff identity). Hex column is authoritative. -->
     <color name="brand_amber">#EDB079</color>
     <color name="brand_coral">#E07B52</color>      <!-- primary -->
     <color name="brand_coral_deep">#C7623C</color> <!-- pressed / deep accent -->
@@ -16,6 +16,6 @@
     <color name="hairline">#E7DECF</color>
     <color name="tint_panel">#F3E6D6</color>
 
-    <!-- Splash background (solid coral, for the launch window) -->
-    <color name="splash_bg">#E07B52</color>
+    <!-- Splash background: same plum as the launcher icon -->
+    <color name="splash_bg">#3B2F4A</color>
 </resources>

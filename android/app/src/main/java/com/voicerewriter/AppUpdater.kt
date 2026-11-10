@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
 object AppUpdater {
 
     private const val TAG = "AppUpdater"
-    const val REPO = "KyongSik-Yoon/openWispr"
+    const val REPO = "KyongSik-Yoon/soksak"
     private const val TAG_PREFIX = "build-"
     private const val VERSION_BASE = 1000L
 
@@ -144,7 +144,7 @@ object AppUpdater {
         val apk = withContext(Dispatchers.IO) {
             val dir = java.io.File(app.cacheDir, "updates").apply { mkdirs() }
             dir.listFiles()?.forEach { it.delete() } // older downloads
-            val out = java.io.File(dir, "openwispr-${release.run}.apk")
+            val out = java.io.File(dir, "soksak-${release.run}.apk")
             val req = Request.Builder()
                 .url("https://api.github.com/repos/$REPO/releases/assets/${release.assetId}")
                 .header("Authorization", "Bearer ${token.trim()}")

@@ -8,7 +8,7 @@ import java.net.URLEncoder
 
 /**
  * The intents themselves need a Context, so what's covered here is the encoding, which is where
- * a prefilled mailto/issue body silently comes out mangled.
+ * a prefilled issue body silently comes out mangled.
  */
 class FeedbackTest {
 
@@ -17,9 +17,7 @@ class FeedbackTest {
 
     @Test
     fun `spaces encode as percent-20, not plus`() {
-        // A "+" is a space in a query string but a literal plus in a mailto body, so a body
-        // encoded the form way arrives full of plus signs in the user's mail client.
-        assertEquals("OpenWispr%20feedback", enc("OpenWispr feedback"))
+        assertEquals("Soksak%20feedback", enc("Soksak feedback"))
         assertFalse(enc("a b c").contains("+"))
     }
 
@@ -38,14 +36,13 @@ class FeedbackTest {
     }
 
     @Test
-    fun `the contact address and repo are the real ones`() {
-        assertEquals("madudeyo@gmail.com", Feedback.EMAIL)
-        assertEquals("https://github.com/RohitAg13/openWispr", Feedback.REPO)
+    fun `issues go to this fork, not the upstream author`() {
+        assertEquals("https://github.com/KyongSik-Yoon/soksak", Feedback.REPO)
     }
 
     @Test
     fun `an encoded body carries no raw characters that would truncate the url`() {
-        val body = enc("**What happened?**\n\n---\nApp: OpenWispr 1.3.0 & more #1")
+        val body = enc("**What happened?**\n\n---\nApp: Soksak 1.3.0 & more #1")
         listOf(" ", "\n", "#", "&").forEach {
             assertTrue("raw '$it' survived encoding", !body.contains(it))
         }

@@ -59,13 +59,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.voicerewriter.ui.MonoEyebrow
-import com.voicerewriter.ui.OpenWisprTheme
+import com.voicerewriter.ui.SoksakTheme
 import com.voicerewriter.ui.SunsetBrush
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,7 +97,7 @@ class OnboardingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { OpenWisprTheme { OnboardingScreen(::launchDictation, ::goHome) } }
+        setContent { SoksakTheme { OnboardingScreen(::launchDictation, ::goHome) } }
     }
 
     private fun launchDictation() {
@@ -386,7 +387,7 @@ private fun LogoCircle(diameter: Int) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            androidx.compose.ui.res.painterResource(R.drawable.ic_aperture), null,
+            androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null,
             tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size((diameter * 0.5f).dp),
         )
     }
@@ -460,7 +461,7 @@ private fun WelcomeStep(onNext: () -> Unit) {
             )
             Spacer(Modifier.height(14.dp))
             Text(
-                "OpenWispr turns your voice into text, right on your phone. Setup takes a minute.",
+                "Soksak turns your voice into text, right on your phone. Setup takes a minute.",
                 style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(18.dp))
@@ -504,7 +505,7 @@ private fun PrivacyStep(
             Text("Your voice never leaves this phone", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = cs.onBackground)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Other dictation apps send your voice to a server. OpenWispr doesn't, so it sets itself up here. Takes about a minute.",
+                "Other dictation apps send your voice to a server. Soksak doesn't, so it sets itself up here. Takes about a minute.",
                 style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant,
             )
             Spacer(Modifier.height(20.dp))
@@ -586,7 +587,7 @@ private fun MicStep(granted: Boolean, blocked: Boolean, onAllow: () -> Unit, onS
             Spacer(Modifier.height(20.dp))
             IconTile(Icons.Filled.Mic)
             Spacer(Modifier.height(24.dp))
-            Text("Let OpenWispr hear you", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = cs.onBackground)
+            Text("Let Soksak hear you", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = cs.onBackground)
             Spacer(Modifier.height(12.dp))
             Text(
                 "This is the one thing it genuinely can't work without. Your audio is turned into text by the model you just downloaded. Never saved to a file, never uploaded.",
@@ -650,7 +651,7 @@ private fun A11yStep(
                     Spacer(Modifier.height(22.dp))
                     Text("No problem, clipboard it is", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = cs.onBackground, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(10.dp))
-                    Text("Without auto-insert, OpenWispr copies your finished text so you can paste it yourself. You can enable auto-insert anytime in Settings.", style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
+                    Text("Without auto-insert, Soksak copies your finished text so you can paste it yourself. You can enable auto-insert anytime in Settings.", style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
                     if (!overlayGranted) {
                         Spacer(Modifier.height(22.dp))
                         BubblePermissionRow(onAllow = onGrantOverlay)
@@ -676,7 +677,7 @@ private fun A11yStep(
                 )
 
                 Spacer(Modifier.height(26.dp))
-                MockSettingsRow(label = "OpenWispr", subtitle = "Downloaded app", on = true)
+                MockSettingsRow(label = stringResource(R.string.app_name), subtitle = "Downloaded app", on = true)
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Find this switch and turn it on.",
@@ -726,7 +727,7 @@ private fun MockSettingsRow(label: String, subtitle: String, on: Boolean) {
     ) {
         Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(SunsetBrush), contentAlignment = Alignment.Center) {
             Icon(
-                androidx.compose.ui.res.painterResource(R.drawable.ic_aperture), null,
+                androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null,
                 tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size(16.dp),
             )
         }
@@ -814,7 +815,7 @@ private fun TryItStep(
                             .clickable(enabled = modelReady && micGranted) { onTry() },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_aperture), null, tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size(48.dp))
+                        Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = com.voicerewriter.ui.MarkCream, modifier = Modifier.size(48.dp))
                     }
                 }
                 Spacer(Modifier.height(16.dp))
@@ -840,7 +841,7 @@ private fun TryItStep(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cs.surface)
                         .border(1.dp, cs.outline, RoundedCornerShape(16.dp)).padding(18.dp),
                 ) {
-                    Eyebrow("OpenWispr wrote")
+                    Eyebrow("Soksak wrote")
                     Spacer(Modifier.height(9.dp))
                     Text(result, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = cs.onBackground)
                 }
@@ -902,7 +903,7 @@ private fun DoneStep(
                 style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center,
             )
         }
-        Cta("Start using OpenWispr", onClick = onStart)
+        Cta("Start using Soksak", onClick = onStart)
         SubLink("Replay onboarding", onClick = onReplay)
     }
 }

@@ -13,7 +13,7 @@ import com.voicerewriter.ui.BrandAmber
 import com.voicerewriter.ui.BrandCoral
 import com.voicerewriter.ui.BrandRose
 import com.voicerewriter.ui.MarkCream
-import com.voicerewriter.ui.OpenWisprTheme
+import com.voicerewriter.ui.SoksakTheme
 import com.voicerewriter.ui.SunsetBrush
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -171,7 +171,7 @@ class RewriteActivity : ComponentActivity() {
         }
 
         setContent {
-            OpenWisprTheme { VoiceSheet() }
+            SoksakTheme { VoiceSheet() }
         }
     }
 
@@ -263,7 +263,7 @@ class RewriteActivity : ComponentActivity() {
             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notif = androidx.core.app.NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_aperture)
+            .setSmallIcon(R.drawable.ic_mark)
             .setContentTitle("Dictated ✓")
             .setContentText("Got a name wrong? Tap to fix.")
             .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
@@ -517,7 +517,7 @@ class RewriteActivity : ComponentActivity() {
                     return
                 }
             } else if (!s.isSttConfigured) {
-                error = "No speech-to-text key set. Open OpenWispr settings."
+                error = "No speech-to-text key set. Open Soksak settings."
                 stage = Stage.ERROR
                 return
             }
@@ -623,7 +623,7 @@ class RewriteActivity : ComponentActivity() {
                     Stage.RECORDING -> "Listening"
                     Stage.TRANSCRIBING -> "Transcribing"
                     Stage.REVIEW -> "Ready"
-                    else -> "OpenWispr"
+                    else -> "Soksak"
                 }
             )
 
@@ -833,7 +833,7 @@ class RewriteActivity : ComponentActivity() {
                     }
                 }
                 Icon(
-                    painter = painterResource(R.drawable.ic_aperture),
+                    painter = painterResource(R.drawable.ic_mark),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp),

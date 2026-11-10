@@ -156,7 +156,7 @@ class BubbleView(context: Context) : View(context) {
     private val checkSegment = Path()
     private val pathMeasure = PathMeasure()
 
-    private val mark: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_aperture)
+    private val mark: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_mark)
     private val clipboard: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_clipboard)
 
     /** Current state. Setting it restarts the motion clock; see the class docs. */

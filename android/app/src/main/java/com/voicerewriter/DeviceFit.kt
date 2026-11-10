@@ -66,7 +66,7 @@ object DeviceFit {
     fun explain(plan: Plan): String? =
         if (plan.storageShortMb > 0)
             "This phone is about ${plan.storageShortMb}MB short of free space for the speech model. " +
-                "Free some up and reopen OpenWispr, or the download will stop partway."
+                "Free some up and reopen Soksak, or the download will stop partway."
         else null
 
     /** Short label for Settings, where the user is choosing a model themselves. */

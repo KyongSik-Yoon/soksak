@@ -1,4 +1,4 @@
-# OpenWispr — Sam의 개인 포크 (KyongSik-Yoon/openWispr, private)
+# 속삭 (Soksak) — Sam의 OpenWispr 포크 (KyongSik-Yoon/soksak, private)
 
 이 문서는 어느 세션에서든 개발을 바로 이어가기 위한 기준 문서다. 코드와 어긋나면 `/resync`로 맞춘다.
 변경 이력은 `.claude/CHANGELOG.md`, 경로 검증은 `scripts/check-harness-refs.sh`.
@@ -14,6 +14,10 @@
 - 목표: 휴대폰만으로 Claude에게 **한국어 음성 프롬프트**를 내려 개발한다. Typeless/Wispr Flow 수준의 인식과
   플로팅 버튼 사용성을 **로컬 Whisper**로 구현한다. 앱스토어 배포 없음, 개인용.
 - 원본: RohitAg13/openWispr (MIT). 포크 네트워크에서 분리(detach)했고 비공개. 원본 업데이트는 `upstream` remote로 수동 반영.
+- 이름: 2026-11-10 OpenWispr → **속삭(Soksak)**으로 바꿨다. 원작이 Play 스토어에 같은 이름으로 있어 혼동을 피하고, README 맨 위에 포크임을 밝힌다.
+  저장소도 `soksak`으로 rename(옛 주소는 GitHub가 리다이렉트). 아이콘은 말풍선+음파 마크(`ic_mark`), 런처·스플래시 배경은 자주색 #3B2F4A, 앱 안 색 테마는 원작 것 유지.
+  화면 문구만 바꾸고 저장·등록된 식별자는 유지: `OpenWisprAccessibilityService`(접근성 활성화가 컴포넌트 이름에 묶임), 로그 태그 `OpenWisprA11y`,
+  Kotlin 패키지 `com.voicerewriter`, 앱 ID `com.voicerewriter.dev`(바꾸면 새 앱으로 설치됨 — 공개 전 서명 키 교체 때 함께 바꿀 예정).
 - 확정된 결정
   - 음성 인식: Whisper만 쓴다 — CPU(whisper.cpp, `android/lib`)와 NPU(sherpa-onnx QNN). 기본 Tiny/Base/Small과 SenseVoice는 쓰지 않아 2026-11-09 제거했다(`ModelDownloader`의 RETIRED 목록이 폰에서 파일을 지운다). Moonshine(tiny→Base Korean)은
     2026-11-08 추가했다가 2026-11-09 제거 — 라우팅 벤치에서 소음에 매우 약하고(0dB 97% CER) 다른 모델 대비 장점이 없었다. Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
@@ -28,7 +32,7 @@
 로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
 로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) NPU 모델은 동작하지 않는다.
 1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
-2. 성공하면 Release `build-<run_number>`에 `openwispr-dev-<run>.apk`를 올리고 최근 5개만 남긴다.
+2. 성공하면 Release `build-<run_number>`에 `soksak-dev-<run>.apk`를 올리고 최근 5개만 남긴다.
    versionCode = `1000 + run`, versionName = `1.6.0-dev.<run>` (`android/app/build.gradle.kts`).
   설정 화면에는 `1.6.0 · build N`으로 보인다. `1.6.0`은 원본 기반 버전 그대로 두기로 결정(2026-11-08) — 바꾸지 않는다.
 3. 폰의 앱이 Home 진입 시 새 빌드를 감지해 업데이트 창을 띄운다 (`UpdatePrompt.kt`, `AppUpdater.kt`).

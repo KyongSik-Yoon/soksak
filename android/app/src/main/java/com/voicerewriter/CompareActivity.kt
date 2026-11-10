@@ -36,7 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.voicerewriter.textproc.VocabCorrector
-import com.voicerewriter.ui.OpenWisprTheme
+import com.voicerewriter.ui.SoksakTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,7 +59,7 @@ class CompareActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { OpenWisprTheme { Surface(Modifier.fillMaxSize()) { Screen() } } }
+        setContent { SoksakTheme { Surface(Modifier.fillMaxSize()) { Screen() } } }
     }
 
     @Composable

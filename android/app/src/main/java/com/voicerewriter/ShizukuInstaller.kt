@@ -23,7 +23,7 @@ import java.io.File
  * neither rule applies to.
  *
  * Shizuku is started over wireless debugging on the phone itself and must be started again
- * after a reboot. When it isn't running or OpenWispr isn't allowed, updates fall back to the
+ * after a reboot. When it isn't running or Soksak isn't allowed, updates fall back to the
  * system installer as before.
  */
 object ShizukuInstaller {
@@ -47,7 +47,7 @@ object ShizukuInstaller {
         }
     }
 
-    /** Shows Shizuku's own "allow OpenWispr?" dialog. */
+    /** Shows Shizuku's own "allow Soksak?" dialog. */
     fun requestPermission() = runCatching { Shizuku.requestPermission(REQUEST_CODE) }
 
     /** Opens Shizuku if installed (to start it), else its Play Store page. */

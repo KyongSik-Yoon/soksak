@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">속삭</string>
+    <string name="accessibility_description">텍스트 입력란을 누르면 속삭이 받아쓰기 버블을 띄우고, 받아쓴 글을 그 입력란에 바로 넣습니다.</string>
+</resources>

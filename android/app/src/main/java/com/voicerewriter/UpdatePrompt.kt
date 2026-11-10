@@ -37,7 +37,7 @@ object UpdateCheck {
 }
 
 /**
- * Game-style update prompt: when OpenWispr opens and a newer build is published, offer it in a
+ * Game-style update prompt: when Soksak opens and a newer build is published, offer it in a
  * dialog with one Update button that downloads and installs in place. Silent when no token is
  * set, when offline, or when already current.
  */
@@ -70,7 +70,7 @@ fun UpdatePrompt() {
         title = { Text("Update available · build ${r.run}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(r.notes.ifBlank { "A new build of OpenWispr is ready." }, style = MaterialTheme.typography.bodyMedium)
+                Text(r.notes.ifBlank { "A new build of Soksak is ready." }, style = MaterialTheme.typography.bodyMedium)
                 progress?.let { p -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth()) }
                 val installResult by AppUpdater.lastResult.collectAsState()
                 (installResult ?: message)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -79,7 +79,7 @@ fun UpdatePrompt() {
         confirmButton = {
             TextButton(enabled = !busy, onClick = {
                 if (!AppUpdater.canInstall(context)) {
-                    message = "Allow OpenWispr to install updates, then come back and tap Update."
+                    message = "Allow Soksak to install updates, then come back and tap Update."
                     context.startActivity(AppUpdater.installPermissionIntent(context))
                     return@TextButton
                 }

@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 /**
- * OpenWispr brand theme — "muted sunset" (handoff identity): amber → coral → rose,
+ * Colour theme carried over from upstream OpenWispr — "muted sunset" (its handoff identity): amber → coral → rose,
  * warm cream surfaces and plum ink. Centralized so every screen shares one identity.
  */
 
@@ -67,13 +67,13 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun OpenWisprTheme(
+fun SoksakTheme(
     dark: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
         colorScheme = if (dark) DarkColors else LightColors,
-        typography = OpenWisprTypography,
+        typography = SoksakTypography,
         content = content,
     )
 }

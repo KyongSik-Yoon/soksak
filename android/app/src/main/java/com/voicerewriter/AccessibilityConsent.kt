@@ -49,7 +49,7 @@ fun AccessibilityConsentDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "OpenWispr uses Android's Accessibility service for one job: typing your dictated " +
+                    "Soksak uses Android's Accessibility service for one job: typing your dictated " +
                         "and rewritten text into the field you're focused on.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = cs.onSurfaceVariant,

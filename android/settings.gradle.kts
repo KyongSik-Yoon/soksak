@@ -21,6 +21,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OpenWispr"
+rootProject.name = "Soksak"
 include(":app")
 include(":lib")
