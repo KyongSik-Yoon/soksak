@@ -188,8 +188,8 @@ object LocalSherpaStt {
                 val qnn = WhisperModelManager.model(settings.sttModel).engine == SpeechEngine.QNN_WHISPER
                 val parts = if (qnn) windows(samples) else listOf(0 until samples.size)
                 val hint = qnnHint(settings.sttModel, DictationLanguage.normalize(settings.sttLanguage))
-                // Silero doesn't hear whispers, so in Quiet mode a real whispered "네." would go too.
-                val dropEchoes = hint.isNotEmpty() && !settings.quietMode
+                // Silero doesn't hear whispers, so Quiet mode judges silence by loudness instead.
+                val dropEchoes = hint.isNotEmpty()
                 val partLog = ArrayList<String>(parts.size)
                 val text = parts.mapNotNull { r ->
                     val stream = rec.createStream()
@@ -200,7 +200,7 @@ object LocalSherpaStt {
                         rec.decode(stream)
                         val result = rec.getResult(stream)
                         partLog += "${(System.nanoTime() - d0) / 1_000_000}ms/${result.tokens.size}tok"
-                        clean(result.text).takeUnless { it.isEmpty() || dropEchoes && isHintEcho(it) && !hasSpeech(context, part) }
+                        clean(result.text).takeUnless { it.isEmpty() || dropEchoes && isHintEcho(it) && !hasSpeech(context, part, settings.quietMode) }
                     } finally {
                         stream.release()
                     }
@@ -255,8 +255,12 @@ object LocalSherpaStt {
     /** [text] is only what the hint produces on a window with no voice ("네." is also a real answer, so check the audio). */
     internal fun isHintEcho(text: String): Boolean = HallucinationFilter.norm(text) in HINT_ECHOES
 
-    /** Own Silero: pieces decode while the recorder's shared one is still being fed. Unavailable means keep the text. */
-    private fun hasSpeech(context: Context, chunk: FloatArray): Boolean = runCatching {
+    /**
+     * Quiet mode: loudness over the room ([QuietSpeechDetector]), because Silero misses whispers.
+     * Otherwise own Silero: pieces decode while the recorder's shared one is still being fed.
+     * Unavailable means keep the text.
+     */
+    private fun hasSpeech(context: Context, chunk: FloatArray, quiet: Boolean): Boolean = if (quiet) QuietSpeechDetector.hasSpeech(chunk) else runCatching {
         val vad = echoVad ?: SileroVad.create(context)?.also { echoVad = it }
         vad?.hasSpeech(chunk) ?: true
     }.getOrDefault(true)

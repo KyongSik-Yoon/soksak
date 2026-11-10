@@ -19,6 +19,27 @@ class QuietSpeechDetector(private val hangoverSamples: Int, private val minSpeec
         /** Below this RMS (~-70 dBFS) nothing is speech, however quiet the room is. */
         const val ABS_MIN_SPEECH = 3e-4f
         private const val FLOOR_MIN = 1e-5f
+        private const val FRAME = 320
+
+        /**
+         * Whether [samples] hold at least [minRunSamples] of voice in a row by this detector's
+         * loudness rule. Quiet mode's stand-in for Silero when deciding if a window was silent,
+         * since Silero does not hear whispers.
+         */
+        fun hasSpeech(samples: FloatArray, minRunSamples: Int = 16_000 / 10): Boolean {
+            val d = QuietSpeechDetector(Int.MAX_VALUE, Int.MAX_VALUE)
+            var run = 0
+            var i = 0
+            while (i + FRAME <= samples.size) {
+                var sum = 0.0
+                for (j in i until i + FRAME) sum += samples[j] * samples[j]
+                d.feed(kotlin.math.sqrt(sum / FRAME).toFloat(), i + FRAME, FRAME)
+                run = if (d.lastFrameSpeech) run + FRAME else 0
+                if (run >= minRunSamples) return true
+                i += FRAME
+            }
+            return false
+        }
     }
 
     var floor = -1f
@@ -26,6 +47,9 @@ class QuietSpeechDetector(private val hangoverSamples: Int, private val minSpeec
     private var speechSamples = 0
     private var lastSpeech = 0
     private var fired = false
+    /** Whether the frame last given to [feed] counted as speech. */
+    var lastFrameSpeech = false
+        private set
 
     /**
      * Feed one frame's RMS (0..1) whose last sample is [end] (sample index from take start)
@@ -38,7 +62,8 @@ class QuietSpeechDetector(private val hangoverSamples: Int, private val minSpeec
             rms < floor -> maxOf(floor * 0.7f + rms * 0.3f, FLOOR_MIN)
             else -> floor * 0.999f + rms * 0.001f
         }
-        if (rms > floor * SPEECH_OVER_FLOOR && rms > ABS_MIN_SPEECH) {
+        lastFrameSpeech = rms > floor * SPEECH_OVER_FLOOR && rms > ABS_MIN_SPEECH
+        if (lastFrameSpeech) {
             speechSamples += n
             lastSpeech = end
         }

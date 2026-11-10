@@ -56,4 +56,19 @@ class QuietSpeechDetectorTest {
         assertEquals("turbo-acft-q4", s.copy(quietMode = true, quietModel = "").forDictation().sttModel)
         assertFalse(s.copy(quietMode = true).forDictation().sttModel == s.sttModel)
     }
+
+    private fun audio(vararg parts: Pair<Double, Float>): FloatArray =
+        parts.flatMap { (sec, amp) -> List((sec * 16000).toInt()) { k -> if (k % 2 == 0) amp else -amp } }.toFloatArray()
+
+    @Test fun silentTakeHasNoSpeech() {
+        // Room hiss with a short click: the "네." echo from such a take should be dropped.
+        val room = audio(2.0 to 0.001f, 0.04 to 0.01f, 2.0 to 0.001f)
+        assertFalse(QuietSpeechDetector.hasSpeech(room))
+        assertFalse(QuietSpeechDetector.hasSpeech(FloatArray(32000)))
+    }
+
+    @Test fun shortWhisperCountsAsSpeech() {
+        // A whispered "네" (~0.3s, 6x the room) must survive, which Silero would miss.
+        assertTrue(QuietSpeechDetector.hasSpeech(audio(1.0 to 0.001f, 0.3 to 0.006f, 1.0 to 0.001f)))
+    }
 }
