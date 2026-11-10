@@ -85,6 +85,15 @@ class VocabRepository(context: Context) {
         return subs.size
     }
 
+    /** The stored file as is, for [Backup]; null when there is no dictionary yet. */
+    suspend fun rawJson(): String? = withContext(Dispatchers.IO) { file.takeIf { it.exists() }?.readText() }
+
+    /** Replaces the dictionary with a [Backup]'s array (same format as this file). */
+    suspend fun replaceJson(json: String) = withContext(Dispatchers.IO) {
+        JSONArray(json) // reject anything that isn't an array before overwriting
+        file.writeText(json)
+    }
+
     suspend fun save(entries: List<VocabEntry>) = withContext(Dispatchers.IO) {
         val arr = JSONArray()
         for (e in entries) {

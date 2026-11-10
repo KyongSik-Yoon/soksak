@@ -257,6 +257,40 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         else -> "idle"
     }
 
+    // Backup of the dictionary + settings (no secrets), to move them to another install.
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        launch {
+            val msg = try {
+                val json = Backup.encode(snapshot(), VocabRepository(context).rawJson())
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(json.toByteArray()) }
+                }
+                tr("Backup saved.")
+            } catch (e: Exception) { e.message ?: tr("Backup failed.") }
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+    }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        launch {
+            try {
+                val text = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+                }
+                val restored = Backup.decode(text, repo.get())
+                restored.vocabJson?.let { VocabRepository(context).replaceJson(it) }
+                repo.save(restored.settings)
+                I18n.mode = restored.settings.uiLanguage
+                Toast.makeText(context, tr("Backup restored."), Toast.LENGTH_LONG).show()
+                // Every field on this screen is state read once at start; reread them all.
+                (context as? android.app.Activity)?.recreate()
+            } catch (e: Exception) {
+                Toast.makeText(context, e.message ?: tr("Restore failed."), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     // Import-only models (no public URL): the user picks the ggml file the convert-model
     // workflow published, and it is copied into the model slot.
     var importTarget by remember { mutableStateOf<String?>(null) }
@@ -738,6 +772,14 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                             repo.save(snapshot())
                             (context as? android.app.Activity)?.recreate()
                         }
+                    }
+                    Divider()
+                    NavRow(tr("Back up dictionary & settings"), tr("Save a file to move them to another install (no tokens or keys)")) {
+                        backupLauncher.launch("soksak-backup-" + java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date()) + ".json")
+                    }
+                    Divider()
+                    NavRow(tr("Restore from backup"), tr("Replaces the dictionary and settings with the file's")) {
+                        restoreLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
                     }
                     Divider()
                     NavRow(tr("Open source licenses"), tr("Libraries, fonts and models this app uses")) {
