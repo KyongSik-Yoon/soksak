@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -93,7 +92,15 @@ class SettingsActivity : ComponentActivity() {
         val repo = SettingsRepository(applicationContext)
         setContent {
             OpenWisprTheme {
-                SettingsScreen(repo) { lifecycleScope.launch { it() } }
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f)) { SettingsScreen(repo) { lifecycleScope.launch { it() } } }
+                    AppBottomBar(
+                        AppTab.SETTINGS,
+                        onHome = { AppNav.home(this@SettingsActivity) },
+                        onTalk = { AppNav.talk(this@SettingsActivity) },
+                        onSettings = {},
+                    )
+                }
             }
         }
     }
@@ -338,7 +345,7 @@ private fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit
         HeroHeader()
 
         Column(
-            Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding(),
+            Modifier.fillMaxWidth().padding(16.dp), // the bottom bar keeps clear of the navigation bar
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             // ---------------- SETUP STATUS ----------------

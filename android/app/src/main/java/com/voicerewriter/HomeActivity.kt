@@ -3,7 +3,6 @@ package com.voicerewriter
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,8 +18,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -59,9 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import android.view.HapticFeedbackConstants
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
@@ -309,7 +304,7 @@ class HomeActivity : ComponentActivity() {
                         Spacer(Modifier.height(8.dp))
                     }
 
-                    BottomBar(onTalk = ::openTalk, onSettings = ::openSettings)
+                    AppBottomBar(AppTab.HOME, onHome = {}, onTalk = { AppNav.talk(this@HomeActivity) }, onSettings = ::openSettings)
                 }
 
                 // Snackbar
@@ -897,61 +892,6 @@ class HomeActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun BottomBar(onTalk: () -> Unit, onSettings: () -> Unit) {
-        // Light tap feedback so the carousel feels physical. VIRTUAL_KEY is the standard
-        // "button press" haptic and respects the system's touch-feedback setting.
-        val view = LocalView.current
-        fun haptic() = view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        // Plain Box (not Surface) so the raised Talk FAB can overflow above the bar without being clipped.
-        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline))
-            Row(
-                Modifier.fillMaxWidth().navigationBarsPadding().padding(14.dp, 8.dp, 14.dp, 12.dp),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                    // Home (active)
-                    NavItem(label = "Home", selected = true, onClick = { haptic() }) {
-                        Icon(painterResource(R.drawable.ic_aperture), null,
-                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                    }
-                    // Talk (raised FAB)
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            Modifier.offset(y = (-18).dp).size(58.dp).clip(CircleShape).background(SunsetBrush)
-                                .clickable { haptic(); onTalk() },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(painterResource(R.drawable.ic_aperture), null, tint = MarkCream,
-                                modifier = Modifier.size(30.dp))
-                        }
-                        Text("Talk", fontFamily = Mulish, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.offset(y = (-12).dp))
-                    }
-                    // Settings
-                    NavItem(label = "Settings", selected = false, onClick = { haptic(); onSettings() }) {
-                        Icon(painterResource(R.drawable.ic_settings_lines), null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-                    }
-                }
-        }
-    }
-
-    @Composable
-    private fun NavItem(label: String, selected: Boolean, onClick: () -> Unit, icon: @Composable () -> Unit) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.width(88.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick)) {
-            Box(
-                Modifier.width(64.dp).height(32.dp).clip(RoundedCornerShape(16.dp))
-                    .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent),
-                contentAlignment = Alignment.Center,
-            ) { icon() }
-            Text(label, fontFamily = Mulish, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-
-    @Composable
     private fun Eyebrow(text: String, size: Float = 11f, tracking: Double = 0.1) {
         Text(
             text.uppercase(),
@@ -964,16 +904,7 @@ class HomeActivity : ComponentActivity() {
 
     // ---------------- nav ----------------
 
-    private fun openTalk() {
-        startActivity(
-            Intent(this, RewriteActivity::class.java)
-                .putExtra(RewriteActivity.EXTRA_AUTO_RECORD, true),
-        )
-    }
-
-    private fun openSettings() {
-        startActivity(Intent(this, SettingsActivity::class.java))
-    }
+    private fun openSettings() = AppNav.settings(this)
 
     private fun copyToClipboard(text: String) {
         val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
