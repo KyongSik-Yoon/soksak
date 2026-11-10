@@ -3,16 +3,17 @@
 
 Cost is decode time on the runner (only ratios carry over to the phone). Routers:
 - rule(level, snr): quiet (speech level under L dBFS) -> Small ACFT; noisy (SNR under S dB) ->
-  Turbo; otherwise Moonshine Base, with its 'audiotext'/no-Hangul miss redone by SenseVoice.
-- agree(T): run Moonshine Base and SenseVoice; if they differ by < T CER take Moonshine,
-  else Small ACFT. agree+turbo: same but Turbo as the tie-breaker.
+  Turbo; otherwise SenseVoice, with its no-Hangul miss redone by Small ACFT.
 - oracle: best model per clip (upper bound).
+Moonshine Base was dropped from this bench (2026-11-10): the app no longer ships it and its
+Community License bundle is no longer hosted here.
 Usage: route_bench_report.py <results dir>
 """
 import glob, json, os, re, sys, unicodedata
 from collections import defaultdict
 
 R = sys.argv[1]
+MODELS = ("sensevoice", "small", "turbo")
 def norm(s): return re.sub(r"[\s\W_]+", "", unicodedata.normalize("NFKC", s).lower())
 def ed(r, h):
     d = list(range(len(h) + 1))
@@ -21,17 +22,15 @@ def ed(r, h):
         for j, hc in enumerate(h, 1):
             cur = min(d[j] + 1, d[j - 1] + 1, prev + (rc != hc)); prev, d[j] = d[j], cur
     return d[len(h)]
-def cer_pair(a, b):
-    a, b = norm(a), norm(b); return ed(a, b) / max(1, len(a))
-def miss(t): return "audiotext" in t.lower() or not any("가" <= ch <= "힣" for ch in t)
+def miss(t): return not any("가" <= ch <= "힣" for ch in t)
 
 runs = defaultdict(dict)  # (clip) -> model -> rec
 for f in glob.glob(f"{R}/**/*.json", recursive=True):
-    m = re.search(r"(moonshine|sensevoice|small|turbo)-(\w+)\.json$", f)
+    m = re.search(r"(sensevoice|small|turbo)-(\w+)\.json$", f)
     if not m: continue
     for x in json.load(open(f)):
         runs[x["name"]][m.group(1)] = x
-clips = [k for k, v in runs.items() if len(v) == 4]
+clips = [k for k, v in runs.items() if len(v) == len(MODELS)]
 conds = sorted({runs[k]["turbo"]["cond"] for k in clips})
 
 def score(pick):
@@ -48,37 +47,27 @@ def score(pick):
     return out
 
 def single(m): return lambda r: (r[m]["text"], r[m]["sec_decode"])
-def moon_fb(r):
-    t, c = r["moonshine"]["text"], r["moonshine"]["sec_decode"]
-    if miss(t): return r["sensevoice"]["text"], c + r["sensevoice"]["sec_decode"]
+def sv_fb(r):
+    t, c = r["sensevoice"]["text"], r["sensevoice"]["sec_decode"]
+    if miss(t): return r["small"]["text"], c + r["small"]["sec_decode"]
     return t, c
 def rule(L, S, quiet="small", noisy="turbo"):
     def f(r):
         x = r["turbo"]
         if x["level_db"] < L: return single(quiet)(r)
         if x["snr_db"] < S: return single(noisy)(r)
-        return moon_fb(r)
-    return f
-def agree(T, tie="small"):
-    def f(r):
-        a, b = r["moonshine"], r["sensevoice"]
-        base = max(a["sec_decode"], b["sec_decode"])  # run side by side
-        if not miss(a["text"]) and cer_pair(a["text"], b["text"]) < T: return a["text"], base
-        return r[tie]["text"], base + r[tie]["sec_decode"]
+        return sv_fb(r)
     return f
 def oracle(r):
     ref = norm(r["turbo"]["ref"])
     return min(((r[m]["text"], r[m]["sec_decode"]) for m in r), key=lambda p: ed(ref, norm(p[0])))
 
-policies = [("Moonshine Base", single("moonshine")), ("Moonshine Base + miss fallback", moon_fb),
-            ("SenseVoice", single("sensevoice")), ("Small ACFT", single("small")), ("Turbo", single("turbo"))]
+policies = [("SenseVoice", single("sensevoice")), ("SenseVoice + miss fallback", sv_fb),
+            ("Small ACFT", single("small")), ("Turbo", single("turbo"))]
 for L in (-40, -45):
     for S in (8, 12):
-        policies.append((f"rule: level<{L}dB→Small, SNR<{S}dB→Turbo, else Moonshine", rule(L, S)))
-        policies.append((f"rule: level<{L}dB→Small, SNR<{S}dB→Small, else Moonshine", rule(L, S, noisy="small")))
-for T in (0.10, 0.20, 0.30):
-    policies.append((f"agree<{T:.2f} else Small", agree(T)))
-    policies.append((f"agree<{T:.2f} else Turbo", agree(T, "turbo")))
+        policies.append((f"rule: level<{L}dB→Small, SNR<{S}dB→Turbo, else SenseVoice", rule(L, S)))
+        policies.append((f"rule: level<{L}dB→Small, SNR<{S}dB→Small, else SenseVoice", rule(L, S, noisy="small")))
 policies.append(("oracle (best per clip)", oracle))
 
 hdr = "| Policy | " + " | ".join(conds) + " | all CER | all time |"

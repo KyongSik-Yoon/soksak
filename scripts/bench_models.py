@@ -93,7 +93,6 @@ def sv(d, f): return lambda: sherpa_onnx.OfflineRecognizer.from_sense_voice(
 
 engines = [
     ("Moonshine Korean (tiny, old)", sherpa(moon("sherpa-onnx-moonshine-tiny-ko-quantized-2026-02-27"))),
-    ("Moonshine Base Korean", sherpa(moon("sherpa-onnx-moonshine-base-ko-quantized"))),
     ("SenseVoice Small (int8)", sherpa(sv("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17", "model.int8.onnx"))),
     ("SenseVoice Small (full)", sherpa(sv("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17", "model.onnx"))),
     ("Small ACFT (FUTO)", whisper(f"{M}/small_acft_q8_0.bin", True)),

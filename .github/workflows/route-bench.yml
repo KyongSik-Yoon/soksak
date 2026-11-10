@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: [moonshine, sensevoice, small, turbo]
+        model: [sensevoice, small, turbo]
         cond: [clean, babble10, babble0, quiet]
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +51,6 @@ jobs:
         run: |
           set -e; mkdir -p models; cd models
           case "${{ matrix.model }}" in
-            moonshine) gh release download model-moonshine-base-ko -R "$GITHUB_REPOSITORY" -p '*.tar.bz2'; tar xjf *.tar.bz2 ;;
             sensevoice) b=sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17
                         gh release download asr-models -R k2-fsa/sherpa-onnx -p "$b.tar.bz2"; tar xjf "$b.tar.bz2" ;;
             small) curl -fsSL --retry 5 --retry-all-errors -o small_acft_q8_0.bin https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin ;;

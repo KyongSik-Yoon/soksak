@@ -4,7 +4,7 @@
 Writes per clip: text, decode seconds, and the audio features a router could use (duration,
 speech level, noise floor). Usage:
   route_bench_run.py <data dir> <models dir> <whisper-cli> <model key> <cond> <out.json>
-model key: moonshine | sensevoice | small | turbo
+model key: sensevoice | small | turbo
 """
 import json, re, subprocess, sys, time
 import numpy as np, soundfile as sf
@@ -20,16 +20,11 @@ def features(a):
     floor = float(20 * np.log10(np.percentile(e, 10)))
     return {"level_db": level, "floor_db": floor, "snr_db": level - floor}
 
-if KEY in ("moonshine", "sensevoice"):
+if KEY == "sensevoice":
     import sherpa_onnx
-    if KEY == "moonshine":
-        d = f"{M}/sherpa-onnx-moonshine-base-ko-quantized"
-        rec = sherpa_onnx.OfflineRecognizer.from_moonshine_v2(encoder=f"{d}/encoder_model.ort",
-              decoder=f"{d}/decoder_model_merged.ort", tokens=f"{d}/tokens.txt", num_threads=THREADS)
-    else:
-        d = f"{M}/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17"
-        rec = sherpa_onnx.OfflineRecognizer.from_sense_voice(model=f"{d}/model.int8.onnx", tokens=f"{d}/tokens.txt",
-              language="ko", use_itn=True, num_threads=THREADS)
+    d = f"{M}/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17"
+    rec = sherpa_onnx.OfflineRecognizer.from_sense_voice(model=f"{d}/model.int8.onnx", tokens=f"{d}/tokens.txt",
+          language="ko", use_itn=True, num_threads=THREADS)
     def run(a, path):
         s = rec.create_stream(); s.accept_waveform(SR, a)
         t = time.time(); rec.decode_stream(s)
