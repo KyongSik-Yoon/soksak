@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-10 — 앱 색을 속삭의 "dusk" 팔레트로
+- 사용자 지적: 이름·아이콘만 바뀌고 안은 원작과 똑같아 보인다. 색 방향 1번(밤·속삭임) 선택.
+- 변경(285e875): 원작 코랄 "muted sunset" → 라벤더·보라·dusk(라이트 #F5F3F8 바탕, 다크 #1E1A26), 버블·모델 메뉴·레일 포함. 상태 색(초록·벽돌) 유지, 조용히 말하기 배지는 파랑 → 청록. build-99 CI 성공. 폰 확인 전.
+
 ## 2026-11-10 — 공개 준비: 라이선스 고지, 이름 속삭(Soksak), macOS 제거
 - 저작권 점검: 원작 MIT, 의존성 Apache/MIT, 폰트 OFL, Whisper MIT·ACFT Apache-2.0 — 공개에 걸림 없음. Qualcomm QNN 런타임은 "앱에 포함된 오브젝트 코드로만" 배포 허용(AI Hub Model License) → APK 안이라 허용 범위.
   Moonshine 한국어는 Community License(사본·Notice·"Powered by Moonshine AI" 의무)라 Release `model-moonshine-base-ko` 삭제 결정(auto mode가 삭제를 막아 사용자가 직접 실행), 벤치에서도 뺌(41ba2d3).
