@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.focus.FocusRequester
@@ -192,6 +191,11 @@ class HomeActivity : ComponentActivity() {
                         if (tab == AppTab.SETTINGS) withFrameNanos { }
                         shift.animateTo(if (tab == AppTab.SETTINGS) 1f else 0f, tween(250))
                     }
+                    // The keyboard covers the bottom bar too, so only the part above the bar
+                    // shrinks the list; padding by the whole keyboard left a bar-high gap.
+                    var barPx by remember { mutableStateOf(0) }
+                    val density = LocalDensity.current
+                    val listImePad = with(density) { (WindowInsets.ime.getBottom(density) - barPx).coerceAtLeast(0).toDp() }
                     Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
                     if (settingsShown) {
                         Box(Modifier.fillMaxSize().graphicsLayer { translationX = (1 - shift.value) * size.width }) {
@@ -201,7 +205,7 @@ class HomeActivity : ComponentActivity() {
                     // Scroll area
                     Column(
                         Modifier.fillMaxSize().graphicsLayer { translationX = -shift.value * size.width }.statusBarsPadding()
-                            .imePadding() // the keyboard shrinks the list instead of panning the whole window
+                            .padding(bottom = listImePad) // shrink for the keyboard instead of panning the window
                             .verticalScroll(rememberScrollState())
                             .padding(18.dp, 14.dp, 18.dp, 28.dp),
                     ) {
@@ -348,7 +352,9 @@ class HomeActivity : ComponentActivity() {
                     }
                     }
 
-                    AppBottomBar(tab, onHome = ::goHome, onTalk = { AppNav.talk(this@HomeActivity) }, onSettings = { tab = AppTab.SETTINGS })
+                    Box(Modifier.onSizeChanged { barPx = it.height }) {
+                        AppBottomBar(tab, onHome = ::goHome, onTalk = { AppNav.talk(this@HomeActivity) }, onSettings = { tab = AppTab.SETTINGS })
+                    }
                 }
 
                 // Snackbar
