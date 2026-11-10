@@ -215,7 +215,12 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         onDispose { lifecycle.removeObserver(obs) }
     }
 
-    if (!loaded) return
+    // Fill the screen while settings load: as a tab on Home this sits in an AnimatedContent, and a
+    // zero-size first frame made it shrink the content area and spring back (seen on the phone).
+    if (!loaded) {
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { HeroHeader() }
+        return
+    }
 
     // Device-fit inputs for the on-device model list below. Computed once per screen: reading
     // ActivityManager and free space on every recomposition would be wasteful, and neither
