@@ -211,6 +211,14 @@ object I18n {
         "PC could not copy the text" to "PC에서 글을 복사하지 못했어요",
         "PC address is not valid" to "PC 주소가 올바르지 않아요",
         "Send dictations to" to "받아쓴 글 보낼 곳",
+        "On the PC" to "PC에서",
+        "Clipboard" to "클립보드",
+        "Type it in" to "바로 입력",
+        "Copied to its clipboard; paste it where you want it." to "PC 클립보드에 넣어요. 원하는 곳에 붙여넣으세요.",
+        "Typed into the window that has focus there, and copied too. The computer must allow it: allow_type = true in its soksak-daemon config." to
+            "PC에서 포커스된 창에 바로 입력하고 클립보드에도 넣어요. 컴퓨터가 허용해야 해요: soksak-daemon 설정 파일에 allow_type = true.",
+        "Connected. This computer only allows its clipboard; typing needs allow_type = true in its soksak-daemon config." to
+            "연결됐어요. 이 컴퓨터는 클립보드만 허용해요. 바로 입력하려면 soksak-daemon 설정 파일에 allow_type = true가 필요해요.",
         "This phone only" to "이 폰만",
         "Phone and PC" to "폰과 PC",
         "PC only" to "PC만",

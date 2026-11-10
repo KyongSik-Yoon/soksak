@@ -23,8 +23,13 @@ import java.net.Socket
  * A raw socket rather than OkHttp: the request is one line and the text, and Android refuses
  * cleartext HTTP to an address like 100.x by default, which no unit test would have shown.
  *
- * Wire format (see `daemon/src/lib.rs`): `SOKSAK/1 <code> <byte length>\n<text>`, answered
- * with `OK` or `ERR <reason>`. A length of 0 only checks the code.
+ * Wire format (see `daemon/src/lib.rs`): `SOKSAK/1 <code> <byte length>[ type]\n<text>`, answered
+ * with `OK`, `OK clipboard` or `ERR <reason>`. A length of 0 only checks the code.
+ *
+ * The text always lands on the PC's clipboard. `type` ([Settings.pcType]) asks the PC to type it
+ * into the focused window as well. Whether that is allowed is the PC's decision (`allow_type`
+ * in its config, off by default, because typing into a terminal runs what was said); a PC that
+ * doesn't allow it copies and answers `OK clipboard`.
  */
 object PcLink {
     const val OFF = "off"
@@ -81,22 +86,37 @@ object PcLink {
         return host to p
     }
 
-    fun request(code: String, text: String): ByteArray {
+    /** English label for what the PC does with the text; wrap in `tr()`. */
+    fun actionLabel(type: Boolean): String = if (type) "Type it in" else "Clipboard"
+
+    fun request(code: String, text: String, type: Boolean): ByteArray {
         val body = text.toByteArray(Charsets.UTF_8)
-        return "SOKSAK/1 ${normalizeCode(code)} ${body.size}\n".toByteArray(Charsets.UTF_8) + body
+        val ask = if (type) " type" else ""
+        return "SOKSAK/1 ${normalizeCode(code)} ${body.size}$ask\n".toByteArray(Charsets.UTF_8) + body
     }
 
-    /** The daemon's reply line as an error to show (English; wrap in `tr()`), or null for OK. */
-    fun replyError(line: String?): String? = when {
-        line == null -> "PC not reachable"
-        line.trim() == "OK" -> null
-        line.trim() == "ERR code" -> "PC refused the pairing code"
-        else -> "PC could not copy the text"
+    /**
+     * How a send went. [error] is English (wrap in `tr()`), null when the PC took the text;
+     * [clipboardOnly] when typing was asked for and the PC only copied.
+     */
+    data class Outcome(val error: String? = null, val clipboardOnly: Boolean = false) {
+        val ok: Boolean get() = error == null
     }
 
-    /** Sends [text] (empty = connection test). Null on success, else an English error. */
-    suspend fun send(host: String, code: String, text: String): String? {
-        val (h, port) = address(host) ?: return "PC address is not valid"
+    private val UNREACHABLE = Outcome("PC not reachable")
+
+    /** The daemon's reply line. */
+    fun outcome(line: String?): Outcome = when (line?.trim()) {
+        null -> UNREACHABLE
+        "OK" -> Outcome()
+        "OK clipboard" -> Outcome(clipboardOnly = true)
+        "ERR code" -> Outcome("PC refused the pairing code")
+        else -> Outcome("PC could not copy the text")
+    }
+
+    /** Sends [text] (empty = connection test), asking the PC to type it if [type]. */
+    suspend fun send(host: String, code: String, text: String, type: Boolean): Outcome {
+        val (h, port) = address(host) ?: return Outcome("PC address is not valid")
         // async on IO and a timeout on the await: a blocked name lookup can't be cancelled,
         // but the caller stops waiting for it.
         val attempt = scope.async(Dispatchers.IO) {
@@ -104,18 +124,15 @@ object PcLink {
                 Socket().use { so ->
                     so.connect(InetSocketAddress(h, port), CONNECT_MS)
                     so.soTimeout = REPLY_MS
-                    so.getOutputStream().apply { write(request(code, text)); flush() }
-                    replyError(so.getInputStream().bufferedReader().readLine())
+                    so.getOutputStream().apply { write(request(code, text, type)); flush() }
+                    outcome(so.getInputStream().bufferedReader().readLine())
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "send failed: ${e.javaClass.simpleName}: ${e.message}")
-                "PC not reachable"
+                UNREACHABLE
             }
         }
-        // Wrapped: a successful send is itself null, which must not read as the timeout.
-        val done = withTimeoutOrNull(SEND_MS) { Result.success(attempt.await()) }
-        if (done == null) attempt.cancel()
-        return if (done != null) done.getOrNull() else "PC not reachable"
+        return withTimeoutOrNull(SEND_MS) { attempt.await() } ?: UNREACHABLE.also { attempt.cancel() }
     }
 
     /**
@@ -130,15 +147,19 @@ object PcLink {
             BOTH -> {
                 onPhone()
                 scope.launch {
-                    if (send(s.pcHost, s.pcCode, text) != null) BubbleService.instance?.showPcResult(false)
+                    val sent = send(s.pcHost, s.pcCode, text, s.pcType)
+                    // The phone's own "inserted" already answered a normal send; say only what
+                    // differs from what was asked.
+                    if (!sent.ok || sent.clipboardOnly) BubbleService.instance?.showPcResult(sent)
                 }
             }
             else -> scope.launch {
-                if (send(s.pcHost, s.pcCode, text) == null) {
-                    BubbleService.instance?.showPcResult(true)
+                val sent = send(s.pcHost, s.pcCode, text, s.pcType)
+                if (sent.ok) {
+                    BubbleService.instance?.showPcResult(sent)
                 } else {
                     onPhone()
-                    main.postDelayed({ BubbleService.instance?.showPcResult(false) }, AFTER_INSERT_MS)
+                    main.postDelayed({ BubbleService.instance?.showPcResult(sent) }, AFTER_INSERT_MS)
                 }
             }
         }

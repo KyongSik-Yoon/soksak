@@ -37,6 +37,7 @@ object Backup {
             .put("bubbleOnlyOnFields", s.bubbleOnlyOnFields)
             .put("pcSend", s.pcSend)
             .put("pcHost", s.pcHost)
+            .put("pcType", s.pcType)
         val root = JSONObject()
             .put("format", FORMAT)
             .put("version", VERSION)
@@ -75,6 +76,7 @@ object Backup {
             bubbleOnlyOnFields = bool("bubbleOnlyOnFields", current.bubbleOnlyOnFields),
             pcSend = str("pcSend", current.pcSend),
             pcHost = str("pcHost", current.pcHost),
+            pcType = bool("pcType", current.pcType),
         )
         val vocab = root.optJSONArray("vocab")?.takeIf { it.length() > 0 }?.toString()
         return Restored(settings, vocab)

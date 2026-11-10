@@ -61,6 +61,9 @@ class ModelPicker(
         /** The "Send to PC" mode ([PcLink.MODES]); null hides the row (no PC set up). */
         pcSend: String? = null,
         onPcSend: () -> Unit = {},
+        /** What the PC does with the text ([Settings.pcType]); its row shows while sending. */
+        pcType: Boolean = false,
+        onPcType: () -> Unit = {},
     ) {
         dismiss()
         val ink = if (dark) CREAM else INK
@@ -101,6 +104,12 @@ class ModelPicker(
                 dismiss()
                 onPcSend()
             })
+            if (on) {
+                card.addView(row(tr("On the PC") + " · " + tr(PcLink.actionLabel(pcType)), null, false, ink, font) {
+                    dismiss()
+                    onPcType()
+                })
+            }
         }
         for (item in items) {
             val active = item.id == currentId

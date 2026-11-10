@@ -3,12 +3,16 @@
 //! Wire format, one request per connection (the Android side is `PcLink.kt`):
 //!
 //! ```text
-//! SOKSAK/1 <pairing code> <byte length>\n
+//! SOKSAK/1 <pairing code> <byte length>[ type]\n
 //! <that many bytes of UTF-8 text>
 //! ```
 //!
-//! answered with `OK\n` or `ERR <reason>\n`. A length of 0 is a connection test: the code is
-//! checked and nothing is copied.
+//! answered with `OK\n`, `OK clipboard\n` or `ERR <reason>\n`. The text always goes on the
+//! clipboard. With `type` the phone also asks for it to be typed into the focused window, which
+//! happens only if this computer's config has `allow_type = true`; otherwise the answer is
+//! `OK clipboard`, so the phone can say the text is waiting to be pasted. A length of 0 is a
+//! connection test: the code is checked, nothing is copied, and the answer is the one a real
+//! request would get.
 //!
 //! There is no encryption here. The daemon only answers peers on the Tailscale network (which
 //! is WireGuard) unless `allow_lan` is set, and the pairing code keeps other devices on that
@@ -34,17 +38,12 @@ const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CODE_LEN: usize = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Action {
-    /// Put the text on the clipboard.
-    Clipboard,
-    /// Clipboard, then type it into the focused window.
-    Type,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
     pub port: u16,
-    pub action: Action,
+    /// Let the phone ask for the text to be typed into the focused window. Off by default:
+    /// typing into a terminal runs what was said, so that is this computer's call, not the
+    /// phone's.
+    pub allow_type: bool,
     /// Run through `sh -c` with the text on stdin.
     pub copy_cmd: String,
     pub type_cmd: String,
@@ -56,7 +55,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             port: DEFAULT_PORT,
-            action: Action::Clipboard,
+            allow_type: false,
             copy_cmd: "wl-copy".into(),
             type_cmd: "wtype -".into(),
             allow_lan: false,
@@ -79,22 +78,10 @@ impl Config {
             let (key, value) = (key.trim(), value.trim());
             match key {
                 "port" => c.port = value.parse().map_err(|_| format!("line {}: bad port", n + 1))?,
-                "action" => {
-                    c.action = match value {
-                        "clipboard" => Action::Clipboard,
-                        "type" => Action::Type,
-                        _ => return Err(format!("line {}: action is clipboard or type", n + 1)),
-                    }
-                }
+                "allow_type" => c.allow_type = flag(value).ok_or_else(|| format!("line {}: allow_type is true or false", n + 1))?,
                 "copy_cmd" => c.copy_cmd = value.into(),
                 "type_cmd" => c.type_cmd = value.into(),
-                "allow_lan" => {
-                    c.allow_lan = match value {
-                        "true" => true,
-                        "false" => false,
-                        _ => return Err(format!("line {}: allow_lan is true or false", n + 1)),
-                    }
-                }
+                "allow_lan" => c.allow_lan = flag(value).ok_or_else(|| format!("line {}: allow_lan is true or false", n + 1))?,
                 _ => return Err(format!("line {}: unknown key {key}", n + 1)),
             }
         }
@@ -107,6 +94,14 @@ impl Config {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Config::default()),
             Err(e) => Err(format!("config: {e}")),
         }
+    }
+}
+
+fn flag(value: &str) -> Option<bool> {
+    match value {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
     }
 }
 
@@ -211,9 +206,11 @@ fn tailscale_v4(ip: Ipv4Addr) -> bool {
 pub struct Header {
     pub code: String,
     pub len: usize,
+    /// The phone asked for the text to be typed, not only copied.
+    pub type_text: bool,
 }
 
-/// Parses `SOKSAK/1 <code> <len>` (without the newline).
+/// Parses `SOKSAK/1 <code> <len>[ type]` (without the newline).
 pub fn parse_header(line: &str) -> Result<Header, &'static str> {
     let mut parts = line.trim_end_matches('\r').split(' ');
     if parts.next() != Some(PROTOCOL) {
@@ -221,17 +218,23 @@ pub fn parse_header(line: &str) -> Result<Header, &'static str> {
     }
     let code = parts.next().ok_or("header")?;
     let len: usize = parts.next().ok_or("header")?.parse().map_err(|_| "header")?;
+    let type_text = match parts.next() {
+        None => false,
+        Some("type") => true,
+        Some(_) => return Err("header"),
+    };
     if parts.next().is_some() {
         return Err("header");
     }
     if len > MAX_TEXT_BYTES {
         return Err("too long");
     }
-    Ok(Header { code: normalize_code(code), len })
+    Ok(Header { code: normalize_code(code), len, type_text })
 }
 
-pub fn request(code: &str, text: &str) -> Vec<u8> {
-    let mut out = format!("{PROTOCOL} {} {}\n", normalize_code(code), text.len()).into_bytes();
+pub fn request(code: &str, text: &str, type_text: bool) -> Vec<u8> {
+    let ask = if type_text { " type" } else { "" };
+    let mut out = format!("{PROTOCOL} {} {}{ask}\n", normalize_code(code), text.len()).into_bytes();
     out.extend_from_slice(text.as_bytes());
     out
 }
@@ -257,13 +260,9 @@ pub fn feed(cmd: &str, text: &str) -> Result<(), String> {
     }
 }
 
-fn deliver(config: &Config, text: &str) -> Result<(), String> {
-    feed(&config.copy_cmd, text)?;
-    if config.action == Action::Type {
-        feed(&config.type_cmd, text)?;
-    }
-    Ok(())
-}
+const OK: &str = "OK";
+/// The phone asked for typing and this computer doesn't allow it: copied, waiting to be pasted.
+const OK_CLIPBOARD: &str = "OK clipboard";
 
 fn read_header(stream: &mut TcpStream) -> Result<String, &'static str> {
     let mut line = Vec::new();
@@ -281,25 +280,34 @@ fn read_header(stream: &mut TcpStream) -> Result<String, &'static str> {
     String::from_utf8(line).map_err(|_| "header")
 }
 
-/// One request. Returns what to log; the text itself is never logged.
-fn handle(stream: &mut TcpStream, code: &str, config: &Config) -> Result<String, String> {
+/// One request. Returns what to log (never the text itself) and the reply.
+fn handle(stream: &mut TcpStream, code: &str, config: &Config) -> Result<(String, &'static str), String> {
     let header = parse_header(&read_header(stream)?)?;
     if !same_code(&header.code, code) {
         // Slows down guessing; a mistyped code on the phone waits a second for its answer.
         thread::sleep(Duration::from_secs(1));
         return Err("code".into());
     }
+    let typing = header.type_text && config.allow_type;
+    let reply = if header.type_text && !typing { OK_CLIPBOARD } else { OK };
     if header.len == 0 {
-        return Ok("connection test".into());
+        return Ok(("connection test".into(), reply));
     }
     let mut body = vec![0u8; header.len];
     stream.read_exact(&mut body).map_err(|_| "body")?;
     let text = String::from_utf8(body).map_err(|_| "utf-8")?;
-    deliver(config, &text)?;
-    Ok(format!("{} characters", text.chars().count()))
+    // The clipboard first, also when typing: if the wrong window had focus the text is not lost.
+    feed(&config.copy_cmd, &text)?;
+    if typing {
+        feed(&config.type_cmd, &text)?;
+    }
+    let how = if typing { "typed" } else { "copied" };
+    Ok((format!("{} characters {how}", text.chars().count()), reply))
 }
 
 fn serve_one(mut stream: TcpStream, peer: SocketAddr, code: &str, config: &Config) {
+    // 100.x rather than ::ffff:100.x in the log, now that the socket is dual-stack.
+    let peer = SocketAddr::new(peer.ip().to_canonical(), peer.port());
     if !peer_allowed(peer.ip(), config.allow_lan) {
         eprintln!("{}: refused, not on Tailscale", peer.ip());
         return;
@@ -307,9 +315,9 @@ fn serve_one(mut stream: TcpStream, peer: SocketAddr, code: &str, config: &Confi
     let _ = stream.set_read_timeout(Some(IO_TIMEOUT));
     let _ = stream.set_write_timeout(Some(IO_TIMEOUT));
     let reply = match handle(&mut stream, code, config) {
-        Ok(what) => {
+        Ok((what, reply)) => {
             eprintln!("{}: {what}", peer.ip());
-            "OK\n".to_string()
+            format!("{reply}\n")
         }
         Err(why) => {
             eprintln!("{}: rejected ({why})", peer.ip());
@@ -336,15 +344,15 @@ pub fn serve(listener: TcpListener, code: String, config: Config) {
     }
 }
 
-/// Client side, for `soksak-daemon send` and the tests.
-pub fn send(addr: &str, code: &str, text: &str) -> Result<(), String> {
+/// Client side, for `soksak-daemon send` and the tests. Ok carries the daemon's `OK…` line.
+pub fn send(addr: &str, code: &str, text: &str, type_text: bool) -> Result<String, String> {
     let mut stream = TcpStream::connect(addr).map_err(|e| e.to_string())?;
     let _ = stream.set_read_timeout(Some(IO_TIMEOUT));
-    stream.write_all(&request(code, text)).map_err(|e| e.to_string())?;
+    stream.write_all(&request(code, text, type_text)).map_err(|e| e.to_string())?;
     let mut reply = String::new();
     stream.read_to_string(&mut reply).map_err(|e| e.to_string())?;
     match reply.trim_end() {
-        "OK" => Ok(()),
+        ok @ (OK | OK_CLIPBOARD) => Ok(ok.to_string()),
         other => Err(other.to_string()),
     }
 }
@@ -369,11 +377,16 @@ mod tests {
 
     #[test]
     fn header_round_trip() {
-        let req = request("abcde-fgh23", "안녕 hello");
-        let text = String::from_utf8(req).unwrap();
-        let (line, body) = text.split_once('\n').unwrap();
-        assert_eq!(parse_header(line), Ok(Header { code: "ABCDEFGH23".into(), len: body.len() }));
-        assert_eq!(body, "안녕 hello");
+        for type_text in [false, true] {
+            let req = request("abcde-fgh23", "안녕 hello", type_text);
+            let text = String::from_utf8(req).unwrap();
+            let (line, body) = text.split_once('\n').unwrap();
+            assert_eq!(parse_header(line), Ok(Header { code: "ABCDEFGH23".into(), len: body.len(), type_text }));
+            assert_eq!(body, "안녕 hello");
+        }
+        // What the phone sends, spelled out: PcLinkTest.kt checks the same bytes.
+        assert_eq!(request("ABCDEFGH23", "hi", false), b"SOKSAK/1 ABCDEFGH23 2\nhi");
+        assert_eq!(request("ABCDEFGH23", "hi", true), b"SOKSAK/1 ABCDEFGH23 2 type\nhi");
     }
 
     #[test]
@@ -382,6 +395,7 @@ mod tests {
         assert_eq!(parse_header("SOKSAK/1 CODE"), Err("header"));
         assert_eq!(parse_header("SOKSAK/1 CODE x"), Err("header"));
         assert_eq!(parse_header("SOKSAK/1 CODE 1 extra"), Err("header"));
+        assert_eq!(parse_header("SOKSAK/1 CODE 1 type extra"), Err("header"));
         assert_eq!(parse_header(&format!("SOKSAK/1 CODE {}", MAX_TEXT_BYTES + 1)), Err("too long"));
     }
 
@@ -404,13 +418,14 @@ mod tests {
     #[test]
     fn config_file() {
         assert_eq!(Config::parse("# nothing\n\n"), Ok(Config::default()));
-        let c = Config::parse("port = 5000\naction = type\ncopy_cmd = xclip -selection clipboard\nallow_lan = true\n").unwrap();
+        assert!(!Config::default().allow_type);
+        let c = Config::parse("port = 5000\nallow_type = true\ncopy_cmd = xclip -selection clipboard\nallow_lan = true\n").unwrap();
         assert_eq!(c.port, 5000);
-        assert_eq!(c.action, Action::Type);
+        assert!(c.allow_type);
         assert_eq!(c.copy_cmd, "xclip -selection clipboard");
         assert!(c.allow_lan);
         assert!(Config::parse("prot = 1").is_err());
-        assert!(Config::parse("action = paste").is_err());
+        assert!(Config::parse("allow_type = yes").is_err());
     }
 
     #[test]

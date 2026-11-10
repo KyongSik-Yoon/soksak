@@ -14,7 +14,7 @@ class BackupTest {
     private val mine = Settings(
         sttModel = "medium-npu", quietMode = true, autoStopSeconds = 3.0, promptExample = "예시 문장",
         uiLanguage = "ko", githubToken = "github_pat_SECRET", sttKey = "sk-SECRET",
-        pcSend = PcLink.BOTH, pcHost = "100.68.1.2", pcCode = "SECRETCODE",
+        pcSend = PcLink.BOTH, pcHost = "100.68.1.2", pcType = true, pcCode = "SECRETCODE",
     )
 
     @Test fun `round trip keeps settings and the dictionary`() {
@@ -27,6 +27,7 @@ class BackupTest {
         assertEquals("ko", r.settings.uiLanguage)
         assertEquals(PcLink.BOTH, r.settings.pcSend)
         assertEquals("100.68.1.2", r.settings.pcHost)
+        assertEquals(true, r.settings.pcType)
         val arr = JSONArray(r.vocabJson)
         assertEquals(2, arr.length())
         assertEquals("워크트리", arr.getJSONObject(1).getJSONArray("learnedAliases").getString(0))

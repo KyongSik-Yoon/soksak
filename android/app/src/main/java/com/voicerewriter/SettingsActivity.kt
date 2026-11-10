@@ -137,6 +137,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var pcSend by remember { mutableStateOf(PcLink.OFF) }
     var pcHost by remember { mutableStateOf("") }
     var pcCode by remember { mutableStateOf("") }
+    var pcType by remember { mutableStateOf(false) }
     var pcTestStatus by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
     var latestBuild by remember { mutableStateOf<AppUpdater.Release?>(null) }
@@ -181,7 +182,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
         vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
-        pcSend = s.pcSend; pcHost = s.pcHost; pcCode = s.pcCode
+        pcSend = s.pcSend; pcHost = s.pcHost; pcCode = s.pcCode; pcType = s.pcType
         reviewBeforeInsert = s.reviewBeforeInsert
         uiLanguage = s.uiLanguage
         // The screen was composed with whatever language was active before the setting was
@@ -245,7 +246,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
         vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
-        pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(),
+        pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(), pcType = pcType,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -622,7 +623,12 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                                     pcTestStatus = tr("Enter the PC address and pairing code first.")
                                 } else {
                                     pcTestStatus = tr("Connecting…")
-                                    launch { pcTestStatus = tr(PcLink.send(pcHost, pcCode, "") ?: "Connected.") }
+                                    launch {
+                                        val sent = PcLink.send(pcHost, pcCode, "", pcType)
+                                        pcTestStatus = tr(sent.error
+                                            ?: if (sent.clipboardOnly) "Connected. This computer only allows its clipboard; typing needs allow_type = true in its soksak-daemon config."
+                                            else "Connected.")
+                                    }
                                 }
                             }
                         }
@@ -641,6 +647,14 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                             pcSend = PcLink.next(pcMode); persist()
                         }
                     }
+                    Divider()
+                    // Also on the bubble's menu. The PC has the last word: see PcLink.
+                    NavRow(
+                        tr("On the PC"),
+                        trf("%s · tap to change", tr(PcLink.actionLabel(pcType))) + "\n" +
+                            tr(if (pcType) "Typed into the window that has focus there, and copied too. The computer must allow it: allow_type = true in its soksak-daemon config."
+                               else "Copied to its clipboard; paste it where you want it."),
+                    ) { pcType = !pcType; pcTestStatus = ""; persist() }
                 }
             }
 

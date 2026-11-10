@@ -37,8 +37,11 @@ class PcLinkTest {
     @Test fun `the request carries the code and the byte length`() {
         val text = "GitLab에 MR 올려줘."
         val expected = "SOKSAK/1 ABCDEFGH23 ${text.toByteArray().size}\n$text".toByteArray()
-        assertArrayEquals(expected, PcLink.request("abcde-fgh23", text))
-        assertArrayEquals("SOKSAK/1 ABCDEFGH23 0\n".toByteArray(), PcLink.request(" ABCDE FGH23 ", ""))
+        assertArrayEquals(expected, PcLink.request("abcde-fgh23", text, type = false))
+        assertArrayEquals("SOKSAK/1 ABCDEFGH23 0\n".toByteArray(), PcLink.request(" ABCDE FGH23 ", "", type = false))
+        // The same bytes daemon/src/lib.rs spells out in its own test.
+        assertArrayEquals("SOKSAK/1 ABCDEFGH23 2\nhi".toByteArray(), PcLink.request("ABCDEFGH23", "hi", type = false))
+        assertArrayEquals("SOKSAK/1 ABCDEFGH23 2 type\nhi".toByteArray(), PcLink.request("ABCDEFGH23", "hi", type = true))
     }
 
     @Test fun `addresses with and without a port`() {
@@ -56,10 +59,14 @@ class PcLinkTest {
     }
 
     @Test fun `replies from the daemon`() {
-        assertNull(PcLink.replyError("OK"))
-        assertEquals("PC refused the pairing code", PcLink.replyError("ERR code"))
-        assertEquals("PC could not copy the text", PcLink.replyError("ERR wl-copy"))
-        assertEquals("PC not reachable", PcLink.replyError(null))
+        assertEquals(PcLink.Outcome(), PcLink.outcome("OK"))
+        assertTrue(PcLink.outcome("OK").ok)
+        // Typing was asked for and the PC only copied: still delivered.
+        assertEquals(PcLink.Outcome(clipboardOnly = true), PcLink.outcome("OK clipboard"))
+        assertTrue(PcLink.outcome("OK clipboard").ok)
+        assertEquals("PC refused the pairing code", PcLink.outcome("ERR code").error)
+        assertEquals("PC could not copy the text", PcLink.outcome("ERR wl-copy").error)
+        assertEquals("PC not reachable", PcLink.outcome(null).error)
     }
 
     /** A stand-in daemon: takes one request, answers [reply], and hands back what it received. */
@@ -70,7 +77,7 @@ class PcLinkTest {
                 val input = so.getInputStream()
                 val header = StringBuilder()
                 while (true) { val b = input.read(); if (b < 0 || b == '\n'.code) break; header.append(b.toChar()) }
-                val body = input.readNBytes(header.toString().substringAfterLast(' ').toInt())
+                val body = input.readNBytes(header.toString().split(' ')[2].toInt())
                 so.getOutputStream().apply { write(reply.toByteArray()); flush() }
                 header.toString() + "\n" + String(body)
             } }
@@ -80,27 +87,35 @@ class PcLinkTest {
 
     @Test fun `send delivers the text over a socket and reads the answer`() {
         val (port, got) = fakeDaemon("OK\n")
-        val err = kotlinx.coroutines.runBlocking { PcLink.send("127.0.0.1:$port", "abcde-fgh23", "테스트 text") }
-        assertNull(err)
+        val sent = kotlinx.coroutines.runBlocking { PcLink.send("127.0.0.1:$port", "abcde-fgh23", "테스트 text", type = false) }
+        assertEquals(PcLink.Outcome(), sent)
         assertEquals("SOKSAK/1 ABCDEFGH23 ${"테스트 text".toByteArray().size}\n테스트 text", got.get())
+    }
+
+    @Test fun `asking for typing reaches the daemon and its refusal comes back`() {
+        val (port, got) = fakeDaemon("OK clipboard\n")
+        val sent = kotlinx.coroutines.runBlocking { PcLink.send("127.0.0.1:$port", "abcde-fgh23", "hi", type = true) }
+        assertEquals(PcLink.Outcome(clipboardOnly = true), sent)
+        assertEquals("SOKSAK/1 ABCDEFGH23 2 type\nhi", got.get())
     }
 
     @Test fun `a refused code comes back as an error`() {
         val (port, _) = fakeDaemon("ERR code\n")
-        val err = kotlinx.coroutines.runBlocking { PcLink.send("127.0.0.1:$port", "WRONG", "x") }
-        assertEquals("PC refused the pairing code", err)
+        val sent = kotlinx.coroutines.runBlocking { PcLink.send("127.0.0.1:$port", "WRONG", "x", type = false) }
+        assertEquals("PC refused the pairing code", sent.error)
     }
 
     /** Against a real soksak-daemon: `SOKSAK_TEST_DAEMON=host:port SOKSAK_TEST_CODE=… ./gradlew …`. */
     @Test fun `send reaches a real daemon when one is given`() {
         val addr = System.getenv("SOKSAK_TEST_DAEMON")
         org.junit.Assume.assumeTrue(addr != null)
-        val err = kotlinx.coroutines.runBlocking { PcLink.send(addr!!, System.getenv("SOKSAK_TEST_CODE").orEmpty(), "앱에서 보낸 글 — from PcLink.kt") }
-        assertNull(err)
+        // Asks for typing: the daemon under test must not allow it, so nothing is typed here.
+        val sent = kotlinx.coroutines.runBlocking { PcLink.send(addr!!, System.getenv("SOKSAK_TEST_CODE").orEmpty(), "앱에서 보낸 글 — from PcLink.kt", type = true) }
+        assertEquals(PcLink.Outcome(clipboardOnly = true), sent)
     }
 
     @Test fun `every message shown has a Korean translation`() {
-        val shown = PcLink.MODES.map { PcLink.label(it) } + listOf(
+        val shown = PcLink.MODES.map { PcLink.label(it) } + listOf(true, false).map { PcLink.actionLabel(it) } + listOf(
             "PC not reachable", "PC refused the pairing code", "PC could not copy the text", "PC address is not valid",
         )
         for (s in shown) assertTrue(s, I18n.KO.containsKey(s))

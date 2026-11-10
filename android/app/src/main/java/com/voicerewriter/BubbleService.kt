@@ -252,6 +252,8 @@ class BubbleService : Service() {
                 onQuiet = { on -> setQuietMode(on) },
                 pcSend = if (PcLink.configured(settings)) PcLink.mode(settings) else null,
                 onPcSend = { cyclePcSend() },
+                pcType = settings.pcType,
+                onPcType = { togglePcType() },
             )
         }
     }
@@ -916,13 +918,14 @@ class BubbleService : Service() {
      * Whether the dictation reached the PC ([PcLink]). On the bubble for the same reason as the
      * clipboard fallback: a toast from here would not be shown.
      */
-    fun showPcResult(ok: Boolean) {
+    fun showPcResult(sent: PcLink.Outcome) {
         mainHandler.post {
             // The answer can arrive seconds later; a take that has started since owns the bubble.
             if (HeadlessDictation.active) return@post
             recording = true
             ensureVisible()
-            bubble?.pillLabel = if (ok) "To PC" else "No PC"
+            // "PC clip": typing was asked for, the PC only allows its clipboard.
+            bubble?.pillLabel = if (!sent.ok) "No PC" else if (sent.clipboardOnly) "PC clip" else "To PC"
             setState(BubbleView.State.COPIED)
             hold(FALLBACK_HOLD_MS)
         }
@@ -940,6 +943,17 @@ class BubbleService : Service() {
             val s = repo.get()
             repo.save(s.copy(pcSend = PcLink.next(PcLink.mode(s))))
             refreshGating()
+        }
+        mainHandler.postDelayed({ showModelPicker() }, 120)
+    }
+
+    /** Clipboard or typing on the PC, from the bubble menu; the menu reopens to show it. */
+    private fun togglePcType() {
+        hapticStart()
+        serviceScope.launch {
+            val repo = SettingsRepository(applicationContext)
+            val s = repo.get()
+            repo.save(s.copy(pcType = !s.pcType))
         }
         mainHandler.postDelayed({ showModelPicker() }, 120)
     }

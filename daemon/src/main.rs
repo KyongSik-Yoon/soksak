@@ -65,8 +65,8 @@ fn main() -> ExitCode {
             println!("  Pairing code  {}", display_code(&code));
             ExitCode::SUCCESS
         }
-        ["send", addr, text] => match send(addr, &code, text) {
-            Ok(()) => ExitCode::SUCCESS,
+        ["send", addr, text] => match send(addr, &code, text, false) {
+            Ok(_) => ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("{e}");
                 ExitCode::FAILURE

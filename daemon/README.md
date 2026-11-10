@@ -47,14 +47,25 @@ soksak-daemon pair
 
 ```ini
 port = 48620
-# clipboard: 클립보드에만 / type: 클립보드에 넣고 포커스된 창에 타이핑까지
-action = clipboard
+# 폰이 "바로 입력"을 요청하면 포커스된 창에 타이핑까지 할지. 아래 "바로 입력" 참고
+allow_type = false
 # 글을 표준 입력으로 받는 명령. X11이면 xclip -selection clipboard, macOS면 pbcopy
 copy_cmd = wl-copy
 type_cmd = wtype -
 # true면 Tailscale 밖의 연결도 받습니다. 그 경우 글이 암호화 없이 갑니다.
 allow_lan = false
 ```
+
+설정을 바꾼 뒤에는 `systemctl --user restart soksak-daemon`.
+
+### 바로 입력
+
+글은 언제나 클립보드에 들어갑니다. 앱에서 "PC에서 → 바로 입력"을 고르면(설정 또는 버블 메뉴) 포커스된 창에
+타이핑까지 요청하는데, 이 컴퓨터가 `allow_type = true`로 허용했을 때만 실제로 칩니다. 허용하지 않았으면
+클립보드에만 넣고, 폰의 버블에 "PC clip"이 뜹니다.
+
+허용 여부를 컴퓨터 쪽에 둔 이유: 포커스된 창이 터미널이면 받은 글이 명령으로 실행될 수 있어서, 연동 코드를 아는
+기기가 요청만으로 켤 수 없게 했습니다.
 
 연동 코드는 `~/.config/soksak-daemon/code`(본인만 읽기)에 있습니다. 로그(`journalctl --user -u soksak-daemon`)에는
 보낸 기기 주소와 글자 수만 남고 글 내용은 남지 않습니다.

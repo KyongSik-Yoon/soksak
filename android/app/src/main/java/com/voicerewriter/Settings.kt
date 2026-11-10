@@ -56,6 +56,8 @@ data class Settings(
     val pcSend: String = PcLink.OFF,
     /** The computer running soksak-daemon: `host` or `host:port`. */
     val pcHost: String = "",
+    /** Ask the PC to type the text into its focused window, not only copy it. See [PcLink]. */
+    val pcType: Boolean = false,
     /** That daemon's pairing code. A secret: kept out of backups. */
     val pcCode: String = "",
     /**
@@ -109,6 +111,7 @@ class SettingsRepository(private val context: Context) {
         val PC_SEND = stringPreferencesKey("pcSend")
         val PC_HOST = stringPreferencesKey("pcHost")
         val PC_CODE = stringPreferencesKey("pcCode")
+        val PC_TYPE = booleanPreferencesKey("pcType")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("hasCompletedOnboarding")
@@ -146,6 +149,7 @@ class SettingsRepository(private val context: Context) {
             pcSend = p[Keys.PC_SEND] ?: defaults.pcSend,
             pcHost = p[Keys.PC_HOST] ?: defaults.pcHost,
             pcCode = p[Keys.PC_CODE] ?: defaults.pcCode,
+            pcType = p[Keys.PC_TYPE] ?: defaults.pcType,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
             hasCompletedOnboarding = p[Keys.HAS_COMPLETED_ONBOARDING] ?: defaults.hasCompletedOnboarding,
@@ -174,6 +178,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.PC_SEND] = s.pcSend
             p[Keys.PC_HOST] = s.pcHost
             p[Keys.PC_CODE] = s.pcCode
+            p[Keys.PC_TYPE] = s.pcType
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields
             p[Keys.HAS_COMPLETED_ONBOARDING] = s.hasCompletedOnboarding
