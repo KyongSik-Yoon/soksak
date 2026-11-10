@@ -13,7 +13,6 @@ import com.whispercpp.whisper.WhisperCpuConfig
 import java.io.BufferedInputStream
 import java.io.File
 import kotlin.math.ceil
-import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -116,6 +115,8 @@ object LocalSherpaStt {
 
     @Volatile private var adspPathSet = false
 
+    private var echoVad: SileroVad? = null
+
     private fun build(context: Context, dir: File, m: WhisperModelManager.WhisperModel, language: String, diagnostics: Boolean): OfflineRecognizer {
         val model = when (m.engine) {
             SpeechEngine.QNN_WHISPER -> {
@@ -197,7 +198,7 @@ object LocalSherpaStt {
                         rec.decode(stream)
                         val result = rec.getResult(stream)
                         partLog += "${(System.nanoTime() - d0) / 1_000_000}ms/${result.tokens.size}tok"
-                        clean(result.text).takeUnless { hint.isNotEmpty() && isHintEcho(it, part) }.orEmpty()
+                        clean(result.text).takeUnless { hint.isNotEmpty() && isHintEcho(it) && !hasSpeech(context, part) }.orEmpty()
                     } finally {
                         stream.release()
                     }
@@ -249,23 +250,14 @@ object LocalSherpaStt {
         return out
     }
 
-    /** [text] is only what the hint produces on silence, and [chunk] has no voice to have said it. */
-    internal fun isHintEcho(text: String, chunk: FloatArray, sr: Int = 16_000): Boolean =
-        HallucinationFilter.norm(text) in HINT_ECHOES && !hasVoice(chunk, sr)
+    /** [text] is only what the hint produces on a window with no voice ("네." is also a real answer, so check the audio). */
+    internal fun isHintEcho(text: String): Boolean = HallucinationFilter.norm(text) in HINT_ECHOES
 
-    /** At least 0.1s rises clearly above the window's own quiet frames ([QuietSpeechDetector]'s rule). */
-    internal fun hasVoice(chunk: FloatArray, sr: Int = 16_000): Boolean {
-        val frame = sr / 50
-        val rms = List(chunk.size / frame) { f ->
-            var e = 0.0
-            for (i in f * frame until (f + 1) * frame) e += chunk[i] * chunk[i]
-            sqrt(e / frame).toFloat()
-        }
-        if (rms.isEmpty()) return false
-        val floor = rms.sorted()[rms.size / 10]
-        val voiced = rms.count { it > floor * QuietSpeechDetector.SPEECH_OVER_FLOOR && it > QuietSpeechDetector.ABS_MIN_SPEECH }
-        return voiced * frame >= sr / 10
-    }
+    /** Own Silero: pieces decode while the recorder's shared one is still being fed. Unavailable means keep the text. */
+    private fun hasSpeech(context: Context, chunk: FloatArray): Boolean = runCatching {
+        val vad = echoVad ?: SileroVad.create(context)?.also { echoVad = it }
+        vad?.hasSpeech(chunk) ?: true
+    }.getOrDefault(true)
 
     /**
      * SentencePiece word markers ("▁조국이 …") and stray special tokens don't belong in a text field.

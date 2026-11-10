@@ -35,6 +35,15 @@ class SileroVad private constructor(
 
         @Volatile private var shared: SileroVad? = null
 
+        /** Stray frames over the threshold happen; a word is at least this many (~0.1s). */
+        private const val MIN_SPEECH_FRAMES = 3
+        private const val SPEECH_PROB = 0.5f
+
+        internal fun enoughSpeech(probs: List<Float>): Boolean = probs.count { it >= SPEECH_PROB } >= MIN_SPEECH_FRAMES
+
+        /** A separate instance, for callers that can run while [shared] is mid-recording (the model is stateful). */
+        fun create(context: Context): SileroVad? = createOrNull(context)
+
         /** Process-wide cached instance (the model loads once); null if unavailable. */
         fun shared(context: Context): SileroVad? {
             shared?.let { return it }
@@ -93,6 +102,12 @@ class SileroVad private constructor(
         } finally {
             input.close(); st.close(); sr.close()
         }
+    }
+
+    /** Whether [samples] (normalized -1..1) contain speech, judged from a fresh state. */
+    fun hasSpeech(samples: FloatArray): Boolean {
+        reset()
+        return enoughSpeech(List(samples.size / CHUNK) { i -> process(samples.copyOfRange(i * CHUNK, (i + 1) * CHUNK)) })
     }
 
     fun close() {
