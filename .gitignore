@@ -2,7 +2,7 @@
 .DS_Store
 Thumbs.db
 
-# Archives (branding lives unpacked in design_assets/)
+# Archives
 *.zip
 
 # Editors
@@ -29,28 +29,6 @@ __pycache__/
 **/.gradle/
 **/local.properties
 **/.cxx/
-
-# Swift Package Manager
-/.build/
-**/.build/
-.swiftpm/
-
-# Xcode
-xcuserdata/
-*.xcodeproj/*.xcuserdatad/
-DerivedData/
-*.xcuserstate
-
-# macOS packaging artifacts (Release build + .dmg output)
-macos/App/build-release/
-macos/App/build-eval/
-macos/App/build-bench/
-macos/dist/
-*.dmg
-
-# Vendored sherpa-onnx + onnxruntime xcframeworks for macOS on-device Parakeet STT — large
-# prebuilt binaries, regenerable via macos/SherpaOnnxFramework/fetch-binaries.sh.
-macos/SherpaOnnxFramework/binaries/
 
 # Vendored sherpa-onnx AAR, fetched by CI
 android/app/libs/*.aar

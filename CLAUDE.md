@@ -20,8 +20,9 @@
   - 기본 언어 한국어. 한국어+영어 개발 용어가 섞인 발화가 주 사용 사례.
   - Turbo q5_0은 느리고 이득이 없어 제거, q4_0만 유지.
   - GPU 가속은 Vulkan, OpenCL 모두 CPU보다 느려 제거(아래 GPU 절). 다시 시도하지 않는다.
-  - macOS 코드(`macos/`)는 건드리지 않는다. CI의 macOS 잡은 이 계정에서 macos-14 러너를 못 써서 매번 취소되며
-    알림만 만들어 ci.yml에서 뺐다(2026-11-08). 벤치·모델 패키징 워크플로 변경은 CI를 돌리지 않는다(paths-ignore).
+  - Android 전용. macOS 앱은 사용자가 맥을 쓰지 않아 2026-11-10 지웠고, 원본의 홍보 사이트·Play 스토어
+    메타데이터(fastlane)·태그 릴리스 워크플로·브랜드 자료도 함께 지웠다. 되살리지 않는다.
+    벤치·모델 패키징 워크플로 변경은 CI를 돌리지 않는다(paths-ignore).
 
 ## 빌드·배포 흐름 (폰에 올리는 빌드는 CI가 만든다)
 로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
@@ -48,9 +49,7 @@
   SenseVoice fp32 7.3%/0.17(→ 제거), Moonshine tiny 7.7%/0.13. 낭독체라 개발 용어 섞인 발화는 반영 못 함. 속도 비율만 폰에 옮겨진다. `engine` 필드(`SpeechEngine`)로 런타임을 나눈다(`OnDeviceStt`가 분기).
 - sherpa 모델(`LocalSherpaStt.kt`): NPU용 tar.bz2 번들을 비공개 Release에서 받아 `models/<bundle>/`에 필요한 파일만 풀고
   압축본은 지운다(commons-compress). sherpa는 AAR을 쓰지 않는다(2026-11-09): Kotlin API를 `android/app/src/main/java/com/k2fsa/sherpa/onnx`에 vendoring(sherpa@347ec76),
-  JNI .so는 CI `sherpa-qnn` 잡이 같은 커밋으로 빌드해 `app/src/main/jniLibs/arm64-v8a`(gitignore)에 넣는다. 둘의 커밋이 다르면 JNI가 필드를 못 찾는다.
-  (`release.yml` 태그 릴리스 워크플로는 아직 AAR 방식 — 쓰지 않음.)
-- ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
+  JNI .so는 CI `sherpa-qnn` 잡이 같은 커밋으로 빌드해 `app/src/main/jniLibs/arm64-v8a`(gitignore)에 넣는다. 둘의 커밋이 다르면 JNI가 필드를 못 찾는다.- ACFT 모델(`acft = true`)은 audio_ctx 하한 128로 클립 길이에 맞춰 돌린다 (일반 모델은 768). `jni.c`의 `audio_ctx_floor`.
   일반 Whisper를 짧은 audio_ctx로 돌리면 반복·붕괴한다 — 하한을 낮추지 말 것.
 - Turbo는 공개 ggml이 없어 `.github/workflows/convert-model.yml`(workflow_dispatch)로 HF safetensors → ggml → 양자화 후
   이 저장소 Release(`model-*`, pre-release)에 올린다. 앱은 GitHub 토큰으로 받는다(`releaseTag` 필드). 토큰이 없으면 Import.
