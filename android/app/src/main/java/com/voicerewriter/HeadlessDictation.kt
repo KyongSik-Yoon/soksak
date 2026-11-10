@@ -172,10 +172,12 @@ object HeadlessDictation {
                     pendingId?.let { PendingAudio.release(it) }
                     return@launch
                 }
-                if (!OpenWisprAccessibilityService.enqueueInsert(text)) {
-                    (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                        .setPrimaryClip(ClipData.newPlainText("rewrite", text))
-                    BubbleService.instance?.showClipboardFallback()
+                PcLink.deliver(s, text) {
+                    if (!OpenWisprAccessibilityService.enqueueInsert(text)) {
+                        (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                            .setPrimaryClip(ClipData.newPlainText("rewrite", text))
+                        BubbleService.instance?.showClipboardFallback()
+                    }
                 }
                 LastDictation.set(ctx, text)
                 recordHistory(ctx, host, label, durationSec, raw, text, s)

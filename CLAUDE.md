@@ -36,7 +36,7 @@
 ## 빌드·배포 흐름 (폰에 올리는 빌드는 CI가 만든다)
 로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
 로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) NPU 모델은 동작하지 않는다.
-1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`, `docs/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
+1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`, `docs/**`, `daemon/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
 2. 성공하면 Release `build-<run_number>`에 `soksak-dev-<run>.apk`를 올리고 최근 5개만 남긴다.
    versionCode = `1000 + run`, versionName = `1.6.0-dev.<run>` (`android/app/build.gradle.kts`).
   설정 화면에는 `1.6.0 · build N`으로 보인다. `1.6.0`은 원본 기반 버전 그대로 두기로 결정(2026-11-08) — 바꾸지 않는다.
@@ -110,6 +110,16 @@
   근거: `chunk-bench.yml` — 15초 코드스위칭 CER 22.6→23.8%(동급), 30초+ 및 쉼 많은 실음성은 통째 디코드가 문장을 통째로 빠뜨림
   (45→14%), 멈춘 뒤 대기 ~20초→~3초. Retry/Compare는 여전히 통째로. 녹음 원본은 `AudioRecorder.rawCopy`.
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.
+
+## PC로 보내기 (2026-11-11)
+- 받아쓴 글을 사용자 PC의 클립보드로 보낸다. 폰 쪽 `PcLink.kt`, PC 쪽 `daemon/`(Rust, 의존 크레이트 없음, `daemon/README.md`).
+  설정 `pcSend`(`off`/`both`/`pc`)·`pcHost`·`pcCode`, 기본 꺼짐. 주소와 코드가 모두 있어야 동작한다. 버블 메뉴에도 행이 있다(설정된 경우만).
+- 프로토콜: TCP 한 번에 `SOKSAK/1 <코드> <바이트 수>\n<글>` → `OK`/`ERR <이유>`. 길이 0은 연결 시험. 양쪽 테스트(`PcLinkTest`, `daemon/tests`)가 같은 형식을 검사한다 — 한쪽을 바꾸면 다른 쪽도.
+- 암호화는 Tailscale에 맡긴다: 데몬은 Tailscale 대역(100.64.0.0/10)과 로컬만 받는다(`allow_lan`으로 해제). OkHttp가 아니라 raw 소켓인 이유는 Android가 100.x로 가는 평문 HTTP를 막기 때문.
+- 전송 지점은 `PcLink.deliver` 하나(`HeadlessDictation`, `RewriteActivity.acceptVoice`가 호출). 단어장 교정이 끝난 최종 글을 보낸다. `both`는 폰 입력과 동시에, `pc`는 PC 실패 시에만 폰에 입력(글을 잃지 않게). `pc`에서는 버블의 "입력창에서만 보이기"를 무시한다(`gateFor`).
+  결과는 버블 알약(`showPcResult`: "To PC"/"No PC")으로 알린다 — 백그라운드 토스트는 안 뜬다.
+- 연동 코드는 비밀정보: 백업 파일에 넣지 않고, 사용자가 폰에 직접 입력한다. 데몬 로그에는 글 내용을 남기지 않는다.
+- 사용자 PC에는 `~/.local/bin/soksak-daemon` + systemd 사용자 서비스 `soksak-daemon`으로 설치돼 있다. `daemon/**`만 바뀐 커밋은 앱 CI를 돌리지 않고 `.github/workflows/daemon.yml`(cargo test·clippy)만 돈다. cargo는 `~/.cargo/bin`(PATH에 없음).
 
 ## 앱 내 업데이트
 - `AppUpdater.kt`: Releases API(토큰은 선택 — 공개 저장소는 익명 호출, 시간당 60회/IP. 비공개일 때만 설정의 fine-grained 토큰 Contents: Read-only 필요. 2026-11-10 공개 준비로 필수 → 선택. 모델 다운로드도 같은 경로) → APK를 캐시에 받고

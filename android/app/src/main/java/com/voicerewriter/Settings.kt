@@ -52,6 +52,12 @@ data class Settings(
     val uiLanguage: String = "auto",
     /** Optional read-only GitHub token for [AppUpdater]; only needed while the repo is private. */
     val githubToken: String = "",
+    /** Where a finished dictation goes: one of [PcLink.MODES]. See [PcLink]. */
+    val pcSend: String = PcLink.OFF,
+    /** The computer running soksak-daemon: `host` or `host:port`. */
+    val pcHost: String = "",
+    /** That daemon's pairing code. A secret: kept out of backups. */
+    val pcCode: String = "",
     /**
      * Show the result and wait before inserting it. Off by default: the field the user is
      * already looking at is a better place to read new text than a sheet showing it out of
@@ -100,6 +106,9 @@ class SettingsRepository(private val context: Context) {
         val QUIET_MODEL = stringPreferencesKey("quietModel")
         val NPU_DIAGNOSTICS = booleanPreferencesKey("npuDiagnostics")
         val GITHUB_TOKEN = stringPreferencesKey("githubToken")
+        val PC_SEND = stringPreferencesKey("pcSend")
+        val PC_HOST = stringPreferencesKey("pcHost")
+        val PC_CODE = stringPreferencesKey("pcCode")
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("hasCompletedOnboarding")
@@ -134,6 +143,9 @@ class SettingsRepository(private val context: Context) {
             quietModel = p[Keys.QUIET_MODEL] ?: defaults.quietModel,
             npuDiagnostics = p[Keys.NPU_DIAGNOSTICS] ?: defaults.npuDiagnostics,
             githubToken = p[Keys.GITHUB_TOKEN] ?: defaults.githubToken,
+            pcSend = p[Keys.PC_SEND] ?: defaults.pcSend,
+            pcHost = p[Keys.PC_HOST] ?: defaults.pcHost,
+            pcCode = p[Keys.PC_CODE] ?: defaults.pcCode,
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
             hasCompletedOnboarding = p[Keys.HAS_COMPLETED_ONBOARDING] ?: defaults.hasCompletedOnboarding,
@@ -159,6 +171,9 @@ class SettingsRepository(private val context: Context) {
             p[Keys.QUIET_MODEL] = s.quietModel
             p[Keys.NPU_DIAGNOSTICS] = s.npuDiagnostics
             p[Keys.GITHUB_TOKEN] = s.githubToken
+            p[Keys.PC_SEND] = s.pcSend
+            p[Keys.PC_HOST] = s.pcHost
+            p[Keys.PC_CODE] = s.pcCode
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields
             p[Keys.HAS_COMPLETED_ONBOARDING] = s.hasCompletedOnboarding

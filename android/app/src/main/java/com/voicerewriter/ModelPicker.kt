@@ -58,6 +58,9 @@ class ModelPicker(
         onMore: () -> Unit,
         quiet: Boolean = false,
         onQuiet: ((Boolean) -> Unit)? = null,
+        /** The "Send to PC" mode ([PcLink.MODES]); null hides the row (no PC set up). */
+        pcSend: String? = null,
+        onPcSend: () -> Unit = {},
     ) {
         dismiss()
         val ink = if (dark) CREAM else INK
@@ -90,6 +93,13 @@ class ModelPicker(
             card.addView(row(tr("Quiet mode") + " · " + tr(if (quiet) "On" else "Off"), if (quiet) "🤫" else null, quiet, ink, font) {
                 dismiss()
                 onQuiet(!quiet)
+            })
+        }
+        if (pcSend != null) {
+            val on = pcSend != PcLink.OFF
+            card.addView(row(tr("Send to PC") + " · " + tr(PcLink.label(pcSend)), if (on) "PC" else null, on, ink, font) {
+                dismiss()
+                onPcSend()
             })
         }
         for (item in items) {

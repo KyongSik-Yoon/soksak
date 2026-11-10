@@ -192,6 +192,10 @@ class BubbleView(context: Context) : View(context) {
     var badge: String? = null
         set(value) { if (field != value) { field = value; invalidate() } }
 
+    /** Words on the [State.COPIED] pill: "Copied", or how sending to the PC went. */
+    var pillLabel: String = "Copied"
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     /** Quiet mode is on: the model tab turns slate blue instead of coral. */
     var badgeQuiet: Boolean = false
         set(value) { if (field != value) { field = value; invalidate() } }
@@ -490,7 +494,7 @@ class BubbleView(context: Context) : View(context) {
 
         val iconSize = dp(17f)
         val gap = dp(7f)
-        val text = "Copied"
+        val text = pillLabel
         labelPaint.color = if (dark) COPIED_TEXT_DK else COPIED_TEXT_LIGHT
         val textW = labelPaint.measureText(text)
         var x = content.centerX() - (iconSize + gap + textW) / 2f

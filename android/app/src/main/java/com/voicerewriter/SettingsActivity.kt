@@ -134,6 +134,10 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var npuDiagnostics by remember { mutableStateOf(false) }
     var uiLanguage by remember { mutableStateOf(I18n.mode) }
     var githubToken by remember { mutableStateOf("") }
+    var pcSend by remember { mutableStateOf(PcLink.OFF) }
+    var pcHost by remember { mutableStateOf("") }
+    var pcCode by remember { mutableStateOf("") }
+    var pcTestStatus by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
     var latestBuild by remember { mutableStateOf<AppUpdater.Release?>(null) }
     var updateProgress by remember { mutableStateOf<Float?>(null) }
@@ -177,6 +181,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
         vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        pcSend = s.pcSend; pcHost = s.pcHost; pcCode = s.pcCode
         reviewBeforeInsert = s.reviewBeforeInsert
         uiLanguage = s.uiLanguage
         // The screen was composed with whatever language was active before the setting was
@@ -240,6 +245,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
         vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(),
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
     )
@@ -589,6 +595,52 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                         else tr("Appear only when you can type"),
                         bubbleOnlyOnFields,
                     ) { bubbleOnlyOnFields = it; persist() }
+                }
+            }
+
+            // ---------------- SEND TO PC ----------------
+            Section(tr("Send to PC")) {
+                Card {
+                    Padded {
+                        Text(tr("Copies each dictation to the clipboard of your computer, directly over Tailscale. The computer runs soksak-daemon; `soksak-daemon pair` there shows the address and code. Nothing is sent while this is set to this phone only."),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        Label(tr("PC address"))
+                        Spacer(Modifier.height(6.dp))
+                        KeyField(pcHost, "100.x.y.z:${PcLink.DEFAULT_PORT}") { pcHost = it; pcTestStatus = ""; persist() }
+                        Spacer(Modifier.height(12.dp))
+                        Label(tr("Pairing code"))
+                        Spacer(Modifier.height(6.dp))
+                        KeyField(pcCode, "ABCDE-FGHJK", secret = true) { pcCode = it; pcTestStatus = ""; persist() }
+                        Spacer(Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(pcTestStatus.ifBlank { tr("Check that the computer answers.") },
+                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f))
+                            PillOutline(tr("Test")) {
+                                if (pcHost.isBlank() || PcLink.normalizeCode(pcCode).isEmpty()) {
+                                    pcTestStatus = tr("Enter the PC address and pairing code first.")
+                                } else {
+                                    pcTestStatus = tr("Connecting…")
+                                    launch { pcTestStatus = tr(PcLink.send(pcHost, pcCode, "") ?: "Connected.") }
+                                }
+                            }
+                        }
+                    }
+                    Divider()
+                    // Tap cycles phone only → phone and PC → PC only. Also on the bubble's menu.
+                    val pcMode = PcLink.mode(snapshot())
+                    NavRow(
+                        tr("Send dictations to"),
+                        trf("%s · tap to change", tr(PcLink.label(pcMode))) +
+                            if (pcMode == PcLink.PC_ONLY) "\n" + tr("The bubble stays visible everywhere, and the text is typed on this phone only if the computer can't be reached.") else "",
+                    ) {
+                        if (pcHost.isBlank() || PcLink.normalizeCode(pcCode).isEmpty()) {
+                            pcTestStatus = tr("Enter the PC address and pairing code first.")
+                        } else {
+                            pcSend = PcLink.next(pcMode); persist()
+                        }
+                    }
                 }
             }
 

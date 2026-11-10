@@ -8,8 +8,8 @@ import org.json.JSONObject
  * move to another install: a new phone, or this app under a new application id, which Android
  * treats as a different app with empty storage.
  *
- * Secrets stay out of the file: the GitHub token and the speech API key are never written and a
- * restore keeps whatever this install already has for them. Downloaded models aren't included
+ * Secrets stay out of the file: the GitHub token, the speech API key and the PC pairing code are
+ * never written and a restore keeps whatever this install already has for them. Downloaded models aren't included
  * (hundreds of MB; download them again).
  */
 object Backup {
@@ -35,6 +35,8 @@ object Backup {
             .put("uiLanguage", s.uiLanguage)
             .put("reviewBeforeInsert", s.reviewBeforeInsert)
             .put("bubbleOnlyOnFields", s.bubbleOnlyOnFields)
+            .put("pcSend", s.pcSend)
+            .put("pcHost", s.pcHost)
         val root = JSONObject()
             .put("format", FORMAT)
             .put("version", VERSION)
@@ -71,6 +73,8 @@ object Backup {
             uiLanguage = str("uiLanguage", current.uiLanguage),
             reviewBeforeInsert = bool("reviewBeforeInsert", current.reviewBeforeInsert),
             bubbleOnlyOnFields = bool("bubbleOnlyOnFields", current.bubbleOnlyOnFields),
+            pcSend = str("pcSend", current.pcSend),
+            pcHost = str("pcHost", current.pcHost),
         )
         val vocab = root.optJSONArray("vocab")?.takeIf { it.length() > 0 }?.toString()
         return Restored(settings, vocab)

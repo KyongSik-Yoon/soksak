@@ -173,7 +173,7 @@ class BubbleService : Service() {
         super.onCreate()
         enterForeground()
         gateSetting = try {
-            runBlocking { SettingsRepository(applicationContext).get().bubbleOnlyOnFields }
+            runBlocking { gateFor(SettingsRepository(applicationContext).get()) }
         } catch (_: Exception) { true }
         addBubble()
         watchModelBadge()
@@ -250,6 +250,8 @@ class BubbleService : Service() {
                 },
                 quiet = settings.quietMode,
                 onQuiet = { on -> setQuietMode(on) },
+                pcSend = if (PcLink.configured(settings)) PcLink.mode(settings) else null,
+                onPcSend = { cyclePcSend() },
             )
         }
     }
@@ -904,9 +906,42 @@ class BubbleService : Service() {
             // gate could hide the bubble before the user has seen where their text went.
             recording = true
             ensureVisible()
+            bubble?.pillLabel = "Copied"
             setState(BubbleView.State.COPIED)
             hold(FALLBACK_HOLD_MS)
         }
+    }
+
+    /**
+     * Whether the dictation reached the PC ([PcLink]). On the bubble for the same reason as the
+     * clipboard fallback: a toast from here would not be shown.
+     */
+    fun showPcResult(ok: Boolean) {
+        mainHandler.post {
+            // The answer can arrive seconds later; a take that has started since owns the bubble.
+            if (HeadlessDictation.active) return@post
+            recording = true
+            ensureVisible()
+            bubble?.pillLabel = if (ok) "To PC" else "No PC"
+            setState(BubbleView.State.COPIED)
+            hold(FALLBACK_HOLD_MS)
+        }
+    }
+
+    /** "PC only" has no field on the phone to wait for, so the bubble is not gated on one. */
+    private fun gateFor(s: Settings): Boolean =
+        s.bubbleOnlyOnFields && PcLink.mode(s) != PcLink.PC_ONLY
+
+    /** Next "Send to PC" mode from the bubble menu; the menu reopens to show it. */
+    private fun cyclePcSend() {
+        hapticStart()
+        serviceScope.launch {
+            val repo = SettingsRepository(applicationContext)
+            val s = repo.get()
+            repo.save(s.copy(pcSend = PcLink.next(PcLink.mode(s))))
+            refreshGating()
+        }
+        mainHandler.postDelayed({ showModelPicker() }, 120)
     }
 
     private fun hold(ms: Long) {
@@ -979,7 +1014,7 @@ class BubbleService : Service() {
     /** Re-read the gating preference and apply (e.g. after accessibility connects). */
     fun refreshGating() {
         gateSetting = try {
-            runBlocking { SettingsRepository(applicationContext).get().bubbleOnlyOnFields }
+            runBlocking { gateFor(SettingsRepository(applicationContext).get()) }
         } catch (_: Exception) { gateSetting }
         mainHandler.post { applyGating(animate = true) }
     }

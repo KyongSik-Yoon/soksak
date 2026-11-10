@@ -15,7 +15,7 @@ done
 
 # Symbols the doc relies on.
 for sym in enterForeground micReady HeadlessDictation lastEditable particleHit buildPrompt localizeGlossary \
-           audio_ctx_floor releaseTag update_paths AUTO_STOP_CHOICES TURBO_ACFT_Q4_MODEL SMALL_ACFT_MODEL isFlickUp showModelPicker badge noteTyping bench_models StreamingWhisper rawCopy pipelinedWhisper ShizukuInstaller uiLanguage QuietSpeechDetector forDictation quietMode HallucinationFilter tailEnd NpuSupport QNN_WHISPER MEDIUM_NPU_MODEL sherpa-qnn NpuLoadGuard libcdsprpc; do
+           audio_ctx_floor releaseTag update_paths AUTO_STOP_CHOICES TURBO_ACFT_Q4_MODEL SMALL_ACFT_MODEL isFlickUp showModelPicker badge noteTyping bench_models StreamingWhisper rawCopy pipelinedWhisper ShizukuInstaller uiLanguage QuietSpeechDetector forDictation quietMode HallucinationFilter tailEnd NpuSupport QNN_WHISPER MEDIUM_NPU_MODEL sherpa-qnn NpuLoadGuard libcdsprpc PcLink showPcResult gateFor; do
   git grep -q "$sym" -- android .github || { echo "missing symbol: $sym"; fail=1; }
 done
 
