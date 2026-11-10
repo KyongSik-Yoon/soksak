@@ -192,8 +192,18 @@ object WhisperModelManager {
             }
         }
 
+    private val inFlight = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** True while any model download runs (onboarding's or one started from Settings). */
+    val anyDownloading: Boolean get() = inFlight.get() > 0 || _downloadState.value == "downloading"
+
     /** Download model [id], reporting progress 0f..1f. Throws on network error. */
-    suspend fun download(context: Context, id: String, onProgress: (Float) -> Unit) =
+    suspend fun download(context: Context, id: String, onProgress: (Float) -> Unit) {
+        inFlight.incrementAndGet()
+        try { fetchModel(context, id, onProgress) } finally { inFlight.decrementAndGet() }
+    }
+
+    private suspend fun fetchModel(context: Context, id: String, onProgress: (Float) -> Unit) =
         withContext(Dispatchers.IO) {
             if (isReady(context, id)) { onProgress(1f); return@withContext }
             val m = model(id)

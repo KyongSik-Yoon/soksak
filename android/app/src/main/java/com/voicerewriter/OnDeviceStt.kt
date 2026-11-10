@@ -19,16 +19,21 @@ object OnDeviceStt {
         else Defaults.STT_PROVIDERS.getValue("local").defaultModel
 
     /**
-     * Same as [resolveModel] but able to see what is actually on disk: an unrecognized id picks
-     * the largest Whisper model already downloaded rather than the registry default, so a user
-     * whose previous engine was retired keeps dictating without a new download. Falls back to
-     * the default when nothing is present — the caller still has to handle "not downloaded".
+     * Same as [resolveModel] but able to see what is actually on disk: when the stored model is
+     * not downloaded — an id a previous build offered, or a model this install never fetched
+     * (a backup restored from another install names the model that one used) — the largest
+     * downloaded model runs instead, so dictation keeps working without a new download. Falls
+     * back to the registry id when nothing is present; the caller still handles "not downloaded".
      */
-    fun resolveModel(context: Context, modelId: String): String {
+    fun resolveModel(context: Context, modelId: String): String =
+        pick(modelId) { WhisperModelManager.isReady(context, it) }
+
+    /** [resolveModel] with the disk check passed in, for tests. */
+    internal fun pick(modelId: String, ready: (String) -> Boolean): String {
         val id = resolveModel(modelId)
-        if (id == modelId) return id
+        if (ready(id)) return id
         // MODELS is ordered smallest -> largest, and accuracy tracks size.
-        return WhisperModelManager.MODELS.lastOrNull { WhisperModelManager.isReady(context, it.id) }?.id ?: id
+        return WhisperModelManager.MODELS.lastOrNull { ready(it.id) }?.id ?: id
     }
 
     /** Is the model this user would actually transcribe with downloaded? */

@@ -495,11 +495,15 @@ class RewriteActivity : ComponentActivity() {
         fun ensurePermissionThenRecord(s: Settings) {
             if (s.sttProvider == "local") {
                 if (!OnDeviceStt.isReady(this, s.sttModel)) {
-                    // Onboarding starts the model download and deliberately doesn't wait for
-                    // it, so a first dictation legitimately lands mid-download. Sit on a
-                    // spinner and start the moment it lands; only a genuinely stalled or
-                    // failed download should reach the error below. Nudge the download too,
-                    // in case it hasn't started yet (e.g. this is a resumed process).
+                    // No model on disk at all. Onboarding starts the download and deliberately
+                    // doesn't wait for it, so a first dictation can land mid-download: sit on a
+                    // spinner and start the moment it lands. With no download running there is
+                    // nothing to wait for, so say so at once.
+                    if (!WhisperModelManager.anyDownloading) {
+                        error = "On-device model not downloaded. Open Settings → Voice → Download model."
+                        stage = Stage.ERROR
+                        return
+                    }
                     error = null
                     stage = Stage.WAITING_MODEL
                     scope.launch {
@@ -614,7 +618,9 @@ class RewriteActivity : ComponentActivity() {
         // An error still needs somewhere to be said, so it brings the sheet back rather than
         // failing invisibly. Everything above this point is effects and runs either way; the
         // sheet body below is pure UI, which is what makes returning here safe.
-        if (chromeless && stage != Stage.ERROR) return
+        // Waiting for the model download is said too: with nothing drawn, this transparent
+        // window sat over the app taking every touch until Back.
+        if (chromeless && stage != Stage.ERROR && stage != Stage.WAITING_MODEL) return
 
         BottomSheet(onScrimTap = { if (stage == Stage.RECORDING) onMicTap() else cancelAndFinish() }) {
             SheetHeader(

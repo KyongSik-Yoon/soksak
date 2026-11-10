@@ -30,4 +30,20 @@ class OnDeviceSttResolveTest {
         val id = Defaults.STT_PROVIDERS.getValue("local").defaultModel
         assertEquals(id, WhisperModelManager.model(id).id)
     }
+
+    @Test fun `a selected model that is on disk runs`() {
+        val turbo = WhisperModelManager.TURBO_ACFT_Q4_MODEL
+        assertEquals(turbo, OnDeviceStt.pick(turbo) { true })
+    }
+
+    @Test fun `a selected model that is not on disk falls back to the largest downloaded one`() {
+        // A backup from another install names that install's model; this one only has Small.
+        val small = WhisperModelManager.SMALL_ACFT_MODEL
+        assertEquals(small, OnDeviceStt.pick(WhisperModelManager.TURBO_ACFT_Q4_MODEL) { it == small })
+    }
+
+    @Test fun `with nothing on disk the selected model is kept`() {
+        val turbo = WhisperModelManager.TURBO_ACFT_Q4_MODEL
+        assertEquals(turbo, OnDeviceStt.pick(turbo) { false })
+    }
 }
