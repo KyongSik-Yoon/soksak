@@ -107,6 +107,25 @@ jobs:
       - name: Drop the on-device QNN compiler (the NPU model ships as SM8850 context binaries)
         run: rm -fv android/app/src/main/jniLibs/arm64-v8a/libQnnHtpPrepare.so
 
+      # The phone only accepts builds signed with the app's fixed key (kept outside the repo).
+      # Pushes to main must have it; pull requests from forks get no secrets and build with a
+      # throwaway debug key, which is fine because they are never published.
+      - name: Signing key from secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SOKSAK_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.SOKSAK_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+              echo "::error::SOKSAK_KEYSTORE_BASE64 is not set; a build signed with another key can't update the app."
+              exit 1
+            fi
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/soksak.keystore"
+          echo "SOKSAK_KEYSTORE_FILE=$RUNNER_TEMP/soksak.keystore" >> "$GITHUB_ENV"
+          echo "SOKSAK_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+
       - name: Assemble debug + run unit tests
         working-directory: android
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon

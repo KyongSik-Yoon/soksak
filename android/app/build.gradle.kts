@@ -9,7 +9,9 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.voicerewriter"
+        // Was com.voicerewriter(.dev) under the upstream name; changed with the signing key on the
+        // way to a public repo, so the phone installs this as a new app once (2026-11-10).
+        applicationId = "io.github.kyongsikyoon.soksak"
         minSdk = 24
         // Play requires targetSdk 36 for every update from 31 Aug 2026. See the API 36
         // behaviour changes handled in this migration (edge-to-edge, predictive back,
@@ -29,35 +31,25 @@ android {
         }
     }
 
-    // Release signing is driven by environment variables so the keystore never lives in the
-    // repo — CI decodes it from a secret and exports these. Locally (vars unset) the release
-    // build is simply left unsigned; debug builds use the standard debug keystore as always.
-    val releaseKeystore = System.getenv("OPENWISPR_KEYSTORE_FILE")
+    // The builds the phone installs are signed with one fixed key so each installs over the last.
+    // The key never lives in the repo: CI decodes it from the SOKSAK_KEYSTORE_BASE64 secret and
+    // exports these. Locally (vars unset) builds use the machine's standard debug key, which the
+    // phone won't accept as an update — install phone builds from CI.
+    val soksakKeystore = System.getenv("SOKSAK_KEYSTORE_FILE")
     signingConfigs {
-        // Personal fork: a fixed, committed debug key. CI runners otherwise each generate a
-        // fresh one, and Android refuses to install a build over one signed differently.
-        // Debug-only; it signs nothing that ships to the Play Store.
-        getByName("debug") {
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-        if (releaseKeystore != null) {
-            create("release") {
-                storeFile = file(releaseKeystore)
-                storePassword = System.getenv("OPENWISPR_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("OPENWISPR_KEY_ALIAS")
-                keyPassword = System.getenv("OPENWISPR_KEY_PASSWORD")
+        if (soksakKeystore != null) {
+            create("soksak") {
+                storeFile = file(soksakKeystore)
+                storePassword = System.getenv("SOKSAK_KEYSTORE_PASSWORD")
+                keyAlias = "soksak"
+                keyPassword = System.getenv("SOKSAK_KEYSTORE_PASSWORD")
             }
         }
     }
 
     buildTypes {
         debug {
-            // Personal build: installs next to the Play Store app (different signing key,
-            // so it cannot replace it) instead of forcing an uninstall that wipes its data.
-            applicationIdSuffix = ".dev"
+            if (soksakKeystore != null) signingConfig = signingConfigs.getByName("soksak")
         }
         release {
             isMinifyEnabled = false
@@ -70,9 +62,7 @@ android {
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
             }
-            if (releaseKeystore != null) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            if (soksakKeystore != null) signingConfig = signingConfigs.getByName("soksak")
         }
     }
 

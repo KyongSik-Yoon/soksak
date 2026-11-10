@@ -17,7 +17,7 @@
 - 이름: 2026-11-10 OpenWispr → **속삭(Soksak)**으로 바꿨다. 원작이 Play 스토어에 같은 이름으로 있어 혼동을 피하고, README 맨 위에 포크임을 밝힌다.
   저장소도 `soksak`으로 rename(옛 주소는 GitHub가 리다이렉트). 아이콘은 말풍선+음파 마크(`ic_mark`), 런처·스플래시 배경은 자주색 #3B2F4A, 앱 안 색 테마는 원작 것 유지.
   화면 문구만 바꾸고 저장·등록된 식별자는 유지: `OpenWisprAccessibilityService`(접근성 활성화가 컴포넌트 이름에 묶임), 로그 태그 `OpenWisprA11y`,
-  Kotlin 패키지 `com.voicerewriter`, 앱 ID `com.voicerewriter.dev`(바꾸면 새 앱으로 설치됨 — 공개 전 서명 키 교체 때 함께 바꿀 예정).
+  Kotlin 패키지 `com.voicerewriter`. 앱 ID는 공개 준비 때 서명 키와 함께 바꿨다(아래 빌드·배포 절).
 - 확정된 결정
   - 음성 인식: Whisper만 쓴다 — CPU(whisper.cpp, `android/lib`)와 NPU(sherpa-onnx QNN). 기본 Tiny/Base/Small과 SenseVoice는 쓰지 않아 2026-11-09 제거했다(`ModelDownloader`의 RETIRED 목록이 폰에서 파일을 지운다). Moonshine(tiny→Base Korean)은
     2026-11-08 추가했다가 2026-11-09 제거 — 라우팅 벤치에서 소음에 매우 약하고(0dB 97% CER) 다른 모델 대비 장점이 없었다. Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
@@ -39,9 +39,10 @@
 - 의존성: `settings.gradle.kts`가 Google의 Maven Central 미러를 Central보다 먼저 쓴다. Central은 Kotlin 컴파일러 jar를 GitHub
   릴리스 다운로드로 넘기는데, 그게 504를 내던 2026-11-08 저녁 내내 CI가 실패했다. sherpa AAR도 `gh release download`(토큰)로 받는다.
 - 상태 확인: `scripts/ci-wait.sh` (커밋 SHA의 CI를 기다려 결과·APK 링크·실패 로그 출력).
-- 서명: 디버그 빌드는 커밋된 고정 키 `android/app/debug.keystore`(pw `android`)로 서명 → 덮어 설치 가능.
-  저장소가 비공개라 키도 비공개. 키를 바꾸면 폰에서 한 번 삭제 후 재설치해야 한다.
-- 앱 ID: 디버그는 `com.voicerewriter.dev` (Play 원본과 공존).
+- 서명: 저장소 밖의 고정 키(사용자 PC `~/.config/soksak-signing/`, alias `soksak`, 비밀번호 파일 포함 — 잃으면 다시 재설치)로 서명 → 덮어 설치 가능.
+  CI는 Secret `SOKSAK_KEYSTORE_BASE64`·`SOKSAK_KEYSTORE_PASSWORD`를 풀어 `SOKSAK_KEYSTORE_FILE`/`_PASSWORD`로 넘기고, main push에 Secret이 없으면 실패한다.
+  로컬 빌드는 PC 기본 디버그 키라 폰에 업데이트로 못 깐다. 예전 커밋 키(debug.keystore, pw android)는 공개 전 2026-11-10 교체·삭제했다.
+- 앱 ID: `io.github.kyongsikyoon.soksak` (2026-11-10, 이전 `com.voicerewriter.dev` — 바꿀 때 폰에서 새 앱으로 설치, 설정 → General 백업/복원으로 단어장·설정을 옮김).
 
 ## 모델
 - 목록: `WhisperModelManager.MODELS` — `small-acft`(FUTO, 기본), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0), `small-acft-npu`, `medium-npu`.
