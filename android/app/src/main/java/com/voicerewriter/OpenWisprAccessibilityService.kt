@@ -277,7 +277,17 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     private fun attemptInsert() {
         val text = pendingText ?: return
         var refocus = false
-        val node = findHostFocusedEditable()
+        val focused = findHostFocusedEditable()
+        // No editable node has focus, yet something is taking keyboard input: type it in there.
+        if (focused == null && commitToInputConnection(text)) {
+            Log.i(TAG, "inserted through the input connection (clipboard untouched)")
+            pendingText = null
+            main.removeCallbacksAndMessages(null)
+            vibrateTick()
+            BubbleService.instance?.showInserted()
+            return
+        }
+        val node = focused
             ?: rememberedEditable()?.also { refocus = true }
             ?: run { lastAttempt = "no editable field found"; return }
         val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
@@ -397,6 +407,31 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             .putString(KEY_LAST_FALLBACK, "$stamp · $reason").apply()
         Log.w(TAG, "clipboard fallback: $reason")
         lastAttempt = null
+    }
+
+    /**
+     * Commit [text] the way a keyboard does, through the input connection of whatever is taking
+     * input (Android 13+, `flagInputMethodEditor`). For editors that expose no focused editable
+     * node: in Samsung Notes the focus sits on the ScrollView around the text, the keyboard is up,
+     * and every dictation went to the clipboard (2026-11-11). False when nothing is taking input.
+     */
+    private fun commitToInputConnection(text: String): Boolean {
+        if (Build.VERSION.SDK_INT < 33) return false
+        return try {
+            val im = inputMethod ?: return false
+            if (!im.currentInputStarted) return false
+            val ic = im.currentInputConnection ?: return false
+            // One character either side of the cursor decides the spacing, as in InsertSplice.
+            val around = ic.getSurroundingText(1, 1, 0)
+            val chars = around?.text?.toString().orEmpty()
+            val a = around?.selectionStart?.coerceIn(0, chars.length) ?: 0
+            val b = around?.selectionEnd?.coerceIn(a, chars.length) ?: a
+            ic.commitText(InsertSplice.padded(chars.substring(0, a), chars.substring(b), text), 1, null)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "input connection insert failed", e)
+            false
+        }
     }
 
     /** Fallback insert: stage on the clipboard and paste. Honors cursor position, but the

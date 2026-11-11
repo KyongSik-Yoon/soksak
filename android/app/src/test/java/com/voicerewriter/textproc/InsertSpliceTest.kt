@@ -30,6 +30,14 @@ class InsertSpliceTest {
         assertEquals(5, cursor)
     }
 
+    @Test fun paddedGivesJustTheTextToCommit() {
+        // The input-connection path knows only the characters next to the cursor.
+        assertEquals(" 뒤 문장.", InsertSplice.padded(".", "", "뒤 문장."))
+        assertEquals("뒤 문장.", InsertSplice.padded("", "", "뒤 문장."))
+        assertEquals("뒤 문장.", InsertSplice.padded("\n", "", "뒤 문장."))
+        assertEquals(" 가운데 ", InsertSplice.padded("앞", "뒤", "가운데"))
+    }
+
     @Test fun aSelectionIsReplaced() {
         assertEquals("이건 새 글 이야", InsertSplice.at("이건 옛글 이야", 3, 5, "새 글").first)
     }

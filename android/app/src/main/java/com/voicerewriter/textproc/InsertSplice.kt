@@ -15,10 +15,19 @@ object InsertSplice {
     fun at(current: String, start: Int, end: Int, insert: String): Pair<String, Int> {
         val before = current.substring(0, start)
         val after = current.substring(end)
-        val lead = if (before.isNotEmpty() && !before.last().isWhitespace() && before.last() !in OPENERS &&
-            insert.isNotEmpty() && !insert.first().isWhitespace()) " " else ""
-        val trail = if (after.isNotEmpty() && after.first().isLetterOrDigit() &&
-            insert.isNotEmpty() && !insert.last().isWhitespace()) " " else ""
-        return (before + lead + insert + trail + after) to (before.length + lead.length + insert.length)
+        val lead = lead(before, insert)
+        return (before + lead + insert + trail(after, insert) + after) to (before.length + lead.length + insert.length)
     }
+
+    /** [insert] with the spaces it needs between [before] and [after], the text around the cursor. */
+    fun padded(before: String, after: String, insert: String): String =
+        lead(before, insert) + insert + trail(after, insert)
+
+    private fun lead(before: String, insert: String): String =
+        if (before.isNotEmpty() && !before.last().isWhitespace() && before.last() !in OPENERS &&
+            insert.isNotEmpty() && !insert.first().isWhitespace()) " " else ""
+
+    private fun trail(after: String, insert: String): String =
+        if (after.isNotEmpty() && after.first().isLetterOrDigit() &&
+            insert.isNotEmpty() && !insert.last().isWhitespace()) " " else ""
 }
