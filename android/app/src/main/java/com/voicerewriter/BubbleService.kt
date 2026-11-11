@@ -864,15 +864,8 @@ class BubbleService : Service() {
         }
     }
 
-    /**
-     * A widget take, used with the phone locked to talk to the PC: sent to the PC whatever the
-     * PC-send setting says (there is no field to type into), recorded in Quiet mode (the user
-     * whispers there), and ended after [WIDGET_AUTO_STOP_S] of silence: with the phone locked
-     * the wait is dead time, and the screen shows it running out. The saved settings stay as
-     * they are.
-     */
-    private fun widgetTake(s: Settings): Settings =
-        s.copy(pcSend = PcLink.PC_ONLY, quietMode = true, autoStopSeconds = WIDGET_AUTO_STOP_S)
+    /** A widget take's settings ([Settings.forWidgetTake]); the saved settings stay as they are. */
+    private fun widgetTake(s: Settings): Settings = s.forWidgetTake(WIDGET_AUTO_STOP_S)
 
     private fun launchRewrite(autoRecord: Boolean = true, pushToTalk: Boolean = false) {
         startActivity(

@@ -128,6 +128,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var pipelinedWhisper by remember { mutableStateOf(true) }
     var quietMode by remember { mutableStateOf(false) }
     var quietModel by remember { mutableStateOf(WhisperModelManager.SMALL_ACFT_MODEL) }
+    var widgetModel by remember { mutableStateOf("") }
     var npuDiagnostics by remember { mutableStateOf(false) }
     var uiLanguage by remember { mutableStateOf(I18n.mode) }
     var pcSend by remember { mutableStateOf(PcLink.OFF) }
@@ -177,7 +178,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; widgetModel = s.widgetModel; npuDiagnostics = s.npuDiagnostics; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         pcSend = s.pcSend; pcHost = s.pcHost; pcCode = s.pcCode; pcType = s.pcType
         reviewBeforeInsert = s.reviewBeforeInsert
         uiLanguage = s.uiLanguage
@@ -261,7 +262,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
 
     fun snapshot() = Settings(
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, widgetModel = widgetModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, bubbleOnlyOnFields = bubbleOnlyOnFields,
         pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(), pcType = pcType,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
@@ -540,6 +541,21 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                                 quietModel = ready[(i + 1).mod(ready.size)].id
                                 persist()
                             }
+                        }
+                    }
+                    Divider()
+                    // The widget's own model: tap steps through "same as Quiet mode" and the
+                    // downloaded models. A stored model that is no longer on disk shows as itself
+                    // and the take falls back the usual way (OnDeviceStt.pick).
+                    run {
+                        val ready = remember(modelsRev) {
+                            WhisperModelManager.MODELS.filter { WhisperModelManager.isReady(context, it.id) }
+                        }
+                        fun name(id: String) = WhisperModelManager.MODELS.firstOrNull { it.id == id }?.label ?: id
+                        val label = if (widgetModel.isBlank()) trf("Same as Quiet mode (%s)", name(quietModel)) else name(widgetModel)
+                        NavRow(tr("Widget model"), trf("%s · tap to change", label)) {
+                            widgetModel = WidgetModelChoice.next(widgetModel, ready.map { it.id })
+                            persist()
                         }
                     }
                     Divider()
