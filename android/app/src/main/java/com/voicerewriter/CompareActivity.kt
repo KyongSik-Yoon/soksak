@@ -123,6 +123,35 @@ class CompareActivity : ComponentActivity() {
                 val recs = recordings.sortedBy { it.timestamp }
                 val models = WhisperModelManager.MODELS.filter { WhisperModelManager.isReady(ctx, it.id) }
                 android.util.Log.i(BENCH_TAG, "start recordings=${recs.size} models=${models.joinToString(",") { it.id }} quiet=${base.quietMode}")
+                // Quiet mode's end-of-speech detector replayed over each take as the recorder
+                // feeds it (512-sample frames): when it would have auto-stopped, and per half
+                // second the loudest frame / noise floor in dB and how many frames counted as
+                // speech. A take ended by hand keeps its tail, which shows why it did not fire.
+                for ((i, rec) in recs.withIndex()) {
+                    val samples = withContext(Dispatchers.IO) { PendingAudio.samples(ctx, rec.id) } ?: continue
+                    val sr = AudioRecorder.SAMPLE_RATE
+                    val det = QuietSpeechDetector((base.autoStopSeconds * sr).toInt(), (0.4 * sr).toInt())
+                    fun db(v: Float) = (20 * kotlin.math.log10(maxOf(v, 1e-6f))).toInt()
+                    var fireAt = -1
+                    val series = StringBuilder()
+                    var blockMax = 0f; var blockSpeech = 0; var blockEnd = sr / 2
+                    var pos = 0
+                    while (pos + 512 <= samples.size) {
+                        var sum = 0.0
+                        for (j in pos until pos + 512) { val v = samples[j] / 32768.0; sum += v * v }
+                        val rms = kotlin.math.sqrt(sum / 512).toFloat()
+                        pos += 512
+                        if (det.feed(rms, pos, 512) && fireAt < 0) fireAt = pos
+                        if (rms > blockMax) blockMax = rms
+                        if (det.lastFrameSpeech) blockSpeech++
+                        if (pos >= blockEnd) {
+                            series.append(' ').append(db(blockMax)).append('/').append(db(det.floor)).append('/').append(blockSpeech)
+                            blockMax = 0f; blockSpeech = 0; blockEnd += sr / 2
+                        }
+                    }
+                    android.util.Log.i(BENCH_TAG, "detector n=${i + 1} rec=${rec.id} sec=${samples.size / sr.toDouble()} " +
+                        "fire=${if (fireAt < 0) "never" else "%.1f".format(fireAt / sr.toDouble())} max/floor/speech per 0.5s:$series")
+                }
                 for (m in models) {
                     running = "${m.label} (load)"
                     runCatching { OnDeviceStt.warm(ctx, m.id) }
