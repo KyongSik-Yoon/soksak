@@ -197,6 +197,81 @@ nav a.get { background: var(--plum); color: var(--mark); font-weight: 700; font-
 .dropped b s { text-decoration-color: #C9B8F5; text-decoration-thickness: 2px; }
 .dropped p { color: var(--ink-2); font-size: 14.5px; margin-top: 2px; }
 
+/* pc: a take on the phone lands in the computer's input */
+.modes { display: inline-flex; gap: 4px; padding: 4px; margin-top: 32px; border-radius: 999px; background: var(--soft); }
+.modes button { border: 0; background: none; font: 600 13.5px var(--sans); color: var(--ink-2); padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+.modes button[aria-selected="true"] { background: var(--plum); color: var(--mark); }
+.link-stage { margin: 36px auto 0; max-width: 980px; display: grid; grid-template-columns: auto minmax(80px, 1fr) minmax(0, 2.2fr); align-items: center; text-align: left; }
+.lphone { position: relative; width: 190px; aspect-ratio: 9 / 17.5; border-radius: 30px; padding: 7px; background: linear-gradient(160deg, #6a5890, #241c30); box-shadow: 0 30px 60px -28px rgba(36,28,48,.7); }
+.lscreen { position: relative; height: 100%; border-radius: 24px; overflow: hidden; }
+.face { position: absolute; inset: 0; display: none; }
+[data-mode="widget"] .face.lock, [data-mode="bubble"] .face.app { display: block; }
+.face.lock { background: linear-gradient(170deg, #4B3A6B 0%, #2b2140 60%, #1A1530 100%); color: #EEEAF5; text-align: center; }
+.lock .time { font: 700 40px/1 var(--serif); margin-top: 36px; letter-spacing: -.02em; }
+.lock .date { font: 500 10.5px var(--mono); opacity: .7; margin-top: 8px; }
+.lock .cap { position: absolute; left: 0; right: 0; bottom: 20px; font: 500 9.5px var(--mono); opacity: .55; }
+.wbtn { position: absolute; left: 50%; bottom: 48px; margin-left: -27px; width: 54px; height: 54px; border-radius: 50%; border: 0; padding: 0; background: #3B2F4A; box-shadow: 0 0 0 1px rgba(255,255,255,.16), 0 10px 22px -8px rgba(0,0,0,.6); display: grid; place-items: center; cursor: pointer; }
+.wbtn svg { width: 30px; height: 30px; }
+.tapped::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; border: 2px solid #C9B8F5; animation: ping .7s ease-out both; pointer-events: none; }
+@keyframes ping { from { transform: scale(.55); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+.take { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: #1A1530; color: #EEEAF5; opacity: 0; pointer-events: none; transition: opacity .3s; }
+[data-mode="widget"]:not([data-phase="idle"]) .take { opacity: 1; }
+.ring { position: relative; width: 104px; height: 104px; display: grid; place-items: center; }
+.ring .arc { position: absolute; inset: 0; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 4; }
+.ring .bg { stroke: rgba(255,255,255,.12); }
+.ring .fg { stroke: #C9B8F5; stroke-linecap: round; stroke-dasharray: 302; stroke-dashoffset: 302; }
+[data-phase="wait"] .ring .fg { transition: stroke-dashoffset .85s linear; stroke-dashoffset: 0; }
+[data-phase="send"] .ring .fg, [data-phase="done"] .ring .fg { stroke-dashoffset: 0; }
+.bars { display: flex; gap: 6px; align-items: center; height: 44px; }
+.bars i { width: 6px; height: 14px; border-radius: 3px; background: #F7F5FB; }
+[data-phase="rec"] .bars i { animation: say .46s ease-in-out infinite alternate; }
+.bars i:nth-child(2) { animation-delay: .12s; } .bars i:nth-child(3) { animation-delay: .27s; } .bars i:nth-child(4) { animation-delay: .06s; }
+@keyframes say { to { height: 40px; } }
+.ring .ok { display: none; width: 44px; height: 44px; }
+[data-phase="done"] .bars { display: none; } [data-phase="done"] .ring .ok { display: block; animation: rise .3s ease both; }
+.take .lab { font: 500 11px var(--mono); letter-spacing: .06em; }
+.face.app { background: #fbfaf8; }
+.app .bar { padding: 13px 13px 9px; font: 700 11.5px var(--sans); color: #4d4656; border-bottom: 1px solid #ece8e2; }
+.app .ln { height: 7px; border-radius: 4px; background: #ebe6f1; margin: 11px 13px 0; }
+.app .ln.s { width: 52%; }
+.mini { position: absolute; right: 8px; top: 44%; display: grid; justify-items: center; }
+.mini .bubble { position: relative; width: 46px; height: 46px; }
+.mini .bubble svg { width: 28px; height: 28px; }
+.chip { margin-top: -6px; z-index: 1; display: flex; gap: 3px; align-items: center; font: 500 8.5px/1 var(--mono); color: #fff; background: #574289; padding: 3px 5px; border-radius: 6px; border: 1.5px solid #fbfaf8; }
+.pill { position: absolute; right: 62px; top: calc(44% + 12px); font: 500 9.5px var(--mono); background: #2e2639; color: #eeeaf5; padding: 5px 9px; border-radius: 999px; opacity: 0; transform: translateX(6px); transition: opacity .3s, transform .3s; }
+[data-mode="bubble"][data-phase="done"] .pill { opacity: 1; transform: none; }
+.wire { position: relative; height: 120px; }
+.wire::before { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; border-top: 2px dashed rgba(110,86,168,.38); }
+.wire .via { position: absolute; left: 50%; top: calc(50% + 16px); transform: translateX(-50%); font: 500 10.5px var(--mono); color: var(--ink-3); white-space: nowrap; background: var(--bg); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); }
+.pkt { position: absolute; left: calc(var(--p, 0) * 100%); top: 50%; width: 28px; height: 9px; margin: -4.5px 0 0 -14px; border-radius: 999px; background: linear-gradient(90deg, rgba(168,148,221,0), #A894DD 55%, #6E56A8); box-shadow: 0 0 14px 2px rgba(168,148,221,.55); transform: translateY(var(--y, 0)); }
+.mon { border-radius: 20px; padding: 9px; background: linear-gradient(160deg, #4d4064, #241c30); box-shadow: 0 40px 70px -34px rgba(36,28,48,.75); transition: box-shadow .3s; }
+.mon.hit { box-shadow: 0 0 0 4px rgba(168,148,221,.4), 0 40px 70px -34px rgba(36,28,48,.75); }
+.win { border-radius: 12px; overflow: hidden; background: #1c1626; color: #d9d2e6; font: 400 12.5px/1.7 var(--mono); min-height: 258px; display: flex; flex-direction: column; }
+.win .tb { display: flex; align-items: center; gap: 6px; padding: 9px 12px; background: #2a2236; font-size: 11px; color: #9d93ae; }
+.win .tb i { width: 9px; height: 9px; border-radius: 50%; background: #55476c; }
+.win .tb span { margin-left: 8px; }
+.win .out { flex: 1; padding: 14px 16px 8px; color: #8f86a0; }
+.win .out b { color: #C9B8F5; font-weight: 500; }
+.prompt { margin: 0 12px 10px; padding: 11px 13px; border-radius: 12px; border: 1.5px solid #4a3f5c; background: #231c2e; color: #F7F5FB; min-height: 70px; font: 400 14px/1.6 var(--sans); transition: border-color .3s, box-shadow .3s; }
+.prompt.live { border-color: #8b74c9; box-shadow: 0 0 0 3px rgba(139,116,201,.22); }
+.prompt .gt { color: #8b74c9; margin-right: 7px; font-family: var(--mono); }
+.prompt .ph { color: #6f6680; }
+.prompt .piece { animation: land .4s ease both; }
+.prompt .caret { background: #C9B8F5; }
+.toast { align-self: flex-end; margin: 0 14px 10px; font: 500 10.5px var(--mono); color: #7FD0C8; opacity: 0; transition: opacity .3s; }
+.mon.done .toast { opacity: 1; }
+.stand { width: 24%; height: 22px; margin: 0 auto; background: linear-gradient(#3a3049, #2a2236); clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%); }
+.foot { width: 42%; height: 7px; margin: 0 auto; border-radius: 999px; background: #2a2236; }
+@media (max-width: 760px) {
+  .link-stage { grid-template-columns: 1fr; justify-items: center; }
+  .pc { width: 100%; }
+  .wire { width: 100%; height: 88px; }
+  .wire::before { left: 50%; right: auto; top: 8px; bottom: 8px; border-top: 0; border-left: 2px dashed rgba(110,86,168,.38); }
+  .wire .via { top: 50%; left: calc(50% + 16px); transform: translateY(-50%); }
+  .pkt { left: 50%; top: calc(var(--p, 0) * 100%); transform: translateX(var(--y, 0)) rotate(90deg); }
+}
+
 /* install */
 ol.steps { list-style: none; padding: 0; margin: 40px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: s; }
 ol.steps li { counter-increment: s; background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 24px; font-size: 14.5px; color: var(--ink-2); }
@@ -233,6 +308,7 @@ footer a { color: var(--ink-2); }
     속삭
   </a>
   <a class="link hide" href="#bubble">버블</a>
+  <a class="link hide" href="#pc">PC</a>
   <a class="link hide" href="#quiet">조용히</a>
   <a class="link hide" href="#numbers">숫자</a>
   <a class="link" href="https://github.com/KyongSik-Yoon/soksak">GitHub</a>
@@ -307,7 +383,66 @@ footer a { color: var(--ink-2); }
   </div>
 </section>
 
-<section class="sheet light sec center" id="stream">
+<section class="sheet light sec center" id="pc">
+  <div class="wrap">
+    <p class="eyebrow r">PC로 보내기</p>
+    <h2 class="r" style="--i:1">폰에 말하면,<br><em>컴퓨터에 글이 뜹니다.</em></h2>
+    <p class="lede r" style="--i:2">잠금화면 위젯을 한 번 누르거나, 버블을 PC 전송으로 두고 말합니다. 받아쓴 글이 컴퓨터에서 쓰던 입력창에 들어옵니다. 폰을 열지 않아도 되고, 키보드에 손을 올리지 않아도 됩니다.</p>
+    <div class="modes r" style="--i:3" role="tablist" aria-label="보내는 방법">
+      <button role="tab" id="pcModeW" aria-selected="true">잠금화면 위젯</button>
+      <button role="tab" id="pcModeB" aria-selected="false">버블 · PC 전송</button>
+    </div>
+    <div class="link-stage r" style="--i:4" id="pcStage" data-mode="widget" data-phase="idle">
+      <div class="lphone">
+        <div class="lscreen">
+          <div class="face lock">
+            <p class="time">9:41</p>
+            <p class="date">11월 11일 수요일</p>
+            <button class="wbtn" id="pcWidget" aria-label="위젯을 눌러 받아쓰기 시연 시작"><svg viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path class="shell" d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/><path class="bar" d="M38 40V50"/><path class="bar" d="M50 35V55"/><path class="bar" d="M62 40V50"/></svg></button>
+            <p class="cap">위젯 한 번</p>
+            <div class="take" aria-hidden="true">
+              <div class="ring">
+                <svg class="arc" viewBox="0 0 104 104"><circle class="bg" cx="52" cy="52" r="48"/><circle class="fg" cx="52" cy="52" r="48"/></svg>
+                <div class="bars"><i></i><i></i><i></i><i></i></div>
+                <svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#C9B8F5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 12.5l4.3 4.3L18.5 7.8"/></svg>
+              </div>
+              <p class="lab" id="pcLab">듣는 중</p>
+            </div>
+          </div>
+          <div class="face app">
+            <p class="bar">메모</p>
+            <div class="ln"></div><div class="ln"></div><div class="ln s"></div>
+            <span class="pill">To PC</span>
+            <div class="mini">
+              <button class="bubble" id="pcBubble" data-state="idle" aria-label="버블을 눌러 받아쓰기 시연 시작"><svg viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path class="shell" d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/><path class="bar" d="M38 40V50"/><path class="bar" d="M50 35V55"/><path class="bar" d="M62 40V50"/></svg></button>
+              <span class="chip"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 4.5h15a1.8 1.8 0 0 1 1.8 1.8v8.4a1.8 1.8 0 0 1-1.8 1.8h-15a1.8 1.8 0 0 1-1.8-1.8V6.3A1.8 1.8 0 0 1 4.5 4.5zM8.5 20.2h7M12 16.5v3.7"/></svg>PC</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="wire" id="pcWire" aria-hidden="true"><span class="via">Tailscale · 서버 없음</span></div>
+      <div class="pc">
+        <div class="mon" id="pcMon">
+          <div class="win">
+            <div class="tb"><i></i><i></i><i></i><span>내 컴퓨터 · 쓰던 창</span></div>
+            <div class="out"><b>●</b> 테스트 42개 통과<br><b>●</b> main 브랜치 최신</div>
+            <div class="prompt" id="pcPrompt"></div>
+            <span class="toast">soksak-daemon · 받음</span>
+          </div>
+        </div>
+        <div class="stand"></div><div class="foot"></div>
+      </div>
+    </div>
+    <p class="status r" style="--i:5;margin-top:22px" id="pcStatus">위젯이나 버블을 눌러 보세요</p>
+    <div class="facts r" style="--i:6">
+      <div class="fact"><b>한 번</b>잠금화면 위젯을 누르면 폰을 열지 않고 바로 듣습니다. 2.2초 조용하면 알아서 끝내고 보냅니다.</div>
+      <div class="fact"><b>서버 없이</b>폰에서 내 컴퓨터로 Tailscale을 타고 바로 갑니다. 컴퓨터에는 작은 프로그램 하나만 띄웁니다. <a href="https://github.com/KyongSik-Yoon/soksak/tree/main/daemon">soksak-daemon</a></div>
+      <div class="fact"><b>클립보드 또는 바로 입력</b>기본은 컴퓨터 클립보드에 넣습니다. 컴퓨터에서 허용해 두면 쓰던 입력창에 바로 입력합니다.</div>
+    </div>
+  </div>
+</section>
+
+<section class="sheet soft sec center" id="stream">
   <div class="wrap">
     <p class="eyebrow r">말하는 동안 변환</p>
     <h2 class="r" style="--i:1">다 말할 때까지<br><em>기다리지 않습니다.</em></h2>
@@ -358,7 +493,7 @@ footer a { color: var(--ink-2); }
       </div>
     </div>
     <p class="outside r" style="--i:4"><span><s>서버</s></span><span><s>계정</s></span><span><s>로그인</s></span><span><s>업로드</s></span></p>
-    <p class="lede r" style="--i:5">컴퓨터에서 일할 때는 받아쓴 글만 내 컴퓨터로 바로 보낼 수 있습니다. 클립보드에 넣거나, 컴퓨터에서 허용해 두면 바로 입력합니다. 잠금화면 위젯을 누르면 폰을 열지 않고도 말해서 보냅니다. 켰을 때만, 중간 서버 없이 Tailscale로 갑니다. <a href="https://github.com/KyongSik-Yoon/soksak/tree/main/daemon">soksak-daemon</a></p>
+    <p class="lede r" style="--i:5">받아쓴 글만 내 컴퓨터로 보낼 수도 있습니다. 켰을 때만, 중간 서버 없이 갑니다. <a href="#pc">PC로 보내기</a></p>
   </div>
 </section>
 
@@ -597,6 +732,80 @@ footer a { color: var(--ink-2); }
   $('stream').addEventListener('enter', () => { if (!racing) { racing = true; last = performance.now(); requestAnimationFrame(race); } });
   $('stream').addEventListener('leave', () => racing = false);
   if (still) requestAnimationFrame(race);
+
+  // ── pc: a take on the phone lands in the computer's input ──
+  {
+    const stage = $('pcStage'), wire = $('pcWire'), prompt = $('pcPrompt'), mon = $('pcMon'), lab = $('pcLab'), st = $('pcStatus');
+    const tabs = { widget: $('pcModeW'), bubble: $('pcModeB') }, btn = { widget: $('pcWidget'), bubble: $('pcBubble') };
+    const takes = [
+      ['로그인 실패할 때', '에러 메시지가 안 뜨는 버그,', '원인부터 찾아 줘.'],
+      ['방금 고친 거 테스트 돌려 보고,', '통과하면 커밋해 줘.'],
+      ['README에 설치 방법을', '세 줄로 정리해 줘.'],
+    ];
+    const labs = { idle: '', rec: '듣는 중', wait: '곧 끝나요', send: 'PC로 보내는 중', done: 'PC로 보냄' };
+    let mode = 'widget', pinned = false, n = 0, tm = [], pk = [], live = false, busy = false, raf = 0;
+    const at = (ms, f) => tm.push(setTimeout(f, ms));
+    const phase = p => {
+      stage.dataset.phase = p; lab.textContent = labs[p];
+      btn.bubble.dataset.state = p === 'rec' ? 'rec' : p === 'wait' || p === 'send' ? 'work' : 'idle';
+    };
+    const setMode = m => { mode = m; stage.dataset.mode = m; for (const k in tabs) tabs[k].setAttribute('aria-selected', k === m); };
+    const fill = parts => { prompt.innerHTML = '<span class="gt">›</span>' + parts.map(t => `<span class="piece">${t} </span>`).join('') + '<span class="caret"></span>'; };
+    const reset = () => {
+      tm.forEach(clearTimeout); tm = []; pk.forEach(p => p.el.remove()); pk = []; busy = false;
+      phase('idle'); mon.classList.remove('done', 'hit'); prompt.classList.remove('live');
+      prompt.innerHTML = '<span class="gt">›</span><span class="ph">무엇을 할까요?</span>';
+    };
+    // Packets ride the wire on an arc: --p is how far along, --y how far off the line. Frames
+    // only draw them; the landing is on a timer, so the text arrives even where frames stall.
+    const FLY = 820;
+    const step = now => {
+      pk = pk.filter(p => p.el.isConnected);
+      for (const p of pk) {
+        const q = Math.min(1, (now - p.t0) / FLY), e = q < .5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+        p.el.style.setProperty('--p', e.toFixed(3));
+        p.el.style.setProperty('--y', (-Math.sin(e * Math.PI) * 22).toFixed(1) + 'px');
+      }
+      raf = pk.length ? requestAnimationFrame(step) : 0;
+    };
+    const fly = land => {
+      const el = document.createElement('i'); el.className = 'pkt'; wire.append(el);
+      pk.push({ el, t0: performance.now() });
+      if (!raf) raf = requestAnimationFrame(step);
+      at(FLY, () => { el.remove(); land(); });
+    };
+    function run() {
+      reset(); busy = true;
+      const parts = takes[n++ % takes.length], b = btn[mode];
+      b.classList.remove('tapped'); void b.offsetWidth; b.classList.add('tapped');
+      st.textContent = mode === 'widget' ? '잠긴 폰에서 위젯을 한 번 누릅니다' : '버블을 누릅니다 · PC 전송이 켜져 있습니다';
+      at(480, () => { phase('rec'); st.textContent = '폰이 듣고, 폰 안에서 글로 바꿉니다'; });
+      at(3000, () => { phase('wait'); st.textContent = '말이 멈추면 알아서 끝냅니다'; });
+      at(3900, () => {
+        phase('send'); st.textContent = '글만 내 컴퓨터로 갑니다';
+        prompt.classList.add('live'); prompt.innerHTML = '<span class="gt">›</span>';
+        parts.forEach((t, i) => at(i * 180, () => fly(() => {
+          prompt.insertAdjacentHTML('beforeend', `<span class="piece">${t} </span>`);
+          mon.classList.add('hit'); at(240, () => mon.classList.remove('hit'));
+          if (i < parts.length - 1) return;
+          prompt.insertAdjacentHTML('beforeend', '<span class="caret"></span>');
+          phase('done'); mon.classList.add('done'); busy = false;
+          st.textContent = '컴퓨터에서 쓰던 입력창에 들어왔습니다';
+          at(3400, () => { if (!live) return; if (!pinned) setMode(mode === 'widget' ? 'bubble' : 'widget'); run(); });
+        })));
+      });
+    }
+    // Without motion: the end of a take, standing still.
+    const rest = () => { reset(); fill(takes[0]); phase('done'); mon.classList.add('done'); prompt.classList.add('live'); st.textContent = '컴퓨터에서 쓰던 입력창에 들어왔습니다'; };
+    for (const k in tabs) tabs[k].addEventListener('click', () => { pinned = true; setMode(k); still ? rest() : run(); });
+    for (const k in btn) btn[k].addEventListener('click', () => { if (!still) run(); });
+    reset();
+    if (still) rest();
+    else {
+      $('pc').addEventListener('enter', () => { live = true; if (!busy) at(700, run); });
+      $('pc').addEventListener('leave', () => { live = false; reset(); });
+    }
+  }
 
   // ── quiet: stars, and a take that drops from a normal voice to a whisper ──
   const night = $('quiet'), strip = $('strip');
