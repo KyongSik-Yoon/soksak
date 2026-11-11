@@ -58,7 +58,7 @@ jobs:
           rm -rf ~/.cache/huggingface
           ls -la; df -h /; free -g
       - name: Compile context binaries (QAIRT 2.40 image)
-        run: docker run --rm -v "$PWD:/w" -e SHERPA -e NAME ghcr.io/k2-fsa/qnn-sdk:2.40 bash /w/scripts/npu_compile_sm8850.sh
+        run: docker run --rm -v "$PWD:/w" -e SHERPA -e NAME -e CONVERT_ARGS="--float_bitwidth 16" ghcr.io/k2-fsa/qnn-sdk:2.40 bash /w/scripts/npu_compile_sm8850.sh
       - uses: actions/upload-artifact@v4
         with:
           name: npu-model

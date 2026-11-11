@@ -3,6 +3,9 @@
 # /w/onnx/{encoder,decoder}.onnx into SM8850 QNN context binaries and packs
 # $NAME/{encoder.bin,decoder.bin,tokens.txt} into $NAME.tar.bz2. Follows sherpa-onnx's
 # export-whisper-qnn.yaml, minus the aarch64 libraries (the phone loads only the binaries).
+# CONVERT_ARGS adds converter options: a large encoder needs "--float_bitwidth 16", because its
+# float32 weights make a model library over 2GB, which x86-64 cannot link (relocation truncated).
+# The NPU runs float16 either way.
 set -ex
 cd /w
 pushd "$QNN_SDK_ROOT/bin" && source envsetup.sh && popd
@@ -16,7 +19,7 @@ for m in encoder decoder; do
     --input_network "onnx/$m.onnx" \
     --output_path "non_quant/$m.cpp" \
     --act_bitwidth 16 \
-    --bias_bitwidth 32 > "convert-$m.txt" 2>&1 || { tail -60 "convert-$m.txt"; exit 1; }
+    --bias_bitwidth 32 ${CONVERT_ARGS:-} > "convert-$m.txt" 2>&1 || { tail -60 "convert-$m.txt"; exit 1; }
   python3 generate_config.py --soc SM8850 --graph-name "$m" --output-dir "cfg-$m" --qnn-sdk-root "$QNN_SDK_ROOT"
   python3 "$QNN_SDK_ROOT/bin/x86_64-linux-clang/qnn-model-lib-generator" \
     -c "non_quant/$m.cpp" \
