@@ -21,7 +21,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now soksak-daemon
 ```
 
-방화벽을 쓰면 Tailscale 인터페이스에서 포트를 엽니다. ufw 예:
+방화벽을 쓰면 Tailscale 인터페이스에서 포트를 엽니다(`tailscale0` 전체를 이미 허용해 뒀다면 필요 없음). ufw 예:
 
 ```bash
 sudo ufw allow in on tailscale0 to any port 48620 proto tcp
