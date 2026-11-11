@@ -25,6 +25,9 @@ class BootReceiver : BroadcastReceiver() {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> Unit
             else -> return
         }
+        // Whether or not the bubble is on: a placed widget is stuck on the lock screen's
+        // "loading" tile after an update until it gets views from the new APK.
+        DictateWidget.refreshAll(context)
         if (!BubblePrefs.enabled(context)) return
         if (!SetupUtils.canDrawOverlays(context)) {
             // Nothing to do but leave it off; the Settings screen re-checks and re-offers the

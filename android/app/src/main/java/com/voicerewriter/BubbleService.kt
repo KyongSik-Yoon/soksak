@@ -178,6 +178,7 @@ class BubbleService : Service() {
     override fun onCreate() {
         super.onCreate()
         enterForeground()
+        DictateWidget.refreshAll(this)
         gateSetting = try {
             runBlocking { gateFor(SettingsRepository(applicationContext).get()) }
         } catch (_: Exception) { true }

@@ -162,7 +162,7 @@ class HomeActivity : ComponentActivity() {
         // Reload every time the screen resumes (stats change as you dictate).
         DisposableEffect(lifecycle) {
             val obs = LifecycleEventObserver { _, e ->
-                if (e == Lifecycle.Event.ON_RESUME) { reload(); restoreBubbleIfWanted(ctx) }
+                if (e == Lifecycle.Event.ON_RESUME) { reload(); restoreBubbleIfWanted(ctx); DictateWidget.refreshAll(ctx) }
             }
             lifecycle.addObserver(obs)
             onDispose { lifecycle.removeObserver(obs) }
