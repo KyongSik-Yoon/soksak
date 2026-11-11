@@ -7,7 +7,7 @@
 - 사용자 첫 실사용: 클립보드는 정상, 바로 입력은 말한 글 대신 `1234567890-=qwer…`. 원인은 입력기 kime — `wtype`의 가상 키맵이 무시됨.
   같은 문장으로 비교: wtype은 깨지고, 클립보드 + Ctrl+Shift+V는 정상.
 - `daemon/soksak-paste`(Hyprland `send_key_state`로 터미널이면 Ctrl+Shift+V, 아니면 Ctrl+V)를 `~/.local/bin`에 설치, 사용자 config에 `type_cmd = soksak-paste`.
-- 폰 → PC 바로 입력은 사용자 확인 전. 터미널 아닌 창(Ctrl+V)은 미시험.
+- 2026-11-11 사용자 확인: 폰 → PC 바로 입력 정상.
 
 ## 2026-11-11 — 단어 고치기 화면이 키보드에 가리던 것 (9a10c84, build-105; 0fda637, build-106)
 - 홈이 키보드 높이만큼 줄지 않고 창 전체를 밀어 올려(pan) 입력창이 키보드 바로 위에 붙고 Save가 가려졌다.
