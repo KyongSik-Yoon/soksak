@@ -70,6 +70,8 @@ Large v3 Turbo ACFT (q4_0) — by Mahmoud Ashraf, Apache License 2.0.
   Converted to ggml and quantized to q4_0 for this app.
 Medium (NPU) — OpenAI Whisper medium, MIT License, Copyright (c) 2022 OpenAI.
   Compiled to a Qualcomm QNN context binary for SM8850.
+Large v3 Turbo (NPU) — Mahmoud Ashraf's fine-tune above, Apache License 2.0.
+  Compiled to a Qualcomm QNN context binary for SM8850.
 The ACFT models are based on OpenAI Whisper (MIT License, Copyright (c) 2022 OpenAI).
 
 

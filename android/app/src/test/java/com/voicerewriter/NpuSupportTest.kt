@@ -68,6 +68,8 @@ class QnnWindowsTest {
     @Test fun hintIsForKoreanOnMediumOnly() {
         assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.SMALL_ACFT_MODEL, "ko").isEmpty())
         assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.MEDIUM_NPU_MODEL, "en").isEmpty())
+        // Turbo's vocabulary numbers its special tokens one higher, so Medium's hint would be wrong there.
+        assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.TURBO_NPU_MODEL, "ko").isEmpty())
     }
 
     @Test fun onlyTheHintsSilenceOutputCountsAsEcho() {
@@ -94,5 +96,11 @@ class QnnWindowsTest {
         // JVM tests: Build.SOC_MODEL is null, so the NPU model is hidden.
         assertFalse(WhisperModelManager.available().any { it.engine == SpeechEngine.QNN_WHISPER })
         assertTrue(WhisperModelManager.MODELS.any { it.id == WhisperModelManager.MEDIUM_NPU_MODEL })
+        assertTrue(WhisperModelManager.MODELS.any { it.id == WhisperModelManager.TURBO_NPU_MODEL })
+    }
+
+    @Test fun mediumStaysTheFallbackWhileTurboNpuIsUnproven() {
+        // OnDeviceStt.pick falls back to the last downloaded model in MODELS.
+        assertEquals(WhisperModelManager.MEDIUM_NPU_MODEL, WhisperModelManager.MODELS.last().id)
     }
 }

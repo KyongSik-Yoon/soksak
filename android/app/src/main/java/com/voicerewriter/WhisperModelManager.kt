@@ -47,6 +47,7 @@ object WhisperModelManager {
 
     const val SMALL_ACFT_MODEL = "small-acft"
     const val TURBO_ACFT_Q4_MODEL = "turbo-acft-q4"
+    const val TURBO_NPU_MODEL = "turbo-acft-npu"
     const val MEDIUM_NPU_MODEL = "medium-npu"
 
     val MODELS = listOf(
@@ -80,6 +81,22 @@ object WhisperModelManager {
             acft = true,
             releaseTag = "model-acft-large-v3-turbo-q4_0",
             badge = "T",
+        ),
+        // Experimental (2026-11-11): the Turbo ACFT weights above on the Qualcomm NPU, compiled in CI
+        // (npu-turbo.yml). sherpa-onnx ships no QNN build above Medium; this one needed float16
+        // weights to link and the large-v3 token ids in the runtime (sherpa-qnn.patch). Its decoder
+        // has 4 layers to Medium's 24, so a token should cost far less; the encoder is twice the size.
+        // Runs at the full 30s audio context and takes no prompt, like every NPU model. Listed
+        // before Medium so that Medium stays the fallback ([OnDeviceStt.pick]) until this is proven.
+        WhisperModel(
+            id = TURBO_NPU_MODEL,
+            label = "Large v3 Turbo (NPU)",
+            fileName = "sherpa-onnx-qnn-SM8850-binary-whisper-turbo-acft",
+            url = "",
+            sizeLabel = "~1.6GB · Snapdragon NPU · experimental",
+            releaseTag = "model-qnn-whisper-turbo-acft-sm8850",
+            engine = SpeechEngine.QNN_WHISPER,
+            badge = "TN",
         ),
         // OpenAI whisper-medium (multilingual, float) on the Qualcomm NPU through sherpa-onnx's QNN
         // runtime, as context binaries for SM8850 compiled in CI (npu-model.yml) from sherpa's QNN
