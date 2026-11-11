@@ -5,7 +5,7 @@
 
 ## 2026-11-11 — 삼성 노트에서 받아쓴 글이 클립보드로 빠지던 것 (이 커밋)
 - 원인(폰에서 uiautomator dump + 로그): 노트 편집 화면은 포커스가 본문을 감싼 ScrollView에 있고 EditText 노드는 focused=false. 로그는 `fieldFocus editable=false ime=true` → 넣을 입력창을 못 찾아 클립보드.
-- 고침: 포커스된 editable이 없으면 접근성 서비스의 입력 연결로 commitText(Android 13+, `flagInputMethodEditor`). 커서 앞뒤 한 글자를 읽어 공백도 맞춤. 폰 확인 전.
+- 고침: 포커스된 editable이 없으면 접근성 서비스의 입력 연결로 commitText(Android 13+, `flagInputMethodEditor`). 커서 앞뒤 한 글자를 읽어 공백도 맞춤. 사용자 확인(build-129): 삼성 노트에 글이 들어감(로그 `inserted through the input connection (clipboard untouched)`).
 
 ## 2026-11-11 — 위젯은 버블과 같은 모델로 (이 커밋)
 - "위젯 모델" 설정을 넣었다가(직전 커밋) 사용자 제안으로 뺌: 모델이 다르면 위젯 시작 때 로드를 기다려야 하니 차라리 같은 모델로.
