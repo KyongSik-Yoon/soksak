@@ -197,6 +197,27 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         loaded = true
     }
 
+    // The bubble's menu writes these while this screen stays composed (it is a tab on Home, and
+    // stays alive behind other apps). Read once, the rows went stale, and the next change made
+    // here saved the whole stale snapshot over what the bubble had set. Only the fields the bubble
+    // writes are followed, and only when the stored value moves: text being typed here is saved
+    // on every keystroke, and re-applying an older save would eat characters.
+    LaunchedEffect(Unit) {
+        var last: Settings? = null
+        repo.settings.collect { s ->
+            val prev = last
+            last = s
+            if (prev == null) return@collect
+            SettingsSync.changedByOthers(prev, s).let { c ->
+                if (c.quietMode != null) quietMode = c.quietMode
+                if (c.quietModel != null) quietModel = c.quietModel
+                if (c.sttModel != null) sttModel = c.sttModel
+                if (c.pcSend != null) pcSend = c.pcSend
+                if (c.pcType != null) pcType = c.pcType
+            }
+        }
+    }
+
     // Re-check the permission rows every time the screen resumes. None of these grants deliver a
     // result callback (see SetupUtils' header), and accessibility in particular gets revoked out
     // from under the app by OEM battery managers and Play Protect's restricted settings — so a
