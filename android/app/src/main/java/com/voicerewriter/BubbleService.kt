@@ -100,6 +100,9 @@ class BubbleService : Service() {
         @Volatile
         var instance: BubbleService? = null
 
+        /** Start action sent by [DictateWidget]. */
+        const val ACTION_DICTATE = "com.voicerewriter.DICTATE"
+
         /**
          * Set by the active recording activity to its stop() handler; null when not
          * recording. The bubble invokes it (on the main thread) to stop & process.
@@ -290,6 +293,8 @@ class BubbleService : Service() {
         // A start from our own visible UI is the moment the microphone type can be (re)acquired;
         // see [micReady]. Harmless when it already holds it.
         if (!micReady) enterForeground()
+        // The dictation widget: same as tapping the bubble (start, or stop the running take).
+        if (intent?.action == ACTION_DICTATE) mainHandler.post { onTap() }
         return START_STICKY
     }
 

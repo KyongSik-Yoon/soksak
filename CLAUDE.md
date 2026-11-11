@@ -96,6 +96,8 @@
   이후 `HeadlessDictation.kt`가 액티비티 없이 녹음→변환→삽입 → 대상 앱이 포커스/키보드를 잃지 않는다.
   자동 중지 대기: 설정 "Auto-stop wait"(탭할 때마다 1.6/3/5초, `AUTO_STOP_CHOICES`, `AudioRecorder.start(hangoverSeconds)`).
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
+- 받아쓰기 위젯(`DictateWidget.kt`, 1×1, `home_screen|keyguard`): 탭하면 `BubbleService`에 `ACTION_DICTATE`를 보내 버블 탭(`onTap`)과 같게 시작/중지.
+  위젯 클릭은 백그라운드 FGS 시작이 허용돼 버블이 꺼져 있어도 서비스를 띄운다. 잠금화면(One UI)에 목록으로 뜨는지는 폰에서 확인할 일.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.
   버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T SN MN)를 표시. 느린 끌기는 그대로 위치 이동.

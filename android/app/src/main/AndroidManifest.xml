@@ -150,6 +150,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- One-tap dictation widget (home screen / lock screen) -->
+        <receiver
+            android:name=".DictateWidget"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_dictate" />
+        </receiver>
+
         <receiver
             android:name=".BubbleControlReceiver"
             android:exported="true">

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- keyguard: lock-screen hosts that still take app widgets (Samsung One UI may or may not list it). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="40dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen|keyguard"
+    android:initialLayout="@layout/widget_dictate"
+    android:initialKeyguardLayout="@layout/widget_dictate"
+    android:previewLayout="@layout/widget_dictate"
+    android:description="@string/widget_description" />

@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">Soksak</string>
     <string name="accessibility_description">Lets Soksak show the dictation bubble when you tap a text field, and type dictated text directly into it.</string>
+    <string name="widget_label">Soksak dictation</string>
+    <string name="widget_description">Tap to start dictating; tap again to stop.</string>
 </resources>
