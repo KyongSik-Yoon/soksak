@@ -66,7 +66,7 @@ class QnnWindowsTest {
     }
 
     @Test fun hintIsForKoreanOnMediumOnly() {
-        assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.SMALL_ACFT_NPU_MODEL, "ko").isEmpty())
+        assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.SMALL_ACFT_MODEL, "ko").isEmpty())
         assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.MEDIUM_NPU_MODEL, "en").isEmpty())
     }
 
@@ -94,6 +94,5 @@ class QnnWindowsTest {
         // JVM tests: Build.SOC_MODEL is null, so the NPU model is hidden.
         assertFalse(WhisperModelManager.available().any { it.engine == SpeechEngine.QNN_WHISPER })
         assertTrue(WhisperModelManager.MODELS.any { it.id == WhisperModelManager.MEDIUM_NPU_MODEL })
-        assertTrue(WhisperModelManager.MODELS.any { it.id == WhisperModelManager.SMALL_ACFT_NPU_MODEL })
     }
 }

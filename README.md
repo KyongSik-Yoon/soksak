@@ -25,8 +25,7 @@
 |---|---|---|
 | Small ACFT (FUTO) | whisper.cpp (CPU) | 기본값, 짧은 클립에 맞춘 미세조정 |
 | Large v3 Turbo ACFT q4_0 | whisper.cpp (CPU) | 가장 정확, 느림 |
-| Small ACFT (NPU) | sherpa-onnx + QNN | Snapdragon 8 Elite Gen 5(SM8850) 전용 |
-| Medium (NPU) | sherpa-onnx + QNN | SM8850 전용 |
+| Medium (NPU) | sherpa-onnx + QNN | Snapdragon 8 Elite Gen 5(SM8850) 전용 |
 
 모델은 앱에서 고를 때 내려받습니다. 라이선스는 앱의 설정 → General → 오픈소스 라이선스에 있습니다.
 

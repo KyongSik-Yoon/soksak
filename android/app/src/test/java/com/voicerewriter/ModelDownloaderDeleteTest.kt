@@ -84,6 +84,9 @@ class ModelDownloaderDeleteTest {
         val hinglish = write("ggml-hinglish-swift-q5_1.bin", 32)
         val stock = write("ggml-base.bin", 100)
         val senseVoice = tmp.newFolder("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17")
+        val smallNpu = tmp.newFolder("sherpa-onnx-qnn-SM8850-binary-whisper-small-acft")
+        val smallNpuPart = write("sherpa-onnx-qnn-SM8850-binary-whisper-small-acft.tar.bz2.part", 64)
+        val mediumNpu = tmp.newFolder("sherpa-onnx-qnn-SM8850-binary-whisper-medium")
         val whisper = write("small_acft_q8_0.bin", 100)
         val whisperPart = write("small_acft_q8_0.bin.part", 50)
 
@@ -95,6 +98,9 @@ class ModelDownloaderDeleteTest {
         assertFalse(hinglish.exists())
         assertFalse("stock Base was removed", stock.exists())
         assertFalse("SenseVoice was removed", senseVoice.exists())
+        assertFalse("Small ACFT (NPU) was removed", smallNpu.exists())
+        assertFalse(smallNpuPart.exists())
+        assertTrue("Medium (NPU) must survive", mediumNpu.exists())
         assertTrue("a current model must survive", whisper.exists())
         assertTrue("a current model's resume state must survive", whisperPart.exists())
     }

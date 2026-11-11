@@ -264,7 +264,10 @@ object ModelDownloader {
         // SenseVoice full precision: benchmarked no better than int8 on Korean (7.3% vs 7.1% CER), ~900MB.
         "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
         // SenseVoice int8: unused once the NPU models arrived. Removed 2026-11-09.
-        "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17")
+        "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+        // Small ACFT (NPU): no more accurate than the CPU build or Medium (NPU) on real whispers,
+        // and no prompt. Removed 2026-11-11.
+        "sherpa-onnx-qnn-SM8850-binary-whisper-small-acft")
 
     /** On-device LLM GGUFs, the Hinglish Whisper fine-tune, the dropped turbo q5_0, and stock Tiny/Base/Small. */
     private val RETIRED_FILES = listOf(
@@ -276,6 +279,8 @@ object ModelDownloader {
         "ggml-tiny.bin",
         "ggml-base.bin",
         "ggml-small.bin",
+        // An interrupted download of the Small ACFT (NPU) bundle.
+        "sherpa-onnx-qnn-SM8850-binary-whisper-small-acft.tar.bz2",
     )
 
     private val SIDECARS = listOf(".part", ".etag", ".sha256")

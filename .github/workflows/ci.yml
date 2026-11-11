@@ -17,7 +17,6 @@ on:
       - ".github/workflows/route-bench.yml"
       - ".github/workflows/npu-bench.yml"
       - ".github/workflows/npu-model.yml"
-      - ".github/workflows/npu-acft.yml"
   pull_request:
   workflow_dispatch:
 
