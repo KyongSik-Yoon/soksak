@@ -103,6 +103,9 @@ class BubbleService : Service() {
         /** Start action sent by [DictateWidget]. */
         const val ACTION_DICTATE = "com.voicerewriter.DICTATE"
 
+        /** Silence that ends a widget take; see [widgetTake]. One of [AUTO_STOP_CHOICES]. */
+        const val WIDGET_AUTO_STOP_S = 2.2
+
         /**
          * Set by the active recording activity to its stop() handler; null when not
          * recording. The bubble invokes it (on the main thread) to stop & process.
@@ -865,10 +868,13 @@ class BubbleService : Service() {
 
     /**
      * A widget take, used with the phone locked to talk to the PC: sent to the PC whatever the
-     * PC-send setting says (there is no field to type into), and recorded in Quiet mode (the
-     * user whispers there). The saved settings stay as they are.
+     * PC-send setting says (there is no field to type into), recorded in Quiet mode (the user
+     * whispers there), and ended after [WIDGET_AUTO_STOP_S] of silence: with the phone locked
+     * the wait is dead time, and the screen shows it running out. The saved settings stay as
+     * they are.
      */
-    private fun widgetTake(s: Settings): Settings = s.copy(pcSend = PcLink.PC_ONLY, quietMode = true)
+    private fun widgetTake(s: Settings): Settings =
+        s.copy(pcSend = PcLink.PC_ONLY, quietMode = true, autoStopSeconds = WIDGET_AUTO_STOP_S)
 
     private fun launchRewrite(autoRecord: Boolean = true, pushToTalk: Boolean = false) {
         startActivity(
@@ -882,6 +888,7 @@ class BubbleService : Service() {
     // ---- called from RewriteActivity / the accessibility service (same process) ----
 
     fun showRecording() {
+        DictationStatus.silence.value = 0f
         DictationStatus.phase.value = DictationStatus.Phase.LISTENING
         mainHandler.post {
             holdUntil = 0L
@@ -905,6 +912,7 @@ class BubbleService : Service() {
      * focused and the gate would otherwise hide the bubble mid-dictation.
      */
     fun showWorking() {
+        DictationStatus.silence.value = 0f
         DictationStatus.phase.value = DictationStatus.Phase.WORKING
         mainHandler.post {
             holdUntil = 0L

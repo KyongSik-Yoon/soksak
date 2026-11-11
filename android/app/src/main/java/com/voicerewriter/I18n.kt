@@ -241,6 +241,7 @@ object I18n {
         "Copied on the phone" to "폰 클립보드에 넣었어요",
         "Couldn't start dictation" to "받아쓰기를 시작하지 못했어요",
         "Tap anywhere to finish" to "화면을 누르면 끝나요",
+        "Finishing · tap to finish now" to "곧 끝나요 · 누르면 바로 끝",
     )
 }
 

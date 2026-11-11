@@ -95,10 +95,10 @@
 ## 녹음·입력 구조
 - 플로팅 버튼 서비스(`BubbleService.kt`)가 앱 UI가 보일 때 **microphone 타입 FGS**로 승격(`enterForeground`, `micReady`).
   이후 `HeadlessDictation.kt`가 액티비티 없이 녹음→변환→삽입 → 대상 앱이 포커스/키보드를 잃지 않는다.
-  자동 중지 대기: 설정 "Auto-stop wait"(탭할 때마다 1.6/3/5초, `AUTO_STOP_CHOICES`, `AudioRecorder.start(hangoverSeconds)`).
+  자동 중지 대기: 설정 "Auto-stop wait"(탭할 때마다 1.6/2.2/3/5초, `AUTO_STOP_CHOICES`, `AudioRecorder.start(hangoverSeconds)`).
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
 - 받아쓰기 위젯(`DictateWidget.kt`, 1×1, `home_screen|keyguard`): 탭하면 `BubbleService`에 `ACTION_DICTATE`를 보내 버블 탭(`onTap`)과 같게 시작/중지.
-  용도는 폰을 잠근 채 PC로 말 보내기라, 위젯으로 시작한 받아쓰기는 PC 전송 설정과 상관없이 `pc`(실패하면 폰 입력)로 보내고, 조용히 말하기(quietModel 포함)로 녹음한다(`widgetTake`, 설정은 안 바꿈). 시트 폴백 경로에는 적용 안 됨.
+  용도는 폰을 잠근 채 PC로 말 보내기라, 위젯으로 시작한 받아쓰기는 PC 전송 설정과 상관없이 `pc`(실패하면 폰 입력)로 보내고, 조용히 말하기(quietModel 포함)로 녹음하며, 무음 2.2초면 끝낸다(`WIDGET_AUTO_STOP_S`; 전체 화면이 남은 대기를 원 둘레로 보여 줌 — `AudioRecorder.silenceProgress`)(`widgetTake`, 설정은 안 바꿈). 시트 폴백 경로에는 적용 안 됨.
   위젯 받아쓰기는 `LockDictationActivity`(잠금화면 위 전체 화면, showWhenLocked + 화면 켜 둠)가 상태를 보여 준다: 듣는 중/변환/결과(`DictationStatus` — `BubbleService`의 show*가 유일한 작성자),
   아무 데나 누르면 끝, 뒤로는 버림, 결과 뒤 스스로 닫힘. 받아쓴 글은 화면에 안 띄운다(잠긴 폰). 녹음은 서비스가 먼저 시작하고 화면은 보기만 하므로 화면이 안 떠도 녹음은 된다.
   마이크를 못 잡은 경우만 화면이 뜬 뒤 한 번 재시도(`widgetTakeFromScreen`).

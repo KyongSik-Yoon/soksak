@@ -98,6 +98,17 @@ class AudioRecorder(private val context: Context) {
     val isRecording: Boolean get() = recording
 
     /**
+     * How close auto-stop is to ending the take, 0..1: the share of the silence wait already
+     * spent since the last speech. 0 while talking, before any speech, or with auto-stop off.
+     */
+    fun silenceProgress(): Float {
+        if (!vadActive || !recording) return 0f
+        quietDetector?.let { return it.silenceFraction(totalSamples) }
+        if (speechSamples < MIN_SPEECH_SAMPLES) return 0f
+        return ((totalSamples - lastSpeechSample).toFloat() / hangoverSamples).coerceIn(0f, 1f)
+    }
+
+    /**
      * Whether this take will actually auto-stop. False when the setting is off *and* when the
      * Silero model failed to load, which is silent otherwise - the UI used to promise "I'll
      * stop when you pause" either way and then never stop.

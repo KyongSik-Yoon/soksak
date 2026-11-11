@@ -15,6 +15,9 @@ object DictationStatus {
     /** Latest microphone peak while listening, 0..32767. */
     val amplitude = MutableStateFlow(0)
 
+    /** While listening: how much of the auto-stop silence wait has passed, 0..1. */
+    val silence = MutableStateFlow(0f)
+
     /** Phases that end a take with its text delivered somewhere (or, for NO_PC, not to the PC). */
     fun isResult(p: Phase) = p != Phase.IDLE && p != Phase.LISTENING && p != Phase.WORKING
 }

@@ -32,6 +32,19 @@ class QuietSpeechDetectorTest {
         assertTrue(fired[0] - lastSpeechEnd in (1.6 * 16000).toInt()..(1.7 * 16000).toInt())
     }
 
+    @Test fun silenceFractionCountsUpOnlyAfterSpeech() {
+        val d = detector() // 1.6s hangover
+        run(d, frames(1.0, 0.001f))
+        assertEquals(0f, d.silenceFraction(16000), 0f) // no speech yet: nothing to wait out
+        val spoken = frames(1.0, 0.001f) + frames(1.0, 0.006f)
+        val d2 = detector()
+        run(d2, spoken)
+        val end = spoken.size * n
+        assertEquals(0f, d2.silenceFraction(end), 0.02f)
+        assertEquals(0.5f, d2.silenceFraction(end + (0.8 * 16000).toInt()), 0.02f)
+        assertEquals(1f, d2.silenceFraction(end + 5 * 16000), 0f)
+    }
+
     @Test fun roomNoiseAloneNeverStops() {
         val levels = frames(8.0, 0.001f).mapIndexed { i, v -> if (i % 7 == 0) v * 1.8f else v }
         assertTrue(run(detector(), levels).isEmpty())

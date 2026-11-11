@@ -86,6 +86,13 @@ class QuietSpeechDetector(private val hangoverSamples: Int, private val minSpeec
         return y
     }
 
+    /**
+     * How far through the hangover the current silence is at sample [end], 0..1; 0 until
+     * enough speech has been heard for a silence to end the take.
+     */
+    fun silenceFraction(end: Int): Float =
+        if (speechSamples < minSpeechSamples) 0f else ((end - lastSpeech).toFloat() / hangoverSamples).coerceIn(0f, 1f)
+
     /** One sample (-1..1) through the 500-2500 Hz band. */
     private fun band(x: Double): Double = section(LP, lp, section(HP, hp, x))
 

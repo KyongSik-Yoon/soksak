@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -91,6 +94,7 @@ class LockDictationActivity : ComponentActivity() {
     private fun Screen() {
         val phase by DictationStatus.phase.collectAsState()
         val amp by DictationStatus.amplitude.collectAsState()
+        val silence by DictationStatus.silence.collectAsState()
         // The take is started just before this screen; IDLE means "not yet" until it has been
         // seen running, and "ended with nothing" after.
         var seen by remember { mutableStateOf(false) }
@@ -139,6 +143,16 @@ class LockDictationActivity : ComponentActivity() {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
                 Box(Modifier.size(260.dp), contentAlignment = Alignment.Center) {
                     if (listening) Box(Modifier.size(120.dp).scale(pulse).background(BrandLavender.copy(alpha = 0.22f), CircleShape))
+                    // The silence wait running out: a ring closing round the mark. Not drawn
+                    // for the gaps between words (under a quarter of the wait).
+                    if (listening && silence > 0.25f) {
+                        Canvas(Modifier.size(150.dp)) {
+                            drawArc(
+                                color = MarkLight, startAngle = -90f, sweepAngle = 360f * (silence - 0.25f) / 0.75f,
+                                useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
+                            )
+                        }
+                    }
                     Box(Modifier.size(120.dp).background(BrandPlum, CircleShape), contentAlignment = Alignment.Center) {
                         if (phase == Phase.WORKING) {
                             CircularProgressIndicator(Modifier.size(56.dp), color = MarkLight, strokeWidth = 4.dp)
@@ -149,7 +163,7 @@ class LockDictationActivity : ComponentActivity() {
                 }
                 Text(title(phase, seen, failed), color = MarkLight, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (listening) tr("Tap anywhere to finish") else "",
+                    if (!listening) "" else if (silence > 0.25f) tr("Finishing · tap to finish now") else tr("Tap anywhere to finish"),
                     color = MarkLight.copy(alpha = 0.6f), fontSize = 16.sp,
                 )
             }

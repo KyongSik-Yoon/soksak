@@ -536,7 +536,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                     ToggleRow(tr("Auto-stop on pause"), tr("End recording when you stop talking"), vadAutoStop) { vadAutoStop = it; persist() }
                     if (vadAutoStop) {
                         Divider()
-                        // Tap cycles 1.6s → 3s → 5s.
+                        // Tap cycles 1.6s → 2.2s → 3s → 5s.
                         NavRow(tr("Auto-stop wait"), trf("Stops after %ss of silence · tap to change", "%.1f".format(autoStopSeconds).removeSuffix(".0"))) {
                             val i = AUTO_STOP_CHOICES.indexOf(autoStopSeconds)
                             autoStopSeconds = AUTO_STOP_CHOICES[(i + 1).mod(AUTO_STOP_CHOICES.size)]

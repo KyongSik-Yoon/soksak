@@ -104,6 +104,7 @@ object HeadlessDictation {
                 val raw = rec.amplitude()
                 if (raw > loudest) loudest = raw
                 BubbleService.instance?.showAmplitude(raw)
+                DictationStatus.silence.value = rec.silenceProgress()
                 if (loudest == 0 && System.currentTimeMillis() - startMs > SILENT_PROBE_MS) {
                     // A live microphone is never digital zero for this long; a silenced one is.
                     Log.w(TAG, "microphone is silenced in the background; falling back to the sheet")

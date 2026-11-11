@@ -199,6 +199,6 @@ class SettingsRepository(private val context: Context) {
  * Auto-stop waits, shortest first. 1.6s was the only option and cut people off while they
  * thought mid-dictation; longer waits suit long, considered prompts.
  */
-val AUTO_STOP_CHOICES = listOf(1.6, 3.0, 5.0)
+val AUTO_STOP_CHOICES = listOf(1.6, 2.2, 3.0, 5.0)
 
 const val DEFAULT_PROMPT_EXAMPLE = "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘."
