@@ -1,0 +1,85 @@
+# Experiment: Large v3 Turbo ACFT (the weights the CPU model uses) as Qualcomm QNN context binaries
+# for SM8850. sherpa-onnx publishes nothing above Medium for QNN, so whether this compiles at all
+# is the first question. Same recipe as Medium (NPU) and the removed Small ACFT (NPU):
+# scripts/npu_acft_export.py on the runner, scripts/npu_compile_sm8850.sh in the QAIRT image.
+# Publishes only from main; on the experiment branch the bundle is a workflow artifact.
+name: Build Turbo ACFT NPU model (SM8850)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, npu-turbo]
+    paths:
+      - .github/workflows/npu-turbo.yml
+      - scripts/npu_acft_export.py
+      - scripts/npu_compile_sm8850.sh
+
+permissions:
+  contents: write
+
+env:
+  SHERPA: 347ec768a01ca53e766780f7759b14e145b643e6
+  NAME: sherpa-onnx-qnn-SM8850-binary-whisper-turbo-acft
+  TAG: model-qnn-whisper-turbo-acft-sm8850
+  HF_REPO: MahmoudAshraf/acft-whisper-large-v3-turbo
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/share/swift /usr/local/.ghcup /opt/microsoft || true
+          sudo docker image prune -af >/dev/null || true
+          df -h /; free -g
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Export ONNX with the ACFT weights
+        run: |
+          set -ex
+          python3 -m pip install -q torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          python3 -m pip install -q "numpy<2" openai-whisper onnx onnxruntime soundfile librosa "transformers<5" safetensors
+          # scripts/whisper/qnn/export_onnx.py is a symlink to this file; raw URLs serve only its target.
+          curl -fsSL --retry 5 -o export_onnx.py \
+            "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/$SHERPA/scripts/whisper/rknn/export_onnx.py"
+          mkdir onnx && cd onnx
+          python3 ../scripts/npu_acft_export.py ../export_onnx.py "$HF_REPO" turbo
+          ls -la
+          # The encoder is over protobuf's 2GB limit, so its weights sit in turbo-encoder.weights
+          # next to it; that file keeps its name, the graphs get the names the compile script reads.
+          mv turbo-encoder.onnx encoder.onnx
+          mv turbo-decoder.onnx decoder.onnx
+          mv turbo-tokens.txt tokens.txt
+          find . -type f ! -name 'encoder.onnx' ! -name 'decoder.onnx' ! -name 'tokens.txt' ! -name '*.weights' -delete
+          rm -rf ~/.cache/huggingface
+          ls -la; df -h /; free -g
+      - name: Compile context binaries (QAIRT 2.40 image)
+        run: docker run --rm -v "$PWD:/w" -e SHERPA -e NAME ghcr.io/k2-fsa/qnn-sdk:2.40 bash /w/scripts/npu_compile_sm8850.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npu-model
+          path: ${{ env.NAME }}.tar.bz2
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    needs: compile
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npu-model
+      - name: Publish as a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -ex
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --title "Large v3 Turbo ACFT (NPU) for SM8850" \
+              --notes "QNN context binaries of Mahmoud Ashraf's ACFT whisper-large-v3-turbo (Apache 2.0) for Snapdragon 8 Elite Gen 5 (SM8850), compiled with QAIRT 2.40. Built by .github/workflows/npu-turbo.yml."
+          gh release upload "$TAG" "$NAME.tar.bz2" -R "$GITHUB_REPOSITORY" --clobber
