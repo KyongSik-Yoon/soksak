@@ -422,8 +422,27 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         return ok
     }
 
-    /** Focused editable node in the active window, only if it's NOT our own app. */
+    /**
+     * Focused editable node in the active window, only if it's NOT our own app.
+     *
+     * A miss while a keyboard is up is retried once with this service's node cache cleared.
+     * Since Android 13, findFocus answers from that cache, and an app that restores focus without
+     * a focus event leaves it stale: back in ChatGPT (Compose) from another app, the composer had
+     * focus and the keyboard was up, yet every lookup said nothing was focused and the dictation
+     * went to the clipboard. A fresh client (uiautomator) saw the focused field at the same moment.
+     */
     private fun findHostFocusedEditable(): AccessibilityNodeInfo? {
+        findHostFocusedEditableCached()?.let { return it }
+        if (Build.VERSION.SDK_INT < 34 || !imeShown()) return null
+        if (!clearCache()) return null
+        return findHostFocusedEditableCached()?.also { Log.i(TAG, "focused field found after clearing the node cache") }
+    }
+
+    private fun imeShown(): Boolean =
+        (try { windows } catch (_: Exception) { null })
+            ?.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } == true
+
+    private fun findHostFocusedEditableCached(): AccessibilityNodeInfo? {
         val root = rootInActiveWindow ?: return null
         if (root.packageName == packageName) return null // our sheet is still up
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
