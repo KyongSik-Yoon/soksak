@@ -230,6 +230,17 @@ object I18n {
         "This app's recent log, for reporting a problem" to "문제를 알려줄 때 쓰는 이 앱의 최근 로그",
         "Copied %s lines" to "%s줄 복사함",
         "Nothing was recognized." to "인식된 말이 없어요.",
+        // lock-screen dictation screen
+        "Starting" to "시작하는 중",
+        "Listening" to "듣는 중",
+        "Transcribing" to "변환하는 중",
+        "Sent to PC" to "PC로 보냈어요",
+        "On the PC clipboard" to "PC 클립보드에 넣었어요",
+        "PC not reached" to "PC에 못 보냈어요",
+        "Typed on the phone" to "폰에 입력했어요",
+        "Copied on the phone" to "폰 클립보드에 넣었어요",
+        "Couldn't start dictation" to "받아쓰기를 시작하지 못했어요",
+        "Tap anywhere to finish" to "화면을 누르면 끝나요",
     )
 }
 

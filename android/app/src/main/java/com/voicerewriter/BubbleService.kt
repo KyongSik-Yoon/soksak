@@ -294,8 +294,17 @@ class BubbleService : Service() {
         // see [micReady]. Harmless when it already holds it.
         if (!micReady) enterForeground()
         // The dictation widget: like tapping the bubble (start, or stop the running take), but
-        // with the widget's own settings (widgetTake).
-        if (intent?.action == ACTION_DICTATE) mainHandler.post { onTap(fromWidget = true) }
+        // with the widget's own settings (widgetTake) and, since it is used on the lock screen
+        // where the bubble says nothing, a full-screen view of the take.
+        if (intent?.action == ACTION_DICTATE) mainHandler.post {
+            val starting = recordingStopper == null && !HeadlessDictation.active
+            // The last take's result may still be up; the screen reads IDLE as "not started yet".
+            if (starting) DictationStatus.phase.value = DictationStatus.Phase.IDLE
+            onTap(fromWidget = true)
+            if (starting) {
+                startActivity(Intent(this, LockDictationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
         return START_STICKY
     }
 
@@ -349,8 +358,21 @@ class BubbleService : Service() {
                     // Silenced microphone: say nothing, just let the sheet take this take.
                     launchRewrite(autoRecord = true, pushToTalk = pushToTalk && holdingToTalk)
                 }
-            if (!headless) launchRewrite(autoRecord = true, pushToTalk = pushToTalk)
+            // A widget take that could not get the microphone is retried by its screen once
+            // that is visible (widgetTakeFromScreen); the sheet cannot show over the lock screen.
+            if (!headless && !(fromWidget && !micReady)) launchRewrite(autoRecord = true, pushToTalk = pushToTalk)
         }
+    }
+
+    /**
+     * From [LockDictationActivity] once it is on screen: a visible activity is what lets the
+     * service take the microphone type, so a widget take that could not start gets one more go.
+     */
+    fun widgetTakeFromScreen() {
+        // With the microphone already held, the take either started or failed for another reason.
+        if (micReady || recordingStopper != null || HeadlessDictation.active) return
+        enterForeground()
+        if (micReady) beginDictation(pushToTalk = false, fromWidget = true)
     }
 
     /**
@@ -860,6 +882,7 @@ class BubbleService : Service() {
     // ---- called from RewriteActivity / the accessibility service (same process) ----
 
     fun showRecording() {
+        DictationStatus.phase.value = DictationStatus.Phase.LISTENING
         mainHandler.post {
             holdUntil = 0L
             recording = true
@@ -869,6 +892,7 @@ class BubbleService : Service() {
     }
 
     fun showAmplitude(amp: Int) {
+        DictationStatus.amplitude.value = amp
         bubble?.pushAmplitude(amp)
     }
 
@@ -881,6 +905,7 @@ class BubbleService : Service() {
      * focused and the gate would otherwise hide the bubble mid-dictation.
      */
     fun showWorking() {
+        DictationStatus.phase.value = DictationStatus.Phase.WORKING
         mainHandler.post {
             holdUntil = 0L
             recording = true
@@ -900,6 +925,7 @@ class BubbleService : Service() {
      * clipboard fallback below, which is otherwise indistinguishable from the user's side.
      */
     fun showInserted() {
+        DictationStatus.phase.value = DictationStatus.Phase.INSERTED
         mainHandler.post {
             recording = true
             ensureVisible()
@@ -919,6 +945,7 @@ class BubbleService : Service() {
      * [FALLBACK_HOLD_MS], then the bubble returns to idle on its own.
      */
     fun showClipboardFallback() {
+        DictationStatus.phase.value = DictationStatus.Phase.COPIED
         mainHandler.post {
             // Held like the working state: by now the dictation is over, so without this the
             // gate could hide the bubble before the user has seen where their text went.
@@ -938,6 +965,11 @@ class BubbleService : Service() {
         mainHandler.post {
             // The answer can arrive seconds later; a take that has started since owns the bubble.
             if (HeadlessDictation.active) return@post
+            DictationStatus.phase.value = when {
+                !sent.ok -> DictationStatus.Phase.NO_PC
+                sent.clipboardOnly -> DictationStatus.Phase.PC_CLIP
+                else -> DictationStatus.Phase.TO_PC
+            }
             recording = true
             ensureVisible()
             // "PC clip": typing was asked for, the PC only allows its clipboard.
@@ -987,6 +1019,7 @@ class BubbleService : Service() {
             if (holdUntil > SystemClock.uptimeMillis()) return@post
             holdUntil = 0L
             recording = false
+            DictationStatus.phase.value = DictationStatus.Phase.IDLE
             setState(BubbleView.State.IDLE)
             applyGating(animate = true) // re-hide if gated and no field is focused
         }

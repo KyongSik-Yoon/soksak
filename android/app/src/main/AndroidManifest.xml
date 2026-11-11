@@ -107,6 +107,17 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Soksak.Translucent" />
 
+        <!-- The widget's take, full screen over the lock screen (state, keep-awake, tap to end) -->
+        <activity
+            android:name=".LockDictationActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.Soksak" />
+
         <!-- Always-visible floating bubble; tap to dictate -->
         <service
             android:name=".BubbleService"
