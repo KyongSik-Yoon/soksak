@@ -136,11 +136,19 @@ class CompareActivity : ComponentActivity() {
                     val series = StringBuilder()
                     var blockMax = 0f; var blockSpeech = 0; var blockEnd = sr / 2
                     var pos = 0
+                    // Every frame's level too (dB, 100 per line), to try other rules off the device.
+                    val frames = StringBuilder()
+                    var frameCount = 0
                     while (pos + 512 <= samples.size) {
                         var sum = 0.0
                         for (j in pos until pos + 512) { val v = samples[j] / 32768.0; sum += v * v }
                         val rms = kotlin.math.sqrt(sum / 512).toFloat()
                         pos += 512
+                        frames.append(' ').append(db(rms))
+                        if (++frameCount % 100 == 0 || pos + 512 > samples.size) {
+                            android.util.Log.i(BENCH_TAG, "frames n=${i + 1} at=${frameCount - 1 - (frameCount - 1) % 100}:$frames")
+                            frames.setLength(0)
+                        }
                         if (det.feed(rms, pos, 512) && fireAt < 0) fireAt = pos
                         if (rms > blockMax) blockMax = rms
                         if (det.lastFrameSpeech) blockSpeech++
