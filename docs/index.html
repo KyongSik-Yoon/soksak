@@ -271,8 +271,8 @@ footer a { color: var(--ink-2); }
       <p class="lede r" style="--i:2">키보드를 바꾸지 않습니다. 화면 가장자리에 떠 있는 버블을 누르고 말하면, 쓰던 앱의 커서 자리에 글이 들어갑니다.</p>
       <ul class="points r" style="--i:3">
         <li><b>누르고 말하기</b>말이 멈추면 알아서 끝내고 글을 넣습니다.</li>
-        <li><b>위로 휙 밀기</b>모델 메뉴가 버블 옆에 뜹니다.</li>
-        <li><b>포커스는 그대로</b>화면을 띄우지 않아 대상 앱의 커서와 키보드가 남습니다.</li>
+        <li><b>위로 휙 밀기</b>모델과 조용히 말하기를 고르는 메뉴가 버블 옆에 뜹니다.</li>
+        <li><b>포커스는 그대로</b>화면을 띄우지 않아 대상 앱의 커서와 키보드가 남습니다. 삼성 노트처럼 입력창을 따로 그리는 앱에도 키보드처럼 넣습니다.</li>
         <li><b>단어장</b>"클로드 코드"를 <code>Claude Code</code>로. 조사와 어미가 붙어도 찾아 바꿉니다.</li>
       </ul>
     </div>
@@ -284,7 +284,7 @@ footer a { color: var(--ink-2); }
           <div class="field" id="field"><span class="ph">메시지 입력…</span></div>
           <div class="bubble-dock">
             <div class="menu" id="menu" role="menu" aria-label="모델 고르기">
-              <button role="menuitemcheckbox" id="quietBtn" aria-checked="false"><span class="k">☾</span>조용히 말하기</button>
+              <button role="menuitemcheckbox" id="quietBtn" aria-checked="false"><span class="k"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13.2A8.6 8.6 0 1 1 10.8 3.5a6.7 6.7 0 0 0 9.7 9.7z"/></svg></span>조용히 말하기</button>
               <hr>
               <button role="menuitemradio" data-m="SA" aria-checked="true"><span class="k">SA</span>Small ACFT</button>
               <button role="menuitemradio" data-m="T" aria-checked="false"><span class="k">T</span>Large v3 Turbo</button>
@@ -352,13 +352,13 @@ footer a { color: var(--ink-2); }
     <div class="device r" style="--i:3">
       <div class="pipe">
         <div class="step"><b>소리</b>마이크로 들어온 말. 서버로 보내지 않습니다.</div>
-        <div class="step"><b>Whisper</b>Snapdragon 8 Elite Gen 5는 NPU, 그 밖의 폰은 CPU.</div>
+        <div class="step"><b>Whisper</b>Snapdragon 8 Elite Gen 5는 NPU, 그 밖의 폰은 CPU. 클라우드 엔진은 없습니다.</div>
         <div class="step"><b>단어장</b>이름과 개발 용어를 가르친 대로 고칩니다.</div>
         <div class="step"><b>글</b>쓰던 앱의 입력창으로 들어갑니다.</div>
       </div>
     </div>
     <p class="outside r" style="--i:4"><span><s>서버</s></span><span><s>계정</s></span><span><s>로그인</s></span><span><s>업로드</s></span></p>
-    <p class="lede r" style="--i:5">컴퓨터에서 일할 때는 받아쓴 글만 내 컴퓨터 클립보드로 바로 보낼 수 있습니다. 켰을 때만, 중간 서버 없이 Tailscale로 갑니다. <a href="https://github.com/KyongSik-Yoon/soksak/tree/main/daemon">soksak-daemon</a></p>
+    <p class="lede r" style="--i:5">컴퓨터에서 일할 때는 받아쓴 글만 내 컴퓨터로 바로 보낼 수 있습니다. 클립보드에 넣거나, 컴퓨터에서 허용해 두면 바로 입력합니다. 잠금화면 위젯을 누르면 폰을 열지 않고도 말해서 보냅니다. 켰을 때만, 중간 서버 없이 Tailscale로 갑니다. <a href="https://github.com/KyongSik-Yoon/soksak/tree/main/daemon">soksak-daemon</a></p>
   </div>
 </section>
 
@@ -372,12 +372,14 @@ footer a { color: var(--ink-2); }
         <div id="chart"></div>
         <div class="legend"><span><i style="background:#C9B8F5"></i>Large v3 Turbo</span><span><i style="background:#7FD0C8"></i>Small ACFT (기본, Turbo의 1/5 시간)</span></div>
         <p class="note">소음이 말소리만큼 크면 어느 모델이든 절반 넘게 틀립니다. 낭독 문장에서는 Turbo 3.3%, Small ACFT 5.7%이고, 개발 용어가 섞인 말은 이 숫자에 반영되지 않습니다.</p>
+        <p class="note">속도는 폰(Snapdragon 8 Elite Gen 5)에서 실제 녹음 20개로 쟀습니다. 문장 하나에 Large v3 Turbo (NPU) 0.95초, Small ACFT 1.39초, Medium (NPU) 2.18초가 걸렸습니다.</p>
       </div>
       <div class="dropped r" style="--i:4">
         <h3>해 보고 뺀 것</h3>
         <div><b><s>GPU 가속</s></b><p>Vulkan과 OpenCL을 둘 다 붙여 봤습니다. CPU보다 느리고 뜨거웠습니다.</p></div>
         <div><b><s>Moonshine 모델</s></b><p>빠르지만 소음에 약했습니다. 소음이 말소리만큼 클 때 97.5%가 틀렸습니다.</p></div>
         <div><b><s>LLM 다듬기</s></b><p>영어에 맞춘 후처리가 한국어 문장을 오히려 망가뜨렸습니다.</p></div>
+        <div><b><s>Small ACFT (NPU)</s></b><p>가장 빨랐지만 속삭임에서 CPU판보다 더 틀렸습니다(38.9% 대 35.1%).</p></div>
       </div>
     </div>
   </div>
@@ -399,15 +401,15 @@ footer a { color: var(--ink-2); }
     <div class="sub2">
       <p class="eyebrow">모델</p>
       <h2>네 가지 Whisper.</h2>
-      <p class="lede">처음에는 Small ACFT 하나만 받습니다. 나머지는 설정에서 고를 때 내려받고, 버블을 위로 밀어 바로 바꿉니다. 단어장과 설정은 파일 하나로 백업하고 복원할 수 있습니다.</p>
+      <p class="lede">처음에는 Small ACFT 하나만 받습니다. 나머지는 설정에서 고를 때 내려받고, 버블을 위로 밀어 바로 바꿉니다. NPU 모델은 Snapdragon 8 Elite Gen 5에서만 목록에 보입니다. 단어장과 설정은 파일 하나로 백업하고 복원할 수 있습니다.</p>
       <div class="tbl">
         <table>
           <thead><tr><th>모델</th><th>엔진</th><th>쓰임</th></tr></thead>
           <tbody>
             <tr><td><span class="tag">SA</span>Small ACFT (FUTO)</td><td class="dim">whisper.cpp · CPU</td><td class="dim">기본값. 짧은 말에 맞춰 조정된 모델</td></tr>
-            <tr><td><span class="tag">T</span>Large v3 Turbo ACFT q4_0</td><td class="dim">whisper.cpp · CPU</td><td class="dim">가장 정확하고 가장 느림</td></tr>
-            <tr><td><span class="tag">MN</span>Medium (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">Snapdragon 8 Elite Gen 5 전용</td></tr>
-            <tr><td><span class="tag">TN</span>Large v3 Turbo (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">Snapdragon 8 Elite Gen 5 전용</td></tr>
+            <tr><td><span class="tag">T</span>Large v3 Turbo ACFT q4_0</td><td class="dim">whisper.cpp · CPU</td><td class="dim">CPU에서 가장 정확하고 가장 느림</td></tr>
+            <tr><td><span class="tag">MN</span>Medium (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">NPU 전용. 문장부호를 잘 찍음</td></tr>
+            <tr><td><span class="tag">TN</span>Large v3 Turbo (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">NPU 전용. 가장 빠르고 개발 용어에 강함</td></tr>
           </tbody>
         </table>
       </div>

@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-11 — 홈페이지를 오늘 바뀐 내용에 맞춤 (docs만)
+- 모델 표 쓰임(Turbo NPU: 가장 빠르고 개발 용어에 강함, Medium NPU: 문장부호), 폰 속도 측정(문장당 0.95/1.39/2.18초), "해 보고 뺀 것"에 Small ACFT (NPU), PC 전송(바로 입력·잠금화면 위젯), 삼성 노트류 입력, 클라우드 엔진 없음. 데모 메뉴의 ☾ 글리프를 앱과 같은 달 선 아이콘으로.
+- 휴대폰 폭(420px) 렌더로 배치 확인. `docs/scenes.html`·`docs/classic.html`(보존판)은 그대로.
+
 ## 2026-11-11 — 삼성 노트에서 받아쓴 글이 클립보드로 빠지던 것 (이 커밋)
 - 원인(폰에서 uiautomator dump + 로그): 노트 편집 화면은 포커스가 본문을 감싼 ScrollView에 있고 EditText 노드는 focused=false. 로그는 `fieldFocus editable=false ime=true` → 넣을 입력창을 못 찾아 클립보드.
 - 고침: 포커스된 editable이 없으면 접근성 서비스의 입력 연결로 commitText(Android 13+, `flagInputMethodEditor`). 커서 앞뒤 한 글자를 읽어 공백도 맞춤. 사용자 확인(build-129): 삼성 노트에 글이 들어감(로그 `inserted through the input connection (clipboard untouched)`).
