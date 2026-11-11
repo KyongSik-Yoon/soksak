@@ -107,8 +107,8 @@
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.
   버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T SN MN)를 표시. 느린 끌기는 그대로 위치 이동.
 - **조용히 말하기**(설정 "Quiet mode", 버블 메뉴 맨 위 행): 받아쓰기 때 `Settings.forDictation()`이 모델을 `quietModel`
-  (기본 Small ACFT)로 바꾸고, `AudioRecorder.start(quiet = true)`가 Silero 대신 `QuietSpeechDetector`(소음 바닥 대비 2.5배·절대 3e-4 이상을
-  말로 봄)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 청록색(보라 마크와 구분), 메뉴에서 고른 모델은 quietModel에 저장.
+  (기본 Small ACFT)로 바꾸고, `AudioRecorder.start(quiet = true)`가 Silero 대신 `QuietSpeechDetector`(500~2500Hz 대역에서 소음 바닥 대비 2.5배·절대 3e-4 이상이 0.1초 이어지면
+  말로 봄, 마이크 시작 0.3초는 무시 — 전체 음량으로는 실제 폰에서 한 번도 발동 안 했다: 첫 조각이 0이라 바닥이 -90dB로 잡히고, 500Hz 아래 방 소음이 속삭임보다 15~20dB 큼. 2026-11-11, 속삭임 녹음 20개로 확인)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 청록색(보라 마크와 구분), 메뉴에서 고른 모델은 quietModel에 저장.
 - 버블 축소: 3.5초 무활동이면 작아지고(`scheduleShrink`), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, CPU·NPU 공통, 헤드리스 경로만):

@@ -155,7 +155,7 @@ class CompareActivity : ComponentActivity() {
                             android.util.Log.i(BENCH_TAG, "frames n=${i + 1} at=${frameCount - 1 - (frameCount - 1) % 100}:$frames")
                             frames.setLength(0)
                         }
-                        if (det.feed(rms, pos, 512) && fireAt < 0) fireAt = pos
+                        if (det.feedPcm(samples.copyOfRange(pos - 512, pos), 512, pos) && fireAt < 0) fireAt = pos
                         if (rms > blockMax) blockMax = rms
                         if (det.lastFrameSpeech) blockSpeech++
                         if (pos >= blockEnd) {

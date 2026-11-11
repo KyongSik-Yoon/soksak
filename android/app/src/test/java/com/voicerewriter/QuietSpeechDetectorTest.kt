@@ -57,8 +57,62 @@ class QuietSpeechDetectorTest {
         assertFalse(s.copy(quietMode = true).forDictation().sttModel == s.sttModel)
     }
 
-    private fun audio(vararg parts: Pair<Double, Float>): FloatArray =
-        parts.flatMap { (sec, amp) -> List((sec * 16000).toInt()) { k -> if (k % 2 == 0) amp else -amp } }.toFloatArray()
+    /** A 1 kHz tone (inside the measured band) at each part's amplitude. */
+    private fun audio(vararg parts: Pair<Double, Float>): FloatArray {
+        var k = 0
+        return parts.flatMap { (sec, amp) -> List((sec * 16000).toInt()) { amp * kotlin.math.sin(2 * Math.PI * 1000 * k++ / 16000).toFloat() } }.toFloatArray()
+    }
+
+    /** Feeds [x] as the recorder does (512-sample reads); the time auto-stop fired, or null. */
+    private fun fireSec(x: FloatArray, hangoverSec: Double = 3.0): Double? {
+        val d = QuietSpeechDetector((hangoverSec * 16000).toInt(), (0.4 * 16000).toInt())
+        var pos = 0
+        while (pos + 512 <= x.size) {
+            val buf = ShortArray(512) { (x[pos + it] * 32767).toInt().coerceIn(-32768, 32767).toShort() }
+            pos += 512
+            if (d.feedPcm(buf, 512, pos)) return pos / 16000.0
+        }
+        return null
+    }
+
+    /**
+     * What the phone's microphone gave in the real takes: a zero frame, a faint start, then a
+     * room whose low rumble (full-band about -47 dBFS, wandering by several dB) is far louder
+     * than the whisper, which only shows in the 500-2500 Hz band (room -71, whisper -60 dBFS).
+     */
+    private fun realTake(whisperSec: Double, tailSec: Double): FloatArray {
+        val room = audio(0.03 to 0f, 0.25 to 0.0001f, 1.0 to 0.0004f, whisperSec to 0.0015f, tailSec to 0.0004f)
+        return FloatArray(room.size) { i ->
+            val wander = 1.0 + 0.5 * kotlin.math.sin(2 * Math.PI * 0.7 * i / 16000)
+            val hum = if (i < 480) 0.0 else 0.006 * wander * kotlin.math.sin(2 * Math.PI * 120 * i / 16000)
+            (room[i] + hum).toFloat()
+        }
+    }
+
+    @Test fun whisperUnderLoudRumbleStopsAfterTheHangover() {
+        // 1.28s of start-up and room, 4s whispered, then quiet: stops ~3s after the whisper.
+        val fired = fireSec(realTake(whisperSec = 4.0, tailSec = 5.0))
+        assertTrue("fired at $fired", fired != null && fired in 8.2..8.6)
+    }
+
+    @Test fun whisperUnderLoudRumbleIsNotCutShort() {
+        assertEquals(null, fireSec(realTake(whisperSec = 6.0, tailSec = 2.0)))
+    }
+
+    @Test fun rumbleAloneNeverStopsAndIsNotSpeech() {
+        val x = realTake(whisperSec = 0.0, tailSec = 8.0)
+        assertEquals(null, fireSec(x))
+        assertFalse(QuietSpeechDetector.hasSpeech(x))
+    }
+
+    @Test fun clickDoesNotRestartTheWait() {
+        val base = realTake(whisperSec = 3.0, tailSec = 6.0)
+        // A 30ms click two seconds into the tail.
+        val at = ((1.28 + 3.0 + 2.0) * 16000).toInt()
+        for (i in at until at + 480) base[i] += 0.01f * kotlin.math.sin(2 * Math.PI * 1500 * i / 16000).toFloat()
+        val fired = fireSec(base)
+        assertTrue("fired at $fired", fired != null && fired in 7.2..7.6)
+    }
 
     @Test fun silentTakeHasNoSpeech() {
         // Room hiss with a short click: the "네." echo from such a take should be dropped.

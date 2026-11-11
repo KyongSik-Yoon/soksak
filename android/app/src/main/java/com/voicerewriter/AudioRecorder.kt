@@ -189,9 +189,7 @@ class AudioRecorder(private val context: Context) {
                 }
                 totalSamples += n
                 if (quietInst != null && !autoStopFired) {
-                    var sum = 0.0
-                    for (i in 0 until n) { val v = buf[i] / 32768.0; sum += v * v }
-                    if (quietInst.feed(kotlin.math.sqrt(sum / n).toFloat(), totalSamples, n)) {
+                    if (quietInst.feedPcm(buf, n, totalSamples)) {
                         autoStopFired = true
                         onAutoStop?.let { cb -> mainHandler.post { cb() } }
                     }
