@@ -55,6 +55,8 @@ import kotlinx.coroutines.withContext
  */
 class CompareActivity : ComponentActivity() {
 
+    private companion object { const val BENCH_TAG = "SoksakBench" }
+
     private data class ModelRun(val modelId: String, val label: String, val text: String?, val ms: Long?, val error: String?)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,6 +110,41 @@ class CompareActivity : ComponentActivity() {
             }
         }
 
+        // Every listed recording on every model, one model at a time (loaded once, so the time is
+        // decode only), into logcat under [BENCH_TAG]: for scoring a set of takes against a
+        // script off the device (adb logcat -s SoksakBench). Results show only in the log.
+        fun runAll() {
+            job?.cancel()
+            job = scope.launch {
+                val ctx = applicationContext
+                val base = SettingsRepository(ctx).get()
+                val vocab = VocabRepository(ctx).get()
+                val bias = if (vocab.isEmpty()) null else VocabCorrector.biasPrompt(vocab)
+                val recs = recordings.sortedBy { it.timestamp }
+                val models = WhisperModelManager.MODELS.filter { WhisperModelManager.isReady(ctx, it.id) }
+                android.util.Log.i(BENCH_TAG, "start recordings=${recs.size} models=${models.joinToString(",") { it.id }} quiet=${base.quietMode}")
+                for (m in models) {
+                    running = "${m.label} (load)"
+                    runCatching { OnDeviceStt.warm(ctx, m.id) }
+                    recs.forEachIndexed { i, rec ->
+                        running = "${m.label} ${i + 1}/${recs.size}"
+                        val samples = withContext(Dispatchers.IO) { PendingAudio.samples(ctx, rec.id) } ?: return@forEachIndexed
+                        val t0 = System.nanoTime()
+                        val line = try {
+                            val raw = OnDeviceStt.transcribe(ctx, base.copy(sttModel = m.id), WavIo.toFloats(samples), bias)
+                            val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
+                            "ms=${(System.nanoTime() - t0) / 1_000_000} text=${text.replace('\n', ' ')}"
+                        } catch (e: Exception) {
+                            "error=${e.message ?: e}"
+                        }
+                        android.util.Log.i(BENCH_TAG, "model=${m.id} n=${i + 1} rec=${rec.id} sec=${samples.size / 16000.0} $line")
+                    }
+                }
+                android.util.Log.i(BENCH_TAG, "done")
+                running = null
+            }
+        }
+
         Column(
             Modifier.fillMaxSize().systemBarsPadding().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -121,6 +158,17 @@ class CompareActivity : ComponentActivity() {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (recordings.isNotEmpty()) {
+                    val r = running
+                    if (r == null) {
+                        TextButton(onClick = { runAll() }) { Text("Run all on every model (to log)") }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Text("Running $r…", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
                 if (recordings.isEmpty()) {
                     Text("No saved recordings yet. Dictate something first (with history on).",
                         style = MaterialTheme.typography.bodyMedium)
