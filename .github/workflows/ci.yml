@@ -37,7 +37,7 @@ jobs:
         id: cache
         with:
           path: qnn-out
-          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-v81-${{ hashFiles('.github/patches/sherpa-qnn.patch') }}
+          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-v79v81-${{ hashFiles('.github/patches/sherpa-qnn.patch') }}
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         env:
@@ -61,7 +61,7 @@ jobs:
           tail -5 build.log
           mkdir -p ../qnn-out
           cp -v build-android-arm64-v8a-static/install/lib/libsherpa-onnx-jni.so ../qnn-out/
-          for f in libQnnHtp.so libQnnHtpPrepare.so libQnnSystem.so libQnnHtpV81Stub.so libQnnHtpV81Skel.so; do
+          for f in libQnnHtp.so libQnnHtpPrepare.so libQnnSystem.so libQnnHtpV79Stub.so libQnnHtpV79Skel.so libQnnHtpV81Stub.so libQnnHtpV81Skel.so; do
             cp -v "qnn-libs-$V/$f" ../qnn-out/
           done
           ls -la ../qnn-out

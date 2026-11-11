@@ -39,6 +39,8 @@ object WhisperModelManager {
         val engine: SpeechEngine = SpeechEngine.WHISPER,
         /** One or two letters drawn on the floating bubble so the active model is visible there. */
         val badge: String = label.take(1),
+        /** NPU models: the chips ([NpuSupport]) a bundle has been built for. */
+        val socs: List<String> = emptyList(),
     ) {
         val githubHosted: Boolean get() = releaseTag != null
         /** No download at all: the file can only be imported from the phone. */
@@ -97,6 +99,7 @@ object WhisperModelManager {
             releaseTag = "model-qnn-whisper-medium-sm8850",
             engine = SpeechEngine.QNN_WHISPER,
             badge = "MN",
+            socs = listOf(NpuSupport.SM8850),
         ),
         // The Turbo ACFT weights above on the Qualcomm NPU, compiled in CI (npu-turbo.yml). sherpa-onnx ships no QNN build above Medium; this one needed float16
         // weights to link and the large-v3 token ids in the runtime (sherpa-qnn.patch). Its decoder
@@ -106,18 +109,23 @@ object WhisperModelManager {
         WhisperModel(
             id = TURBO_NPU_MODEL,
             label = "Large v3 Turbo (NPU)",
-            fileName = "sherpa-onnx-qnn-SM8850-binary-whisper-turbo-acft",
+            // One bundle per chip, so the names carry this phone's.
+            fileName = "sherpa-onnx-qnn-${NpuSupport.bundleSoc}-binary-whisper-turbo-acft",
             url = "",
-            sizeLabel = "~1.6GB · Snapdragon NPU",
-            releaseTag = "model-qnn-whisper-turbo-acft-sm8850",
+            sizeLabel = "~1.6GB · Snapdragon NPU" +
+                if (NpuSupport.soc == NpuSupport.SM8750) " · not yet tried on this chip" else "",
+            releaseTag = "model-qnn-whisper-turbo-acft-${NpuSupport.bundleSoc.lowercase()}",
             engine = SpeechEngine.QNN_WHISPER,
             badge = "TN",
+            socs = listOf(NpuSupport.SM8850, NpuSupport.SM8750),
         ),
     )
 
-    /** Models this phone can run: NPU models only on a supported Snapdragon. */
-    fun available(): List<WhisperModel> =
-        MODELS.filter { it.engine != SpeechEngine.QNN_WHISPER || NpuSupport.available }
+    /** Models this phone can run: an NPU model only on a chip it has been built for. */
+    fun available(): List<WhisperModel> = availableOn(NpuSupport.soc)
+
+    internal fun availableOn(soc: String?): List<WhisperModel> =
+        MODELS.filter { it.engine != SpeechEngine.QNN_WHISPER || soc in it.socs }
 
     const val DEFAULT_MODEL = SMALL_ACFT_MODEL
     private const val MIN_VALID_BYTES = 30L * 1024 * 1024

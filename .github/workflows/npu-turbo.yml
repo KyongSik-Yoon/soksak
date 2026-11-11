@@ -1,26 +1,27 @@
-# Experiment: Large v3 Turbo ACFT (the weights the CPU model uses) as Qualcomm QNN context binaries
-# for SM8850. sherpa-onnx publishes nothing above Medium for QNN, so whether this compiles at all
-# is the first question. Same recipe as Medium (NPU) and the removed Small ACFT (NPU):
-# scripts/npu_acft_export.py on the runner, scripts/npu_compile_sm8850.sh in the QAIRT image.
-# Publishes only from main; on the experiment branch the bundle is a workflow artifact.
-name: Build Turbo ACFT NPU model (SM8850)
+# Large v3 Turbo ACFT (the weights the CPU model uses) as Qualcomm QNN context binaries for one
+# Snapdragon chip, published as a pre-release the app downloads. sherpa-onnx publishes nothing above
+# Medium for QNN; this is its recipe on bigger weights: scripts/npu_acft_export.py on the runner,
+# scripts/npu_compile.sh in the QAIRT image. Run by hand, once per chip:
+#   gh workflow run npu-turbo.yml -f soc=SM8750
+# SM8850 = Snapdragon 8 Elite Gen 5 (Galaxy S26 Ultra), SM8750 = Snapdragon 8 Elite (Galaxy Z Fold7).
+name: Build Turbo ACFT NPU model
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, npu-turbo]
-    paths:
-      - .github/workflows/npu-turbo.yml
-      - scripts/npu_acft_export.py
-      - scripts/npu_compile_sm8850.sh
+    inputs:
+      soc:
+        description: Chip to compile for
+        type: choice
+        options: [SM8850, SM8750]
+        default: SM8850
 
 permissions:
   contents: write
 
 env:
   SHERPA: 347ec768a01ca53e766780f7759b14e145b643e6
-  NAME: sherpa-onnx-qnn-SM8850-binary-whisper-turbo-acft
-  TAG: model-qnn-whisper-turbo-acft-sm8850
+  SOC: ${{ inputs.soc }}
+  NAME: sherpa-onnx-qnn-${{ inputs.soc }}-binary-whisper-turbo-acft
   HF_REPO: MahmoudAshraf/acft-whisper-large-v3-turbo
 
 jobs:
@@ -58,7 +59,7 @@ jobs:
           rm -rf ~/.cache/huggingface
           ls -la; df -h /; free -g
       - name: Compile context binaries (QAIRT 2.40 image)
-        run: docker run --rm -v "$PWD:/w" -e SHERPA -e NAME -e CONVERT_ARGS="--float_bitwidth 16" ghcr.io/k2-fsa/qnn-sdk:2.40 bash /w/scripts/npu_compile_sm8850.sh
+        run: docker run --rm -v "$PWD:/w" -e SHERPA -e NAME -e SOC -e CONVERT_ARGS="--float_bitwidth 16" ghcr.io/k2-fsa/qnn-sdk:2.40 bash /w/scripts/npu_compile.sh
       - uses: actions/upload-artifact@v4
         with:
           name: npu-model
@@ -79,7 +80,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -ex
+          TAG="model-qnn-whisper-turbo-acft-$(echo "$SOC" | tr 'A-Z' 'a-z')"
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
-            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --title "Large v3 Turbo ACFT (NPU) for SM8850" \
-              --notes "QNN context binaries of Mahmoud Ashraf's ACFT whisper-large-v3-turbo (Apache 2.0) for Snapdragon 8 Elite Gen 5 (SM8850), compiled with QAIRT 2.40. Built by .github/workflows/npu-turbo.yml."
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --title "Large v3 Turbo ACFT (NPU) for $SOC" \
+              --notes "QNN context binaries of Mahmoud Ashraf's ACFT whisper-large-v3-turbo (Apache 2.0) for Snapdragon $SOC, compiled with QAIRT 2.40. Built by .github/workflows/npu-turbo.yml."
           gh release upload "$TAG" "$NAME.tar.bz2" -R "$GITHUB_REPOSITORY" --clobber

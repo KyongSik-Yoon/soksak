@@ -11,8 +11,21 @@ class NpuSupportTest {
         assertTrue(NpuSupport.supports("QTI", "sm8850-ac"))
     }
 
+    @Test fun snapdragon8EliteIsSupportedAsItsOwnChip() {
+        // Galaxy Z Fold7. Its bundles and HTP libraries (v79) differ from SM8850's.
+        assertEquals(NpuSupport.SM8750, NpuSupport.socOf("QTI", "SM8750-AC"))
+        assertEquals(NpuSupport.SM8850, NpuSupport.socOf("QTI", "SM8850"))
+    }
+
+    @Test fun eachChipSeesOnlyTheNpuModelsBuiltForIt() {
+        fun npu(soc: String?) = WhisperModelManager.availableOn(soc).filter { it.engine == SpeechEngine.QNN_WHISPER }.map { it.id }
+        assertEquals(listOf(WhisperModelManager.MEDIUM_NPU_MODEL, WhisperModelManager.TURBO_NPU_MODEL), npu(NpuSupport.SM8850))
+        assertEquals(listOf(WhisperModelManager.TURBO_NPU_MODEL), npu(NpuSupport.SM8750))
+        assertEquals(emptyList<String>(), npu(null))
+    }
+
     @Test fun otherChipsAreNot() {
-        assertFalse(NpuSupport.supports("QTI", "SM8750")) // needs the v79 skel, not bundled
+        assertFalse(NpuSupport.supports("QTI", "SM8650")) // needs the v75 skel and its own bundles
         assertFalse(NpuSupport.supports("Samsung", "s5e9965")) // Exynos
         assertFalse(NpuSupport.supports("QTI", null))
     }
