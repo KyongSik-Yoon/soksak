@@ -293,8 +293,9 @@ class BubbleService : Service() {
         // A start from our own visible UI is the moment the microphone type can be (re)acquired;
         // see [micReady]. Harmless when it already holds it.
         if (!micReady) enterForeground()
-        // The dictation widget: same as tapping the bubble (start, or stop the running take).
-        if (intent?.action == ACTION_DICTATE) mainHandler.post { onTap() }
+        // The dictation widget: like tapping the bubble (start, or stop the running take), but
+        // the take goes to the PC — it's used with the phone locked, where there is no field.
+        if (intent?.action == ACTION_DICTATE) mainHandler.post { onTap(toPc = true) }
         return START_STICKY
     }
 
@@ -338,9 +339,10 @@ class BubbleService : Service() {
      * Start a dictation: headless when possible ([HeadlessDictation]), otherwise the sheet.
      * Settings are read off the main thread; the gesture's haptic has already fired.
      */
-    private fun beginDictation(pushToTalk: Boolean) {
+    private fun beginDictation(pushToTalk: Boolean, toPc: Boolean = false) {
         CoroutineScope(Dispatchers.Main).launch {
             val s = runCatching { SettingsRepository(applicationContext).get().forDictation() }.getOrNull()
+                ?.let { if (toPc) it.copy(pcSend = PcLink.PC_ONLY) else it }
             val headless = s != null && HeadlessDictation.canRun(applicationContext, s) &&
                 HeadlessDictation.start(applicationContext, s, pushToTalk) {
                     // Silenced microphone: say nothing, just let the sheet take this take.
@@ -826,14 +828,15 @@ class BubbleService : Service() {
         railRight?.visibility = View.GONE
     }
 
-    private fun onTap() {
+    /** [toPc]: the widget's take, sent to the PC whatever the PC-send setting says. */
+    private fun onTap(toPc: Boolean = false) {
         val stop = recordingStopper
         if (stop != null) {
             hapticEnd()
             mainHandler.post(stop) // stop the in-progress recording
         } else {
             hapticStart()
-            beginDictation(pushToTalk = false)
+            beginDictation(pushToTalk = false, toPc = toPc)
         }
     }
 
