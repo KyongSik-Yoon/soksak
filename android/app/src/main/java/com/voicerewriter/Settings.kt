@@ -43,12 +43,6 @@ data class Settings(
      */
     val quietMode: Boolean = false,
     val quietModel: String = WhisperModelManager.SMALL_ACFT_MODEL,
-    /**
-     * The model a take started from the widget runs on; blank follows [quietModel]. The widget is
-     * used with the phone locked, to talk to the PC, and may want a different model from the
-     * bubble's.
-     */
-    val widgetModel: String = "",
     /** sherpa's QNN debug output and per-execution profiling, for Copy debug log. Costs NPU time. */
     val npuDiagnostics: Boolean = false,
     /** Settings screen language: "auto" (phone), "ko" or "en". See [I18n]. */
@@ -76,13 +70,15 @@ data class Settings(
 
     /**
      * The settings a widget take runs with: sent to the PC whatever the PC-send setting says
-     * (there is no field to type into), recorded as in Quiet mode (the user whispers there) on
-     * [widgetModel], and ended after [autoStop] seconds of silence. Nothing is saved.
+     * (there is no field to type into), recorded as in Quiet mode (the user whispers there), and
+     * ended after [autoStop] seconds of silence. It runs on the model the bubble is using right
+     * now — the one already loaded — and not on Quiet mode's own model, which meant a model load
+     * of several seconds at the start of a take whenever the two differed. Nothing is saved.
      */
     fun forWidgetTake(autoStop: Double): Settings = copy(
         pcSend = PcLink.PC_ONLY,
         quietMode = true,
-        quietModel = widgetModel.ifBlank { quietModel },
+        quietModel = forDictation().sttModel,
         autoStopSeconds = autoStop,
     )
 }
@@ -102,7 +98,6 @@ class SettingsRepository(private val context: Context) {
         val UI_LANGUAGE = stringPreferencesKey("uiLanguage")
         val QUIET_MODE = booleanPreferencesKey("quietMode")
         val QUIET_MODEL = stringPreferencesKey("quietModel")
-        val WIDGET_MODEL = stringPreferencesKey("widgetModel")
         val NPU_DIAGNOSTICS = booleanPreferencesKey("npuDiagnostics")
         val PC_SEND = stringPreferencesKey("pcSend")
         val PC_HOST = stringPreferencesKey("pcHost")
@@ -117,6 +112,7 @@ class SettingsRepository(private val context: Context) {
          * cleanup, Parakeet). Dropped on the next save so a stale LLM API key doesn't linger.
          */
         val RETIRED_STRINGS = listOf(
+            "widgetModel", // one build (2026-11-11) let the widget have its own model
             "provider", "model", "customEndpoint", "apiKey", "voice", "defaultMode", "polishLevel",
             "githubToken", "sttProvider", "sttEndpoint", "sttKey",
         ).map { stringPreferencesKey(it) }
@@ -138,7 +134,6 @@ class SettingsRepository(private val context: Context) {
             uiLanguage = p[Keys.UI_LANGUAGE] ?: defaults.uiLanguage,
             quietMode = p[Keys.QUIET_MODE] ?: defaults.quietMode,
             quietModel = p[Keys.QUIET_MODEL] ?: defaults.quietModel,
-            widgetModel = p[Keys.WIDGET_MODEL] ?: defaults.widgetModel,
             npuDiagnostics = p[Keys.NPU_DIAGNOSTICS] ?: defaults.npuDiagnostics,
             pcSend = p[Keys.PC_SEND] ?: defaults.pcSend,
             pcHost = p[Keys.PC_HOST] ?: defaults.pcHost,
@@ -164,7 +159,6 @@ class SettingsRepository(private val context: Context) {
             p[Keys.UI_LANGUAGE] = s.uiLanguage
             p[Keys.QUIET_MODE] = s.quietMode
             p[Keys.QUIET_MODEL] = s.quietModel
-            p[Keys.WIDGET_MODEL] = s.widgetModel
             p[Keys.NPU_DIAGNOSTICS] = s.npuDiagnostics
             p[Keys.PC_SEND] = s.pcSend
             p[Keys.PC_HOST] = s.pcHost

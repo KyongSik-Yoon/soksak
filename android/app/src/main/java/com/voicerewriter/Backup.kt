@@ -29,7 +29,6 @@ object Backup {
             .put("pipelinedWhisper", s.pipelinedWhisper)
             .put("quietMode", s.quietMode)
             .put("quietModel", s.quietModel)
-            .put("widgetModel", s.widgetModel)
             .put("npuDiagnostics", s.npuDiagnostics)
             .put("uiLanguage", s.uiLanguage)
             .put("reviewBeforeInsert", s.reviewBeforeInsert)
@@ -67,7 +66,6 @@ object Backup {
             pipelinedWhisper = bool("pipelinedWhisper", current.pipelinedWhisper),
             quietMode = bool("quietMode", current.quietMode),
             quietModel = str("quietModel", current.quietModel),
-            widgetModel = str("widgetModel", current.widgetModel),
             npuDiagnostics = bool("npuDiagnostics", current.npuDiagnostics),
             uiLanguage = str("uiLanguage", current.uiLanguage),
             reviewBeforeInsert = bool("reviewBeforeInsert", current.reviewBeforeInsert),
