@@ -434,8 +434,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         val got = f?.let { "${it.className?.toString()?.substringAfterLast('.')}" } ?: "null"
         @Suppress("DEPRECATION") f?.recycle()
         val found = scanFocusedEditable(root)
-        Log.i(TAG, "findFocus gave $got in ${root.packageName}; tree scan " +
-            if (found != null) "found the focused field" else "found none")
+        if (found != null) Log.i(TAG, "findFocus gave $got in ${root.packageName}; tree scan found the focused field")
         return found
     }
 
