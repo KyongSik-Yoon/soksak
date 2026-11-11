@@ -22,6 +22,7 @@
 - 확정된 결정
   - 음성 인식: Whisper만 쓴다 — CPU(whisper.cpp, `android/lib`)와 NPU(sherpa-onnx QNN). 기본 Tiny/Base/Small과 SenseVoice는 쓰지 않아 2026-11-09 제거했다(`ModelDownloader`의 RETIRED 목록이 폰에서 파일을 지운다). Moonshine(tiny→Base Korean)은
     2026-11-08 추가했다가 2026-11-09 제거 — 라우팅 벤치에서 소음에 매우 약하고(0dB 97% CER) 다른 모델 대비 장점이 없었다. Parakeet, Hinglish, LLM(AI polish, Rewrite), Smart cleanup(규칙 기반 정리)은 제거 상태 유지.
+  - 클라우드 STT(Groq/OpenAI/Custom, 원작에서 물려받음)는 2026-11-11 제거했다. 음성 인식은 온디바이스뿐이다. 저장된 `sttProvider`·`sttEndpoint`·`sttKey`는 다음 설정 저장 때 폰에서 지워진다.
   - 기본 언어 한국어. 한국어+영어 개발 용어가 섞인 발화가 주 사용 사례.
   - Turbo q5_0은 느리고 이득이 없어 제거, q4_0만 유지.
   - GPU 가속은 Vulkan, OpenCL 모두 CPU보다 느려 제거(아래 GPU 절). 다시 시도하지 않는다.

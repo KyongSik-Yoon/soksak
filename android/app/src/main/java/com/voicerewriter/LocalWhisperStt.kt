@@ -15,7 +15,6 @@ import kotlinx.coroutines.withContext
  * downloaded model into a cached WhisperContext (reused across dictations) and
  * transcribes 16 kHz mono float samples fully offline.
  *
- * Same role as [SttEngine] but local; the caller picks based on the STT provider.
  */
 object LocalWhisperStt {
 

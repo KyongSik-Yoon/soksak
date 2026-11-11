@@ -195,16 +195,13 @@ class BubbleService : Service() {
 
     /**
      * Best-effort cold-start warmup so the first dictation doesn't stall on model loads.
-     * Only touches the on-device path (cloud needs no warmup) and never crashes the service:
-     * preloads the cached Whisper context, which is reused across dictations.
+     * Never crashes the service: preloads the cached Whisper context, which is reused across dictations.
      */
     private fun warmModels() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val s = SettingsRepository(applicationContext).get()
-                if (s.sttProvider == "local") {
-                    OnDeviceStt.warm(applicationContext, s.sttModel)
-                }
+                OnDeviceStt.warm(applicationContext, s.sttModel)
             } catch (e: Exception) {
                 android.util.Log.w("BubbleService", "warmup skipped", e)
             }

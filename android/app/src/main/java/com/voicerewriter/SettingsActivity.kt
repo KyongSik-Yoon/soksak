@@ -119,9 +119,6 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var micGranted by remember { mutableStateOf(false) }
 
     // STT
-    var sttProvider by remember { mutableStateOf(Defaults.DEFAULT_STT_PROVIDER) }
-    var sttEndpoint by remember { mutableStateOf("") }
-    var sttKey by remember { mutableStateOf("") }
     var sttModel by remember { mutableStateOf("") }
     var sttLanguage by remember { mutableStateOf(DictationLanguage.DEFAULT) }
     var vadAutoStop by remember { mutableStateOf(true) }
@@ -171,11 +168,11 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
 
     LaunchedEffect(Unit) {
         val s = repo.get()
-        sttProvider = s.sttProvider; sttEndpoint = s.sttEndpoint; sttKey = s.sttKey; sttModel = s.sttModel
+        sttModel = s.sttModel
         // A blank id, or one a previous build offered (Parakeet, the Hinglish fine-tune), shows
         // here as the downloaded Whisper model that will actually run, so the list has an active
         // row. Only when that model is on disk: an "Active" row hides its own Get button.
-        if (sttProvider == "local" && OnDeviceStt.resolveModel(sttModel) != sttModel) {
+        if (OnDeviceStt.resolveModel(sttModel) != sttModel) {
             val running = OnDeviceStt.resolveModel(context, sttModel)
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
@@ -263,7 +260,6 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var pickingLanguage by remember { mutableStateOf(false) }
 
     fun snapshot() = Settings(
-        sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
         vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, bubbleOnlyOnFields = bubbleOnlyOnFields,
         pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(), pcType = pcType,
@@ -467,72 +463,34 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             Section(tr("Voice · transcription")) {
                 Card {
                     Padded {
-                        Label(tr("Engine"))
+                        Text(tr("Models download once, then run fully offline."),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        // Which model suits *this* phone, not which is biggest. The list
+                        // below shows every option regardless — this is the hint that keeps
+                        // someone on a 3GB device from picking the 488MB one and hitting an
+                        // out-of-memory failure they have no way to diagnose.
+                        Text(deviceHint,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
-                        Segment(
-                            options = listOf("local" to tr("On-device"), "groq" to "Groq", "openai" to "OpenAI", "custom" to tr("Custom")),
-                            selected = sttProvider,
-                            onSelect = {
-                                sttProvider = it
-                                if (it != "custom" && it != "local") {
-                                    val d = Defaults.STT_PROVIDERS[it]?.defaultModel.orEmpty()
-                                    if (d.isNotEmpty()) sttModel = d
-                                }
-                                persist()
-                            },
-                        )
-                    }
-                    if (sttProvider == "local") {
-                        Divider()
-                        Padded {
-                            Text(tr("Models download once, then run fully offline."),
-                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(6.dp))
-                            // Which model suits *this* phone, not which is biggest. The list
-                            // below shows every option regardless — this is the hint that keeps
-                            // someone on a 3GB device from picking the 488MB one and hitting an
-                            // out-of-memory failure they have no way to diagnose.
-                            Text(deviceHint,
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(12.dp))
-                            modelsRev // read so this recomposes after a download finishes
-                            sttModelOptions(recommendedId).forEach { m ->
-                                ModelRow(
-                                    name = m.name, meta = m.meta, recommended = m.recommended,
-                                    state = sttModelState(m.id), progress = dlProgress,
-                                    getLabel = if (needsImport(m.id)) tr("Import") else tr("Get"),
-                                    onGet = {
-                                        if (needsImport(m.id)) {
-                                            importTarget = m.id
-                                            importLauncher.launch(arrayOf("*/*"))
-                                        } else downloadStt(m.id)
-                                    },
-                                    onUse = { NpuLoadGuard.reset(context, m.id); sttModel = m.id; persist() },
-                                    onDelete = {
-                                        pendingDelete = DeletableModel(m.id, m.name, m.meta)
-                                    },
-                                )
-                                Spacer(Modifier.height(10.dp))
-                            }
-                        }
-                    } else {
-                        Divider()
-                        Padded {
-                            Label(tr("API key"))
-                            Spacer(Modifier.height(8.dp))
-                            KeyField(sttKey, Defaults.STT_PROVIDERS[sttProvider]?.let { keyPlaceholder(sttProvider) } ?: tr("key")) { sttKey = it; persist() }
-                            if (sttProvider == "custom") {
-                                Spacer(Modifier.height(10.dp))
-                                KeyField(sttEndpoint, tr("Transcription endpoint URL")) { sttEndpoint = it; persist() }
-                                Spacer(Modifier.height(10.dp))
-                                KeyField(sttModel, tr("Model id")) { sttModel = it; persist() }
-                            }
+                        modelsRev // read so this recomposes after a download finishes
+                        sttModelOptions(recommendedId).forEach { m ->
+                            ModelRow(
+                                name = m.name, meta = m.meta, recommended = m.recommended,
+                                state = sttModelState(m.id), progress = dlProgress,
+                                getLabel = if (needsImport(m.id)) tr("Import") else tr("Get"),
+                                onGet = {
+                                    if (needsImport(m.id)) {
+                                        importTarget = m.id
+                                        importLauncher.launch(arrayOf("*/*"))
+                                    } else downloadStt(m.id)
+                                },
+                                onUse = { NpuLoadGuard.reset(context, m.id); sttModel = m.id; persist() },
+                                onDelete = {
+                                    pendingDelete = DeletableModel(m.id, m.name, m.meta)
+                                },
+                            )
                             Spacer(Modifier.height(10.dp))
-                            InfoNote(buildString {
-                                append(tr("Audio is sent to "))
-                                append(if (sttProvider == "groq") "Groq" else if (sttProvider == "openai") "OpenAI" else tr("your provider"))
-                                append(tr(" for transcription."))
-                            }) { sttProvider = "local"; persist() }
                         }
                     }
                     Divider()
@@ -1001,10 +959,6 @@ private data class SttModelOption(val id: String, val name: String, val meta: St
 private fun sttModelOptions(recommendedId: String): List<SttModelOption> =
     WhisperModelManager.available().map { SttModelOption(it.id, it.label, it.sizeLabel, it.id == recommendedId) }
 
-private fun keyPlaceholder(provider: String) = when (provider) {
-    "groq" -> "gsk_..."; "openai" -> "sk-..."; else -> tr("key or endpoint")
-}
-
 /* ------------------------ reusable pieces ------------------------ */
 
 @Composable
@@ -1192,15 +1146,6 @@ private fun NavRow(title: String, subtitle: String? = null, danger: Boolean = fa
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(icon ?: Icons.Filled.ChevronRight, null, tint = if (danger) color else MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-private fun InfoNote(text: String, onSwitch: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer).padding(12.dp)) {
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(4.dp))
-        Text(tr("Switch to on-device to keep everything private."), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { onSwitch() })
     }
 }
 

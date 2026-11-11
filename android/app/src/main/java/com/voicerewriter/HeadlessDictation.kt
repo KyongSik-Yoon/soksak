@@ -58,7 +58,6 @@ object HeadlessDictation {
     fun canRun(ctx: Context, s: Settings): Boolean =
         s.headlessRecording &&
             BubbleService.micReady &&
-            s.sttProvider == "local" &&
             OpenWisprAccessibilityService.isEnabled &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
             OnDeviceStt.isReady(ctx, s.sttModel)
@@ -157,7 +156,7 @@ object HeadlessDictation {
                 // Write-ahead, as in the sheet: a failed or killed transcription stays
                 // retryable from Home instead of taking the words with it.
                 pendingId = withContext(Dispatchers.IO) {
-                    PendingAudio.begin(ctx, samples, durationSec, host, label, s.sttProvider, s.sttModel)?.id
+                    PendingAudio.begin(ctx, samples, durationSec, host, label, s.sttModel)?.id
                 }
                 val vocab = VocabRepository(ctx).get()
                 val bias = if (vocab.isEmpty()) null else VocabCorrector.biasPrompt(vocab)
@@ -209,7 +208,7 @@ object HeadlessDictation {
             durationSec = durationSec,
             words = words,
             accepted = true,
-            onDevice = s.sttProvider == "local",
+            onDevice = true,
             before = before,
             after = after,
         )

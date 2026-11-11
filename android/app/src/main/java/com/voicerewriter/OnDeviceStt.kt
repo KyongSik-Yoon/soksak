@@ -12,11 +12,11 @@ object OnDeviceStt {
     /**
      * Resolve a stored [Settings.sttModel] to a known on-device model id. A blank or unrecognized
      * value (a fresh install, or a model a previous build offered and this one dropped) falls
-     * back to the local provider's default.
+     * back to the default model.
      */
     fun resolveModel(modelId: String): String =
         if (WhisperModelManager.MODELS.any { it.id == modelId }) modelId
-        else Defaults.STT_PROVIDERS.getValue("local").defaultModel
+        else WhisperModelManager.DEFAULT_MODEL
 
     /**
      * Same as [resolveModel] but able to see what is actually on disk: when the stored model is

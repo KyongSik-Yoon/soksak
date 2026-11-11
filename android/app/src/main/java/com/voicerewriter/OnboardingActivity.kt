@@ -226,7 +226,7 @@ private fun OnboardingScreen(onLaunchDictation: () -> Unit, onGoHome: () -> Unit
     fun persistStt() {
         scope.launch(Dispatchers.IO) {
             val repo = SettingsRepository(ctx)
-            repo.save(repo.get().copy(sttProvider = "local", sttModel = fit.sttModel))
+            repo.save(repo.get().copy(sttModel = fit.sttModel))
         }
     }
 

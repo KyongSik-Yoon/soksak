@@ -15,9 +15,6 @@ import kotlinx.coroutines.flow.map
 /** The app's default settings. */
 data class Settings(
     // --- Speech-to-text (Whisper) ---
-    val sttProvider: String = Defaults.DEFAULT_STT_PROVIDER,
-    val sttEndpoint: String = "", // only used when sttProvider == "custom"
-    val sttKey: String = "",
     val sttModel: String = "",
     // Dictation language handed to whisper.cpp (non-English also switches on beam search).
     val sttLanguage: String = DictationLanguage.DEFAULT,
@@ -70,20 +67,6 @@ data class Settings(
     /** The settings a dictation runs with: Quiet mode swaps in its own model. */
     fun forDictation(): Settings =
         if (quietMode && quietModel.isNotBlank()) copy(sttModel = quietModel) else this
-
-    /** Cloud speech-to-text needs an API key. */
-    val isSttConfigured: Boolean get() = sttKey.isNotBlank()
-
-    /** Resolved STT endpoint (custom override, else the provider default). */
-    val sttEndpointResolved: String
-        get() = if (sttProvider == "custom") sttEndpoint.trim()
-                else Defaults.STT_PROVIDERS[sttProvider]?.endpoint.orEmpty()
-
-    /** Resolved STT model (explicit override, else the provider default). */
-    val sttModelResolved: String
-        get() = sttModel.trim().ifEmpty {
-            Defaults.STT_PROVIDERS[sttProvider]?.defaultModel.orEmpty()
-        }
 }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -91,9 +74,6 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class SettingsRepository(private val context: Context) {
 
     private object Keys {
-        val STT_PROVIDER = stringPreferencesKey("sttProvider")
-        val STT_ENDPOINT = stringPreferencesKey("sttEndpoint")
-        val STT_KEY = stringPreferencesKey("sttKey")
         val STT_MODEL = stringPreferencesKey("sttModel")
         val STT_LANGUAGE = stringPreferencesKey("sttLanguage")
         val VAD_AUTO_STOP = booleanPreferencesKey("vadAutoStop")
@@ -119,7 +99,7 @@ class SettingsRepository(private val context: Context) {
          */
         val RETIRED_STRINGS = listOf(
             "provider", "model", "customEndpoint", "apiKey", "voice", "defaultMode", "polishLevel",
-            "githubToken",
+            "githubToken", "sttProvider", "sttEndpoint", "sttKey",
         ).map { stringPreferencesKey(it) }
         val RETIRED_BOOLEANS = listOf("antiAI", "deterministicCleanup", "parakeetHotwordsExperimental")
             .map { booleanPreferencesKey(it) }
@@ -129,9 +109,6 @@ class SettingsRepository(private val context: Context) {
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
         val defaults = Settings()
         Settings(
-            sttProvider = p[Keys.STT_PROVIDER] ?: defaults.sttProvider,
-            sttEndpoint = p[Keys.STT_ENDPOINT] ?: defaults.sttEndpoint,
-            sttKey = p[Keys.STT_KEY] ?: defaults.sttKey,
             sttModel = p[Keys.STT_MODEL] ?: defaults.sttModel,
             sttLanguage = DictationLanguage.normalize(p[Keys.STT_LANGUAGE] ?: defaults.sttLanguage),
             vadAutoStop = p[Keys.VAD_AUTO_STOP] ?: defaults.vadAutoStop,
@@ -157,9 +134,6 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun save(s: Settings) {
         context.dataStore.edit { p ->
-            p[Keys.STT_PROVIDER] = s.sttProvider
-            p[Keys.STT_ENDPOINT] = s.sttEndpoint
-            p[Keys.STT_KEY] = s.sttKey
             p[Keys.STT_MODEL] = s.sttModel
             p[Keys.STT_LANGUAGE] = DictationLanguage.normalize(s.sttLanguage)
             p[Keys.VAD_AUTO_STOP] = s.vadAutoStop

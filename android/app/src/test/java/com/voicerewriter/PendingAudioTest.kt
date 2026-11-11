@@ -20,7 +20,7 @@ class PendingAudioTest {
     private fun rec(id: String, ageDays: Long, result: String? = "ok") = PendingRecording(
         id = id, timestamp = now - ageDays * day, durationSec = 3,
         appPackage = "com.example", appLabel = "Example",
-        sttProvider = "local", sttModel = "parakeet", result = result,
+        sttModel = "parakeet", result = result,
     )
 
     @Test fun neverExpiresAnUnsettledRecording() {

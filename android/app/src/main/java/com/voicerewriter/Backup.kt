@@ -8,8 +8,8 @@ import org.json.JSONObject
  * move to another install: a new phone, or this app under a new application id, which Android
  * treats as a different app with empty storage.
  *
- * Secrets stay out of the file: the speech API key and the PC pairing code are
- * never written and a restore keeps whatever this install already has for them. Downloaded models aren't included
+ * Secrets stay out of the file: the PC pairing code is
+ * never written and a restore keeps whatever this install already has for it. Downloaded models aren't included
  * (hundreds of MB; download them again).
  */
 object Backup {
@@ -20,8 +20,6 @@ object Backup {
 
     fun encode(s: Settings, vocabJson: String?): String {
         val settings = JSONObject()
-            .put("sttProvider", s.sttProvider)
-            .put("sttEndpoint", s.sttEndpoint)
             .put("sttModel", s.sttModel)
             .put("sttLanguage", s.sttLanguage)
             .put("vadAutoStop", s.vadAutoStop)
@@ -59,8 +57,6 @@ object Backup {
         fun bool(k: String, d: Boolean) = if (o.has(k)) o.optBoolean(k, d) else d
         fun dbl(k: String, d: Double) = if (o.has(k)) o.optDouble(k, d) else d
         val settings = current.copy(
-            sttProvider = str("sttProvider", current.sttProvider),
-            sttEndpoint = str("sttEndpoint", current.sttEndpoint),
             sttModel = str("sttModel", current.sttModel),
             sttLanguage = str("sttLanguage", current.sttLanguage),
             vadAutoStop = bool("vadAutoStop", current.vadAutoStop),

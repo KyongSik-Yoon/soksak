@@ -17,7 +17,7 @@ class OnDeviceSttResolveTest {
     }
 
     @Test fun `a blank id falls back to the local default`() {
-        assertEquals(Defaults.STT_PROVIDERS.getValue("local").defaultModel, OnDeviceStt.resolveModel(""))
+        assertEquals(WhisperModelManager.DEFAULT_MODEL, OnDeviceStt.resolveModel(""))
     }
 
     @Test fun `retired engines fall back to the local default`() {
@@ -27,7 +27,7 @@ class OnDeviceSttResolveTest {
     }
 
     @Test fun `the local default is a real whisper model`() {
-        val id = Defaults.STT_PROVIDERS.getValue("local").defaultModel
+        val id = WhisperModelManager.DEFAULT_MODEL
         assertEquals(id, WhisperModelManager.model(id).id)
     }
 

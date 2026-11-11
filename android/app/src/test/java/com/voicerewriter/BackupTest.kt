@@ -13,7 +13,7 @@ class BackupTest {
 
     private val mine = Settings(
         sttModel = "medium-npu", quietMode = true, autoStopSeconds = 3.0, promptExample = "예시 문장",
-        uiLanguage = "ko", sttKey = "sk-SECRET",
+        uiLanguage = "ko",
         pcSend = PcLink.BOTH, pcHost = "100.68.1.2", pcType = true, pcCode = "SECRETCODE",
     )
 
@@ -36,9 +36,8 @@ class BackupTest {
     @Test fun `secrets never reach the file and the restoring install keeps its own`() {
         val text = Backup.encode(mine, vocab)
         assertFalse(text.contains("SECRET"))
-        val here = Settings(sttKey = "sk-HERE", pcCode = "HERECODE23")
+        val here = Settings(pcCode = "HERECODE23")
         val r = Backup.decode(text, here)
-        assertEquals("sk-HERE", r.settings.sttKey)
         assertEquals("HERECODE23", r.settings.pcCode)
     }
 
@@ -52,5 +51,10 @@ class BackupTest {
         assertThrows(IllegalArgumentException::class.java) {
             Backup.decode("""{"format":"soksak-backup","version":99}""", Settings())
         }
+    }
+
+    @Test fun `an old backup that names a cloud engine still restores`() {
+        val old = """{"format":"soksak-backup","version":1,"settings":{"sttProvider":"groq","sttEndpoint":"https://x","sttModel":"medium-npu"}}"""
+        assertEquals("medium-npu", Backup.decode(old, Settings()).settings.sttModel)
     }
 }

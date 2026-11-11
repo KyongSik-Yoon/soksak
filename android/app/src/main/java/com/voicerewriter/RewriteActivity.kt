@@ -221,7 +221,7 @@ class RewriteActivity : ComponentActivity() {
     private var dictationHostPkg: String? = null
 
     /** Log a finished dictation to the Home feed (off-thread; no-op when history is disabled). */
-    private fun recordHistory(before: String, after: String, durationSec: Int, edited: Boolean, onDevice: Boolean) {
+    private fun recordHistory(before: String, after: String, durationSec: Int, edited: Boolean) {
         if (after.isBlank()) return
         val pkg = (dictationHostPkg ?: OpenWisprAccessibilityService.lastHostPackage).orEmpty()
         val label = appLabel(pkg)
@@ -234,7 +234,7 @@ class RewriteActivity : ComponentActivity() {
             durationSec = durationSec,
             words = words,
             accepted = !edited,
-            onDevice = onDevice,
+            onDevice = true,
             before = before,
             after = after,
         )
@@ -360,8 +360,7 @@ class RewriteActivity : ComponentActivity() {
             // result would vanish onto the clipboard with nothing shown — it keeps the sheet.
             val s = settings
             if (autoRecord && s != null && !s.reviewBeforeInsert) {
-                recordHistory(transcript, text, durationSec, edited = false,
-                    onDevice = s.sttProvider == "local")
+                recordHistory(transcript, text, durationSec, edited = false)
                 acceptVoice(text, s)
                 return
             }
@@ -378,7 +377,7 @@ class RewriteActivity : ComponentActivity() {
         /**
          * Transcribe a take and run it through the cleanup pipeline. Shared by the first
          * attempt and every retry — a retry must not be a second, subtly different code path.
-         * [recId] names the durable copy; the cloud backend uploads that exact file.
+         * [recId] names the durable copy, if one could be written.
          */
         fun runTranscription(s: Settings, samples: ShortArray, recId: String?) {
             error = null; notice = null; finalText = ""
@@ -388,14 +387,10 @@ class RewriteActivity : ComponentActivity() {
             streamJob = scope.launch {
                 try {
                     val vocab = VocabRepository(this@RewriteActivity).get()
-                    // Personal vocab biases decoding (B3) on both backends, then snaps
+                    // Personal vocab biases decoding (B3), then snaps
                     // remaining near-misses afterward (B2).
                     val bias = if (vocab.isEmpty()) null else VocabCorrector.biasPrompt(vocab)
-                    val raw = if (s.sttProvider == "local") {
-                        OnDeviceStt.transcribe(this@RewriteActivity, s, WavIo.toFloats(samples), bias)
-                    } else {
-                        SttEngine.transcribe(s, PendingAudio.wavFile(this@RewriteActivity, recId!!), bias)
-                    }
+                    val raw = OnDeviceStt.transcribe(this@RewriteActivity, s, WavIo.toFloats(samples), bias)
                     val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
                     if (text.isBlank()) { error = "Empty transcript. Try again."; stage = Stage.ERROR }
                     else process(s, text)
@@ -433,21 +428,13 @@ class RewriteActivity : ComponentActivity() {
                 return
             }
             // Write-ahead: the take is on durable storage before the first transcription
-            // attempt, on the on-device path too — that path used to hold the only copy in
-            // RAM, so any failure or process death took the recording with it.
+            // attempt, so a failure or process death doesn't take the recording with it.
             val host = (dictationHostPkg ?: OpenWisprAccessibilityService.lastHostPackage).orEmpty()
             val rec = PendingAudio.begin(
                 this@RewriteActivity, samples, durationSec,
                 appPackage = host, appLabel = appLabel(host),
-                sttProvider = s.sttProvider, sttModel = s.sttModel,
+                sttModel = s.sttModel,
             )
-            if (rec == null && s.sttProvider != "local") {
-                // The cloud upload needs a file and we just failed to write one — say so
-                // rather than proceeding as if a recoverable copy existed.
-                error = "Couldn't save the recording. Free up some storage and try again."
-                stage = Stage.ERROR
-                return
-            }
             runTranscription(s, samples, rec?.id)
         }
 
@@ -500,36 +487,30 @@ class RewriteActivity : ComponentActivity() {
         }
 
         fun ensurePermissionThenRecord(s: Settings) {
-            if (s.sttProvider == "local") {
-                if (!OnDeviceStt.isReady(this, s.sttModel)) {
-                    // No model on disk at all. Onboarding starts the download and deliberately
-                    // doesn't wait for it, so a first dictation can land mid-download: sit on a
-                    // spinner and start the moment it lands. With no download running there is
-                    // nothing to wait for, so say so at once.
-                    if (!WhisperModelManager.anyDownloading) {
-                        error = "On-device model not downloaded. Open Settings → Voice → Download model."
-                        stage = Stage.ERROR
-                        return
-                    }
-                    error = null
-                    stage = Stage.WAITING_MODEL
-                    scope.launch {
-                        val deadline = System.currentTimeMillis() + MODEL_WAIT_TIMEOUT_MS
-                        while (System.currentTimeMillis() < deadline) {
-                            delay(500)
-                            if (OnDeviceStt.isReady(this@RewriteActivity, s.sttModel)) {
-                                requestMicThenRecord(s)
-                                return@launch
-                            }
-                        }
-                        error = "On-device model not downloaded. Open Settings → Voice → Download model."
-                        stage = Stage.ERROR
-                    }
+            if (!OnDeviceStt.isReady(this, s.sttModel)) {
+                // No model on disk at all. Onboarding starts the download and deliberately
+                // doesn't wait for it, so a first dictation can land mid-download: sit on a
+                // spinner and start the moment it lands. With no download running there is
+                // nothing to wait for, so say so at once.
+                if (!WhisperModelManager.anyDownloading) {
+                    error = "On-device model not downloaded. Open Settings → Voice → Download model."
+                    stage = Stage.ERROR
                     return
                 }
-            } else if (!s.isSttConfigured) {
-                error = "No speech-to-text key set. Open Soksak settings."
-                stage = Stage.ERROR
+                error = null
+                stage = Stage.WAITING_MODEL
+                scope.launch {
+                    val deadline = System.currentTimeMillis() + MODEL_WAIT_TIMEOUT_MS
+                    while (System.currentTimeMillis() < deadline) {
+                        delay(500)
+                        if (OnDeviceStt.isReady(this@RewriteActivity, s.sttModel)) {
+                            requestMicThenRecord(s)
+                            return@launch
+                        }
+                    }
+                    error = "On-device model not downloaded. Open Settings → Voice → Download model."
+                    stage = Stage.ERROR
+                }
                 return
             }
             requestMicThenRecord(s)
@@ -593,8 +574,7 @@ class RewriteActivity : ComponentActivity() {
                     delay(step); e += step
                 }
                 if (isActive && stage == Stage.REVIEW && !editing) {
-                    recordHistory(transcript, finalText, durationSec, edited = false,
-                        onDevice = settings?.sttProvider == "local")
+                    recordHistory(transcript, finalText, durationSec, edited = false)
                     acceptVoice(finalText, settings)
                 }
             }
@@ -695,8 +675,7 @@ class RewriteActivity : ComponentActivity() {
                             TextButton(onClick = {
                                 runCatching { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
                                 learnFromEditAsync(finalText, editText)
-                                recordHistory(transcript, editText, durationSec, edited = true,
-                                    onDevice = settings?.sttProvider == "local")
+                                recordHistory(transcript, editText, durationSec, edited = true)
                                 acceptVoice(editText, settings)
                             }) {
                                 Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Text("  Insert")
@@ -730,8 +709,7 @@ class RewriteActivity : ComponentActivity() {
                                 }) { Text("Discard") }
                                 TextButton(onClick = {
                                     runCatching { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
-                                    recordHistory(transcript, finalText, durationSec, edited = false,
-                                        onDevice = settings?.sttProvider == "local")
+                                    recordHistory(transcript, finalText, durationSec, edited = false)
                                                     acceptVoice(finalText, settings)
                                 }) {
                                     Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Text("  Insert")

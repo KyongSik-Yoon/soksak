@@ -34,8 +34,6 @@ data class PendingRecording(
     val durationSec: Int,
     val appPackage: String,
     val appLabel: String,
-    /** The engine that was tried — lets a retry pick a different one. */
-    val sttProvider: String,
     val sttModel: String,
     /** The delivered text, or null for "not yet, or interrupted". Never a running marker. */
     val result: String?,
@@ -45,7 +43,7 @@ data class PendingRecording(
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("ts", timestamp).put("dur", durationSec)
         .put("pkg", appPackage).put("app", appLabel)
-        .put("sttProvider", sttProvider).put("sttModel", sttModel)
+        .put("sttModel", sttModel)
         .apply { if (result != null) put("result", result) }
 
     companion object {
@@ -55,7 +53,6 @@ data class PendingRecording(
             durationSec = o.optInt("dur"),
             appPackage = o.optString("pkg"),
             appLabel = o.optString("app"),
-            sttProvider = o.optString("sttProvider"),
             sttModel = o.optString("sttModel"),
             // `has` rather than `optString`: absence is the meaningful state, and "" is a
             // legitimate (if useless) terminal result we must not confuse with it.
@@ -113,7 +110,6 @@ object PendingAudio {
         durationSec: Int,
         appPackage: String,
         appLabel: String,
-        sttProvider: String,
         sttModel: String,
     ): PendingRecording? = runCatching {
         val id = "${System.currentTimeMillis()}-${System.nanoTime() and 0xffff}"
@@ -127,7 +123,6 @@ object PendingAudio {
             durationSec = durationSec,
             appPackage = appPackage,
             appLabel = appLabel,
-            sttProvider = sttProvider,
             sttModel = sttModel,
             result = null,
         )
