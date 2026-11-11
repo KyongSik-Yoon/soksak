@@ -125,8 +125,9 @@ class BubbleView(context: Context) : View(context) {
         private const val HALO = 0xFF8E77C6.toInt()
         private const val CREAM = 0xFFF7F5FB.toInt()
         private const val GREEN = 0xFF3B9555.toInt()
-        /** Quiet-mode badge: teal, so it reads apart from the violet brand mark. */
-        private const val QUIET_BADGE = 0xFF2F8C85.toInt()
+        /** Quiet-mode badge: a dusk rose, next to the violet brand mark on the colour wheel but not mistaken for it. */
+        private const val QUIET_BADGE = 0xFFB4608E.toInt()
+        private const val QUIET_BADGE_DK = 0xFFE8A3C6.toInt()
     }
 
     private val d = resources.displayMetrics.density
@@ -300,7 +301,7 @@ class BubbleView(context: Context) : View(context) {
         scratch.set(content.centerX() - w / 2f, cy - h / 2f, content.centerX() + w / 2f, cy + h / 2f)
         fillPaint.shader = null
         fillPaint.clearShadowLayer()
-        fillPaint.color = if (badgeQuiet) QUIET_BADGE else markColor()
+        fillPaint.color = if (badgeQuiet) (if (dark) QUIET_BADGE_DK else QUIET_BADGE) else markColor()
         roundRect(canvas, scratch, fillPaint)
         badgePaint.color = surface()
         val fm = badgePaint.fontMetrics

@@ -14,6 +14,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
@@ -84,6 +86,34 @@ class ModelPicker(
                     outline.setRoundRect(0, 0, view.width, view.height, dp(16).toFloat())
             }
         }
+        // Switches first, each a line icon, its name and its current value; then the models.
+        val accent = if (dark) MARK_DK else MARK
+        var switches = false
+        if (onQuiet != null) {
+            switches = true
+            val tint = if (quiet) (if (dark) QUIET_DK else QUIET) else sub
+            card.addView(switchRow(R.drawable.ic_menu_quiet, tr("Quiet mode"), tr(if (quiet) "On" else "Off"), tint, quiet, ink, sub, font) {
+                dismiss()
+                onQuiet(!quiet)
+            })
+        }
+        if (pcSend != null) {
+            switches = true
+            val on = pcSend != PcLink.OFF
+            val tint = if (on) accent else sub
+            card.addView(switchRow(R.drawable.ic_menu_pc, tr("Send to PC"), tr(PcLink.label(pcSend)), tint, on, ink, sub, font) {
+                dismiss()
+                onPcSend()
+            })
+            if (on) {
+                val icon = if (pcType) R.drawable.ic_menu_keyboard else R.drawable.ic_clipboard
+                card.addView(switchRow(icon, tr("On the PC"), tr(PcLink.actionLabel(pcType)), sub, false, ink, sub, font) {
+                    dismiss()
+                    onPcType()
+                })
+            }
+        }
+        if (switches) card.addView(divider(dark))
         card.addView(TextView(context).apply {
             text = tr("Speech model")
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
@@ -91,29 +121,9 @@ class ModelPicker(
             typeface = font
             setPadding(dp(16), dp(6), dp(16), dp(4))
         })
-        // Quiet mode switch: its own model list (the checked model is Quiet mode's model).
-        if (onQuiet != null) {
-            card.addView(row(tr("Quiet mode") + " · " + tr(if (quiet) "On" else "Off"), if (quiet) "🤫" else null, quiet, ink, font) {
-                dismiss()
-                onQuiet(!quiet)
-            })
-        }
-        if (pcSend != null) {
-            val on = pcSend != PcLink.OFF
-            card.addView(row(tr("Send to PC") + " · " + tr(PcLink.label(pcSend)), if (on) "PC" else null, on, ink, font) {
-                dismiss()
-                onPcSend()
-            })
-            if (on) {
-                card.addView(row(tr("On the PC") + " · " + tr(PcLink.actionLabel(pcType)), null, false, ink, font) {
-                    dismiss()
-                    onPcType()
-                })
-            }
-        }
         for (item in items) {
             val active = item.id == currentId
-            card.addView(row(item.label, item.badge, active, ink, font) {
+            card.addView(row(item.label, item.badge, active, ink, accent, font) {
                 dismiss()
                 if (!active) onPick(item.id)
             })
@@ -126,7 +136,8 @@ class ModelPicker(
                 setPadding(dp(16), dp(2), dp(16), dp(6))
             })
         }
-        card.addView(row(tr("Models…"), null, false, sub, font) { dismiss(); onMore() })
+        card.addView(divider(dark))
+        card.addView(row(tr("Models…"), null, false, sub, accent, font) { dismiss(); onMore() })
 
         // Room around the card for its shadow.
         val frame = LinearLayout(context).apply {
@@ -169,7 +180,71 @@ class ModelPicker(
         root = null
     }
 
-    private fun row(label: String, badge: String?, active: Boolean, ink: Int, font: Typeface?, onClick: () -> Unit): View =
+    /** A model (or the footer link): badge chip, name, and a check on the active one. */
+    private fun row(label: String, badge: String?, active: Boolean, ink: Int, accent: Int, font: Typeface?, onClick: () -> Unit): View =
+        rowShell(onClick).apply {
+            addView(lead(if (badge == null) null else TextView(context).apply {
+                text = badge
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setTextColor(if (active) CREAM else accent)
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat()
+                    if (active) setColor(MARK) else setStroke(dp(1), accent)
+                }
+                minWidth = dp(24)
+                setPadding(dp(5), dp(1), dp(5), dp(1))
+            }))
+            addView(name(label, ink, if (active) Typeface.create(font, Typeface.BOLD) else font),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(ImageView(context).apply {
+                if (active) {
+                    setImageResource(R.drawable.ic_menu_check)
+                    setColorFilter(accent)
+                }
+            }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginStart = dp(16) })
+        }
+
+    /** A setting that a tap flips or steps: line icon, name, and what it is set to now. */
+    private fun switchRow(
+        icon: Int, label: String, value: String, tint: Int, on: Boolean,
+        ink: Int, sub: Int, font: Typeface?, onClick: () -> Unit,
+    ): View =
+        rowShell(onClick).apply {
+            addView(lead(ImageView(context).apply {
+                setImageResource(icon)
+                setColorFilter(tint)
+                layoutParams = FrameLayout.LayoutParams(dp(20), dp(20), Gravity.START or Gravity.CENTER_VERTICAL)
+            }))
+            addView(name(label, ink, font), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(TextView(context).apply {
+                text = value
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTextColor(if (on) tint else sub)
+                typeface = if (on) Typeface.create(font, Typeface.BOLD) else font
+                maxLines = 1
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = dp(20)
+            })
+        }
+
+    /**
+     * The column every row starts with, one width for icons and model chips alike (and empty on
+     * the footer), so all the names begin on the same line.
+     */
+    private fun lead(child: View?): View =
+        FrameLayout(context).apply {
+            if (child != null) {
+                addView(child, child.layoutParams ?: FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.START or Gravity.CENTER_VERTICAL,
+                ))
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(LEAD_DP), ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(10) }
+        }
+
+    private fun rowShell(onClick: () -> Unit): LinearLayout =
         LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -182,51 +257,42 @@ class ModelPicker(
                 if (e.action == MotionEvent.ACTION_DOWN) handler.removeCallbacks(autoClose)
                 false
             }
-            if (badge != null) {
-                addView(TextView(context).apply {
-                    text = badge
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
-                    typeface = Typeface.DEFAULT_BOLD
-                    gravity = Gravity.CENTER
-                    setTextColor(if (active) CREAM else MARK)
-                    background = GradientDrawable().apply {
-                        cornerRadius = dp(8).toFloat()
-                        if (active) setColor(MARK) else setStroke(dp(1), MARK)
-                    }
-                    minWidth = dp(24)
-                    setPadding(dp(5), dp(1), dp(5), dp(1))
-                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    marginEnd = dp(12)
-                })
+        }
+
+    private fun name(label: String, ink: Int, face: Typeface?): TextView =
+        TextView(context).apply {
+            text = label
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setTextColor(ink)
+            typeface = face
+            maxLines = 1
+        }
+
+    private fun divider(dark: Boolean): View =
+        View(context).apply {
+            setBackgroundColor(if (dark) EDGE_DK else EDGE)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                topMargin = dp(6)
+                bottomMargin = dp(6)
             }
-            addView(TextView(context).apply {
-                text = label
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                setTextColor(ink)
-                typeface = if (active) Typeface.create(font, Typeface.BOLD) else font
-                maxLines = 1
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(TextView(context).apply {
-                text = if (active) "✓" else ""
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                setTextColor(MARK)
-                minWidth = dp(20)
-                gravity = Gravity.END
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                marginStart = dp(16)
-            })
         }
 
     private fun dp(v: Int): Int = (v * context.resources.displayMetrics.density).toInt()
 
     private companion object {
         const val AUTO_CLOSE_MS = 6000L
+        /** Wide enough for a two-letter model chip. */
+        const val LEAD_DP = 30
         // The bubble's palette (BubbleView).
         const val SURFACE = 0xFFFDFCFE.toInt()
         const val EDGE = 0xFFDCD5E6.toInt()
         const val SURFACE_DK = 0xFF282233.toInt()
         const val EDGE_DK = 0xFF4A4258.toInt()
         const val MARK = 0xFF6E56A8.toInt()
+        const val MARK_DK = 0xFFBBA6EE.toInt()
+        // Quiet mode's rose (BubbleView's badge).
+        const val QUIET = 0xFFB4608E.toInt()
+        const val QUIET_DK = 0xFFE8A3C6.toInt()
         const val INK = 0xFF2E2A38.toInt()
         const val SUB = 0xFF6B6478.toInt()
         const val SUB_DK = 0xFFC5BDD3.toInt()

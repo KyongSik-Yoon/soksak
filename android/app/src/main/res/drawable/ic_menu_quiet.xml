@@ -1,0 +1,14 @@
+<!-- Crescent moon: Quiet mode in the bubble's menu. Stroked like ic_clipboard; tinted in code. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M20.5,13.2A8.6,8.6 0 1,1 10.8,3.5a6.7,6.7 0 0,0 9.7,9.7z" />
+</vector>

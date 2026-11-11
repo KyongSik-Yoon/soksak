@@ -102,7 +102,7 @@ nav a.link:hover { color: var(--ink); }
 @keyframes halo { 0% { box-shadow: 0 0 0 0 rgba(168,148,221,.6), 0 8px 20px -6px rgba(59,47,74,.7); } 100% { box-shadow: 0 0 0 16px rgba(168,148,221,0), 0 8px 20px -6px rgba(59,47,74,.7); } }
 @keyframes think { 50% { transform: scaleY(.35); opacity: .6; } }
 .badge { margin-top: -7px; z-index: 1; font: 500 9.5px/1 var(--mono); color: #fff; background: #574289; padding: 3px 6px; border-radius: 6px; border: 1.5px solid #fbfaf8; }
-.badge.quiet { background: #2F8C85; }
+.badge.quiet { background: #B4608E; }
 .menu { position: absolute; right: 0; bottom: 78px; width: 190px; background: #2e2639; color: #eeeaf5; border-radius: 16px; padding: 6px; box-shadow: 0 18px 40px -14px rgba(0,0,0,.6); display: none; font-size: 12.5px; }
 .menu.open { display: block; animation: rise .2s ease both; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 9px; border: 0; background: none; color: inherit; border-radius: 10px; font: inherit; cursor: pointer; text-align: left; }
@@ -245,7 +245,7 @@ footer a { color: var(--ink-2); }
     <div class="grid">
       <div class="card"><span class="n">01</span><h3>포커스를 뺏지 않는 입력</h3><p>녹음부터 삽입까지 화면을 띄우지 않고 서비스 안에서 끝냅니다. 대상 앱의 커서와 키보드가 그대로 남습니다.</p></div>
       <div class="card"><span class="n">02</span><h3>말하는 동안 변환</h3><p>말이 0.5초 쉴 때마다 그 조각을 먼저 풀어 둡니다. 다 말하고 기다리는 시간이 약 20초에서 3초로 줄었습니다.</p></div>
-      <div class="card"><span class="n">03</span><h3>조용히 말하기</h3><p>옆 사람이 일하는 자리에서 속삭여도 녹음을 자르지 않습니다. 켜 두면 버블 배지가 청록색으로 바뀝니다.</p></div>
+      <div class="card"><span class="n">03</span><h3>조용히 말하기</h3><p>옆 사람이 일하는 자리에서 속삭여도 녹음을 자르지 않습니다. 켜 두면 버블 배지가 장밋빛으로 바뀝니다.</p></div>
       <div class="card"><span class="n">04</span><h3>NPU 가속</h3><p>Snapdragon 8 Elite Gen 5에서는 Whisper를 Qualcomm NPU로 돌립니다. 그 밖의 폰은 CPU(whisper.cpp)로 동작합니다.</p></div>
       <div class="card"><span class="n">05</span><h3>토큰 없는 업데이트</h3><p>새 빌드가 나오면 앱이 알려 주고 바로 설치합니다. 로그인도 계정도 없습니다.</p></div>
       <div class="card"><span class="n">06</span><h3>백업과 복원</h3><p>단어장과 설정을 파일 하나로 내보내고 다시 불러옵니다. 폰을 바꿔도 가르친 단어가 따라옵니다.</p></div>
@@ -430,7 +430,7 @@ footer a { color: var(--ink-2); }
     if (b === quietBtn) quiet = !quiet; else model = b.dataset.m;
     paint(); closeMenu(); bubble.focus();
     const name = menu.querySelector(`[data-m="${model}"]`).lastChild.textContent;
-    say(b === quietBtn ? (quiet ? '조용히 말하기 켬 · 배지가 청록색' : '조용히 말하기 끔') : `모델: ${name}`);
+    say(b === quietBtn ? (quiet ? '조용히 말하기 켬 · 배지가 장밋빛' : '조용히 말하기 끔') : `모델: ${name}`);
   });
   document.addEventListener('pointerdown', e => { if (!e.target.closest('.bubble-dock')) closeMenu(); });
 

@@ -127,7 +127,7 @@ nav a.get { background: var(--lavender); color: #2A1F45; font-weight: 700; font-
 .bubble[data-state="work"] .bar:nth-of-type(3) { animation-delay: .3s; }
 @keyframes halo { 0% { box-shadow: 0 0 0 0 rgba(168,148,221,.6), 0 8px 20px -6px rgba(59,47,74,.7); } 100% { box-shadow: 0 0 0 16px rgba(168,148,221,0), 0 8px 20px -6px rgba(59,47,74,.7); } }
 .badge { margin-top: -7px; z-index: 1; font: 500 9.5px/1 var(--mono); color: #fff; background: #574289; padding: 3px 6px; border-radius: 6px; border: 1.5px solid #fbfaf8; }
-.badge.quiet { background: #2F8C85; }
+.badge.quiet { background: #B4608E; }
 .menu { position: absolute; right: 0; bottom: 78px; width: 190px; background: #2e2639; color: #eeeaf5; border-radius: 16px; padding: 6px; box-shadow: 0 18px 40px -14px rgba(0,0,0,.6); display: none; font-size: 12.5px; }
 .menu.open { display: block; animation: rise .2s ease both; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 9px; border: 0; background: none; color: inherit; border-radius: 10px; font: inherit; cursor: pointer; text-align: left; }
@@ -364,7 +364,7 @@ footer a { color: #5C536B; }
     <div class="strip r" id="strip" style="--i:2" aria-hidden="true"><span class="cut"></span></div>
     <div class="labels r" style="--i:3"><span>평소 목소리</span><span>속삭임 · 보통은 점선 아래를 침묵으로 보고 끊습니다</span></div>
     <div class="heard r" style="--i:4"><span class="q">SA</span><span>회의 중이라 조용히 말할게. 이 버그 원인만 찾아 줘.</span></div>
-    <p class="foot r" style="--i:5">켜 두면 버블 배지가 청록색으로 바뀌고, 속삭임을 잘 듣는 모델로 자동 전환합니다.</p>
+    <p class="foot r" style="--i:5">켜 두면 버블 배지가 장밋빛으로 바뀌고, 속삭임을 잘 듣는 모델로 자동 전환합니다.</p>
   </div>
 </section>
 
@@ -554,7 +554,7 @@ footer a { color: #5C536B; }
     if (b === quietBtn) quiet = !quiet; else model = b.dataset.m;
     paint(); closeMenu(); bubble.focus();
     const name = menu.querySelector(`[data-m="${model}"]`).lastChild.textContent;
-    say(b === quietBtn ? (quiet ? '조용히 말하기 켬 · 배지가 청록색' : '조용히 말하기 끔') : `모델: ${name}`);
+    say(b === quietBtn ? (quiet ? '조용히 말하기 켬 · 배지가 장밋빛' : '조용히 말하기 끔') : `모델: ${name}`);
   });
   document.addEventListener('pointerdown', e => { if (!e.target.closest('.bubble-dock')) closeMenu(); });
   // Play once by itself the first time the scene is reached.
