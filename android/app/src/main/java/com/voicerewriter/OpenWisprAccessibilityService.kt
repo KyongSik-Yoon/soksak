@@ -423,26 +423,37 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Focused editable node in the active window, only if it's NOT our own app.
-     *
-     * A miss while a keyboard is up is retried once with this service's node cache cleared.
-     * Since Android 13, findFocus answers from that cache, and an app that restores focus without
-     * a focus event leaves it stale: back in ChatGPT (Compose) from another app, the composer had
-     * focus and the keyboard was up, yet every lookup said nothing was focused and the dictation
-     * went to the clipboard. A fresh client (uiautomator) saw the focused field at the same moment.
+     * The focused editable under [root]: findFocus, and when that gives nothing editable, a scan
+     * for a node that says it is focused and editable. Back in ChatGPT (Compose) from another app,
+     * the composer had focus and the keyboard was up, yet findFocus found no editable and every
+     * dictation went to the clipboard, while uiautomator's per-node `focused` showed the field.
      */
-    private fun findHostFocusedEditable(): AccessibilityNodeInfo? {
-        findHostFocusedEditableCached()?.let { return it }
-        if (Build.VERSION.SDK_INT < 34 || !imeShown()) return null
-        if (!clearCache()) return null
-        return findHostFocusedEditableCached()?.also { Log.i(TAG, "focused field found after clearing the node cache") }
+    private fun focusedEditableIn(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (f != null && f.isEditable) return f
+        val got = f?.let { "${it.className?.toString()?.substringAfterLast('.')}" } ?: "null"
+        @Suppress("DEPRECATION") f?.recycle()
+        val found = scanFocusedEditable(root)
+        Log.i(TAG, "findFocus gave $got in ${root.packageName}; tree scan " +
+            if (found != null) "found the focused field" else "found none")
+        return found
     }
 
-    private fun imeShown(): Boolean =
-        (try { windows } catch (_: Exception) { null })
-            ?.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } == true
+    private fun scanFocusedEditable(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        for (i in 0 until root.childCount) root.getChild(i)?.let { queue.add(it) }
+        var seen = 0
+        while (queue.isNotEmpty() && seen < 3000) {
+            val n = queue.removeFirst()
+            seen++
+            if (n.isFocused && n.isEditable) return n
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+        }
+        return null
+    }
 
-    private fun findHostFocusedEditableCached(): AccessibilityNodeInfo? {
+    /** Focused editable node in the active window, only if it's NOT our own app. */
+    private fun findHostFocusedEditable(): AccessibilityNodeInfo? {
         val root = rootInActiveWindow ?: return null
         if (root.packageName == packageName) return null // our sheet is still up
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
@@ -456,9 +467,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             if (w.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) continue
             val r = w.root ?: continue
             if (r.packageName == packageName) continue
-            val f = r.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: continue
-            if (f.isEditable) return f
-            @Suppress("DEPRECATION") f.recycle()
+            focusedEditableIn(r)?.let { return it }
         }
         return null
     }
