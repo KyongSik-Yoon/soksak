@@ -51,7 +51,7 @@
 - 앱 ID: `io.github.kyongsikyoon.soksak` (2026-11-10, 이전 `com.voicerewriter.dev` — 바꿀 때 폰에서 새 앱으로 설치, 설정 → General 백업/복원으로 단어장·설정을 옮김).
 
 ## 모델
-- 목록: `WhisperModelManager.MODELS` — `small-acft`(FUTO, 기본), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0), `turbo-acft-npu`(실험), `medium-npu`.
+- 목록: `WhisperModelManager.MODELS` — `small-acft`(FUTO, 기본), `turbo-acft-q4`(Large v3 Turbo ACFT q4_0), `medium-npu`, `turbo-acft-npu`.
 - 라우팅 벤치(`route-bench.yml`, 깨끗함/카페소음 10dB/0dB/아주 작은 소리, CER): Turbo 12.0/15.2/63.2/12.7%,
   Small ACFT 13.1/19.5/56.4/16.3%(Turbo의 1/5 시간), SenseVoice 20.6/27.8/51.7/21.4%(가장 빠름), Moonshine Base 21.4/40.9/97.5/38.7%.
   소리 크기·SNR 기반 자동 선택은 아직 검증 안 됨(첫 규칙은 SNR 기준값이 틀려 발동 안 함). 사용자 경험: 속삭임은 Whisper(Small ACFT)가 잘 들음.
@@ -77,7 +77,7 @@
   `NpuLoadGuard`: 모델 폴더의 `.npu-loading` 표식이 다음 로드 때 남아 있으면 그 빌드에서는 NPU 모델 로드를 거부(재다운로드나 새 빌드로 해제).
 - Small ACFT (NPU)(`small-acft-npu`)는 2026-11-11 제거했다: 실제 속삭임에서 CPU판·Medium NPU보다 낮고(38.9% vs 35.1/35.5%), 단어장 프롬프트를 못 받고, 남는 장점인 속도(문장당 0.7초)는 "말하는 동안 변환" 때문에 체감이 작다. NPU는 Medium, 작은 모델은 CPU판으로 정리. `RETIRED_DIRS`가 폰의 번들을 지운다.
   그 변환 경로는 남겨 일반화했다: `scripts/npu_acft_export.py <sherpa export_onnx.py> <HF 저장소> <OpenAI 크기>`가 `whisper.load_model`을 파인튜닝 가중치로 바꿔 sherpa 방식 ONNX를 내고(HF 출력과 logit 일치 확인), `scripts/npu_compile_sm8850.sh`가 QAIRT 이미지에서 컴파일한다. 파인튜닝한 가중치를 NPU에 올릴 때 이 경로를 쓴다.
-- **Large v3 Turbo (NPU)**(`turbo-acft-npu`, 배지 TN, 실험 2026-11-11): CPU판과 같은 Turbo ACFT 가중치를 `.github/workflows/npu-turbo.yml`이 위 경로로 SM8850 바이너리(인코더 1.35GB + 디코더 0.45GB, 받는 파일 1.59GB)로 만든다. Release `model-qnn-whisper-turbo-acft-sm8850`. sherpa는 Medium 위로 QNN 빌드를 내지 않아 두 가지를 직접 맞췄다: ① float32 인코더는 모델 라이브러리가 2GB를 넘어 x86-64 링크가 깨짐(relocation truncated) → 변환기에 `--float_bitwidth 16`(`CONVERT_ARGS`). ② large-v3 계열은 언어가 하나 늘어 transcribe·notimestamps 토큰이 한 칸 뒤(50360/50364)인데 sherpa QNN 런타임은 v2 번호 고정이고 `turbo` 접두어를 모르면 프로세스를 exit → 패치의 `HasV3Vocabulary`. 멜 128채널. 문장부호 힌트는 넣지 않는다(토큰 번호가 다름). NPU라 audio context 30초 고정이므로 ACFT 이점은 없다. `MODELS`에서 Medium 앞에 둬 Medium이 폴백으로 남는다. 폰 동작·정확도·속도는 확인 전 — 확인되면 홈페이지·README 표에 넣고, 안 되면 모델 항목을 지운다.
+- **Large v3 Turbo (NPU)**(`turbo-acft-npu`, 배지 TN, 2026-11-11): CPU판과 같은 Turbo ACFT 가중치를 `.github/workflows/npu-turbo.yml`이 위 경로로 SM8850 바이너리(인코더 1.35GB + 디코더 0.45GB, 받는 파일 1.59GB)로 만든다. Release `model-qnn-whisper-turbo-acft-sm8850`. sherpa는 Medium 위로 QNN 빌드를 내지 않아 두 가지를 직접 맞췄다: ① float32 인코더는 모델 라이브러리가 2GB를 넘어 x86-64 링크가 깨짐(relocation truncated) → 변환기에 `--float_bitwidth 16`(`CONVERT_ARGS`). ② large-v3 계열은 언어가 하나 늘어 transcribe·notimestamps 토큰이 한 칸 뒤(50360/50364)인데 sherpa QNN 런타임은 v2 번호 고정이고 `turbo` 접두어를 모르면 프로세스를 exit → 패치의 `HasV3Vocabulary`. 멜 128채널. 문장부호 힌트는 넣지 않는다(토큰 번호가 다름). NPU라 audio context 30초 고정이므로 ACFT 이점은 없다. 사용자 폰 확인(build-122, 2026-11-11): 한 번에 동작, Medium (NPU)보다 빠르고 인식률도 좋다는 체감 — 수치 측정은 아직(Compare "Run all"로 잴 것). `MODELS`의 맨 끝(폴백 `OnDeviceStt.pick`이 고르는 가장 강한 모델).
 - 디바이스 추천: `DeviceFit.kt` — 언제나 small-acft(가장 작은 모델), 저장공간 부족만 미리 알린다.
 
 ## GPU — 두 번 시도, 둘 다 제거 (2026-11-08)
@@ -108,7 +108,7 @@
   위젯 클릭은 백그라운드 FGS 시작이 허용돼 버블이 꺼져 있어도 서비스를 띄운다. 잠금화면(One UI)에 목록으로 뜨는지는 폰에서 확인할 일.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 위쪽은 설정 행(선 아이콘 `ic_menu_*` + 이름 + 현재 값, 이모지·글자 배지는 쓰지 않음), 구분선 아래가 모델 목록. 고르면 `sttModel` 저장 + 백그라운드 warm.
-  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T TN MN)를 표시. 느린 끌기는 그대로 위치 이동.
+  버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T MN TN)를 표시. 느린 끌기는 그대로 위치 이동.
 - **조용히 말하기**(설정 "Quiet mode", 버블 메뉴 맨 위 행): 받아쓰기 때 `Settings.forDictation()`이 모델을 `quietModel`
   (기본 Small ACFT)로 바꾸고, `AudioRecorder.start(quiet = true)`가 Silero 대신 `QuietSpeechDetector`(500~2500Hz 대역에서 소음 바닥 대비 2.5배·절대 3e-4 이상이 0.1초 이어지면
   말로 봄, 마이크 시작 0.3초는 무시 — 전체 음량으로는 실제 폰에서 한 번도 발동 안 했다: 첫 조각이 0이라 바닥이 -90dB로 잡히고, 500Hz 아래 방 소음이 속삭임보다 15~20dB 큼. 2026-11-11, 속삭임 녹음 20개로 확인)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 장밋빛(#B4608E, 어두운 테마 #E8A3C6 — 보라 마크와 어울리되 구분됨; 처음엔 청록이었는데 보라와 안 어울려 2026-11-11 변경), 메뉴에서 고른 모델은 quietModel에 저장.
@@ -166,7 +166,7 @@
 - 저장소와 Release는 공개다. 새 Release·모델을 올리기 전에 재배포 가능한 라이선스인지 확인하고(위 고지 규칙), 비밀정보는 GitHub Secret으로만 둔다. 다른 공개 저장소·외부 공개 리소스를 새로 만드는 일은 여전히 사용자 확인을 받는다.
 
 ## 백로그
-- Compare models 결과로 기본 모델 확정.
+- Compare models 결과로 기본 모델 확정 — Turbo (NPU)를 같은 녹음으로 재서 Medium (NPU)·Small ACFT와 비교(속삭임 10문장 포함).
 - (보류) Nemotron 3.5 스트리밍: sherpa-onnx가 다시 들어왔으니 지원 여부만 확인하면 시도 가능.
 - Release `model-acft-large-v3-turbo-q5_0` 삭제 여부 (앱에서는 이미 제거).
 - Release `model-qnn-whisper-small-acft-sm8850` 삭제 여부 (앱에서는 2026-11-11 제거).

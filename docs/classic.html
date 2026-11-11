@@ -220,6 +220,7 @@ footer a { color: var(--ink-2); }
               <button role="menuitemradio" data-m="SA" aria-checked="true"><span class="k">SA</span>Small ACFT</button>
               <button role="menuitemradio" data-m="T" aria-checked="false"><span class="k">T</span>Large v3 Turbo</button>
               <button role="menuitemradio" data-m="MN" aria-checked="false"><span class="k">MN</span>Medium · NPU</button>
+              <button role="menuitemradio" data-m="TN" aria-checked="false"><span class="k">TN</span>Large v3 Turbo · NPU</button>
             </div>
             <button class="bubble" id="bubble" data-state="idle" aria-label="받아쓰기 시작. 위로 밀거나 위쪽 화살표 키로 모델 메뉴">
               <svg viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
@@ -285,7 +286,7 @@ footer a { color: var(--ink-2); }
 <section id="models">
   <div class="wrap">
     <p class="eyebrow">모델</p>
-    <h2>세 가지 Whisper.</h2>
+    <h2>네 가지 Whisper.</h2>
     <p class="lede">처음에는 Small ACFT 하나만 받습니다. 나머지는 설정에서 고를 때 내려받고, 버블을 위로 밀어 바로 바꿉니다.</p>
     <div class="tbl">
       <table>
@@ -294,6 +295,7 @@ footer a { color: var(--ink-2); }
           <tr><td><span class="tag">SA</span>Small ACFT (FUTO)</td><td class="dim">whisper.cpp · CPU</td><td class="dim">기본값. 짧은 말에 맞춰 조정된 모델</td></tr>
           <tr><td><span class="tag">T</span>Large v3 Turbo ACFT q4_0</td><td class="dim">whisper.cpp · CPU</td><td class="dim">가장 정확하고 가장 느림</td></tr>
           <tr><td><span class="tag">MN</span>Medium (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">Snapdragon 8 Elite Gen 5 전용</td></tr>
+          <tr><td><span class="tag">TN</span>Large v3 Turbo (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">Snapdragon 8 Elite Gen 5 전용</td></tr>
         </tbody>
       </table>
     </div>
@@ -339,7 +341,7 @@ footer a { color: var(--ink-2); }
     ['README 맨 위에', '포크라는 걸 밝혀 줘.'],
   ];
   // Relative only: Turbo is the slow one, NPU the quick ones.
-  const speed = { SA: 1, T: 2.4, MN: .8 };
+  const speed = { SA: 1, T: 2.4, MN: .8, TN: .7 };
   let model = 'SA', quiet = false, n = 0, state = 'idle', timers = [], raf = 0, stopNow = null;
 
   const say = t => status.textContent = t;

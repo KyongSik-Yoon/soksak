@@ -99,8 +99,8 @@ class QnnWindowsTest {
         assertTrue(WhisperModelManager.MODELS.any { it.id == WhisperModelManager.TURBO_NPU_MODEL })
     }
 
-    @Test fun mediumStaysTheFallbackWhileTurboNpuIsUnproven() {
-        // OnDeviceStt.pick falls back to the last downloaded model in MODELS.
-        assertEquals(WhisperModelManager.MEDIUM_NPU_MODEL, WhisperModelManager.MODELS.last().id)
+    @Test fun turboNpuIsTheFallbackOfLastResort() {
+        // OnDeviceStt.pick falls back to the last downloaded model in MODELS: the strongest one.
+        assertEquals(WhisperModelManager.TURBO_NPU_MODEL, WhisperModelManager.MODELS.last().id)
     }
 }

@@ -82,22 +82,6 @@ object WhisperModelManager {
             releaseTag = "model-acft-large-v3-turbo-q4_0",
             badge = "T",
         ),
-        // Experimental (2026-11-11): the Turbo ACFT weights above on the Qualcomm NPU, compiled in CI
-        // (npu-turbo.yml). sherpa-onnx ships no QNN build above Medium; this one needed float16
-        // weights to link and the large-v3 token ids in the runtime (sherpa-qnn.patch). Its decoder
-        // has 4 layers to Medium's 24, so a token should cost far less; the encoder is twice the size.
-        // Runs at the full 30s audio context and takes no prompt, like every NPU model. Listed
-        // before Medium so that Medium stays the fallback ([OnDeviceStt.pick]) until this is proven.
-        WhisperModel(
-            id = TURBO_NPU_MODEL,
-            label = "Large v3 Turbo (NPU)",
-            fileName = "sherpa-onnx-qnn-SM8850-binary-whisper-turbo-acft",
-            url = "",
-            sizeLabel = "~1.6GB · Snapdragon NPU · experimental",
-            releaseTag = "model-qnn-whisper-turbo-acft-sm8850",
-            engine = SpeechEngine.QNN_WHISPER,
-            badge = "TN",
-        ),
         // OpenAI whisper-medium (multilingual, float) on the Qualcomm NPU through sherpa-onnx's QNN
         // runtime, as context binaries for SM8850 compiled in CI (npu-model.yml) from sherpa's QNN
         // model libraries — compiling them on the phone died in the decoder (builds 67-70).
@@ -113,6 +97,21 @@ object WhisperModelManager {
             releaseTag = "model-qnn-whisper-medium-sm8850",
             engine = SpeechEngine.QNN_WHISPER,
             badge = "MN",
+        ),
+        // The Turbo ACFT weights above on the Qualcomm NPU, compiled in CI (npu-turbo.yml). sherpa-onnx ships no QNN build above Medium; this one needed float16
+        // weights to link and the large-v3 token ids in the runtime (sherpa-qnn.patch). Its decoder
+        // has 4 layers to Medium's 24, so a token should cost far less; the encoder is twice the size.
+        // Runs at the full 30s audio context and takes no prompt, like every NPU model. On the phone
+        // (2026-11-11) it was both faster and more accurate than Medium (NPU) by ear; not measured yet.
+        WhisperModel(
+            id = TURBO_NPU_MODEL,
+            label = "Large v3 Turbo (NPU)",
+            fileName = "sherpa-onnx-qnn-SM8850-binary-whisper-turbo-acft",
+            url = "",
+            sizeLabel = "~1.6GB · Snapdragon NPU",
+            releaseTag = "model-qnn-whisper-turbo-acft-sm8850",
+            engine = SpeechEngine.QNN_WHISPER,
+            badge = "TN",
         ),
     )
 
