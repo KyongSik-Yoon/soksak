@@ -121,6 +121,7 @@
   근거: `chunk-bench.yml` — 15초 코드스위칭 CER 22.6→23.8%(동급), 30초+ 및 쉼 많은 실음성은 통째 디코드가 문장을 통째로 빠뜨림
   (45→14%), 멈춘 뒤 대기 ~20초→~3초. Retry/Compare는 여전히 통째로. 녹음 원본은 `AudioRecorder.rawCopy`.
 - 삽입: `OpenWisprAccessibilityService.kt` — 포커스된 입력창, 없으면 마지막으로 기억한 입력창(`lastEditable`)에 SET_TEXT 후 재포커스.
+  커서 자리에 끼워 넣을 때 앞 글이 공백·줄바꿈·여는 괄호로 끝나지 않으면 한 칸 띄운다(`textproc/InsertSplice.kt`, 2026-11-11 — 이어서 받아쓰면 "있어.조용한데"처럼 붙었다).
   `findFocus`가 editable이 아닌 노드를 주면 트리를 훑어 `isFocused && isEditable` 노드를 찾는다(`focusedEditableIn`): ChatGPT(Compose)는
   다른 앱에서 돌아오면 `findFocus`가 입력창 대신 일반 `View`를 줘서 키보드가 떠 있어도 매번 클립보드로 빠졌다(build-108, 2026-11-11). 노드 캐시 비우기(build-107)는 효과가 없었다.
 

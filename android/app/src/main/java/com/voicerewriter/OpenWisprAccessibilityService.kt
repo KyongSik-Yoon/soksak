@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
+import com.voicerewriter.textproc.InsertSplice
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -342,12 +343,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             current.isEmpty() -> 0 to 0
             else -> return false // unknown cursor in a non-empty field — let paste handle it
         }
-        val newText = current.substring(0, start) + insert + current.substring(end)
+        val (newText, cursor) = InsertSplice.at(current, start, end, insert)
         val setArgs = Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
         }
         if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)) return false
-        val cursor = start + insert.length
         val selArgs = Bundle().apply {
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, cursor)
