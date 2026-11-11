@@ -1,0 +1,22 @@
+#!/bin/sh
+# "Type it" for Hyprland: soksak-daemon has already put the text on the clipboard, so this
+# presses paste in the focused window (Ctrl+Shift+V in a terminal, Ctrl+V elsewhere).
+#
+# Why not wtype: with an input method running (kime, fcitx5), the virtual keyboard's own keymap
+# is ignored and each character arrives as the US key with the same keycode, so Korean dictation
+# showed up as "1234567890-=qwer…". Hyprland sends these keys itself, through the real keymap.
+# Same approach as Omarchy's Super+V; pressed and released separately, as Omarchy does, because
+# send_shortcut can leave the key stuck.
+#
+# Use with `type_cmd = $HOME/.local/bin/soksak-paste` in ~/.config/soksak-daemon/config.
+
+cat >/dev/null # the text comes on stdin; it is already on the clipboard
+sleep 0.1      # let wl-copy take the selection first
+
+mods=CTRL
+if hyprctl activewindow -j | grep -q '"terminal'; then
+  mods="CTRL SHIFT"
+fi
+hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"V\", state = \"down\" })" >/dev/null
+sleep 0.05
+hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"V\", state = \"up\" })" >/dev/null

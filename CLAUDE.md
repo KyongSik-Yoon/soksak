@@ -117,6 +117,7 @@
 - 프로토콜: TCP 한 번에 `SOKSAK/1 <코드> <바이트 수>[ type]\n<글>` → `OK`/`OK clipboard`/`ERR <이유>`. 길이 0은 연결 시험. 양쪽 테스트(`PcLinkTest`, `daemon/tests`)가 같은 형식을 검사한다 — 한쪽을 바꾸면 다른 쪽도.
 - 클립보드냐 바로 입력이냐는 앱이 고른다(`pcType`, 설정·버블 메뉴 "PC에서"). 단 실제로 타이핑(`wtype`)할지는 PC가 정한다: 데몬 설정 `allow_type`(기본 false).
   허용 안 하면 클립보드에만 넣고 `OK clipboard`로 답해 버블에 "PC clip"이 뜬다. 허용을 폰 요청만으로 켤 수 있게 바꾸지 않는다 — 터미널에 타이핑되면 말한 글이 명령으로 실행된다(2026-11-11 결정).
+  타이핑 명령은 `type_cmd`. 사용자 PC(Hyprland + kime)에서는 `wtype`이 입력기 때문에 `1234567890-=qwer…`로 깨져(가상 키맵 무시), `daemon/soksak-paste`(클립보드 + Hyprland `send_key_state`로 Ctrl(+Shift)+V)를 쓴다. 코드 기본값은 범용인 `wtype -` 유지.
 - 암호화는 Tailscale에 맡긴다: 데몬은 Tailscale 대역(100.64.0.0/10)과 로컬만 받는다(`allow_lan`으로 해제). OkHttp가 아니라 raw 소켓인 이유는 Android가 100.x로 가는 평문 HTTP를 막기 때문.
 - 전송 지점은 `PcLink.deliver` 하나(`HeadlessDictation`, `RewriteActivity.acceptVoice`가 호출). 단어장 교정이 끝난 최종 글을 보낸다. `both`는 폰 입력과 동시에, `pc`는 PC 실패 시에만 폰에 입력(글을 잃지 않게). `pc`에서는 버블의 "입력창에서만 보이기"를 무시한다(`gateFor`).
   결과는 버블 알약(`showPcResult`: "To PC"/"PC clip"/"No PC")으로 알린다 — 백그라운드 토스트는 안 뜬다.

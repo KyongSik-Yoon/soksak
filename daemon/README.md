@@ -15,6 +15,7 @@
 cd daemon
 cargo build --release
 install -Dm755 target/release/soksak-daemon ~/.local/bin/soksak-daemon
+install -Dm755 soksak-paste ~/.local/bin/soksak-paste   # Hyprland에서 "바로 입력"을 쓸 때
 install -Dm644 soksak-daemon.service ~/.config/systemd/user/soksak-daemon.service
 systemctl --user daemon-reload
 systemctl --user enable --now soksak-daemon
@@ -51,6 +52,7 @@ port = 48620
 allow_type = false
 # 글을 표준 입력으로 받는 명령. X11이면 xclip -selection clipboard, macOS면 pbcopy
 copy_cmd = wl-copy
+# 바로 입력 명령(글은 표준 입력). Hyprland면 soksak-paste 권장 — 아래 "바로 입력" 참고
 type_cmd = wtype -
 # true면 Tailscale 밖의 연결도 받습니다. 그 경우 글이 암호화 없이 갑니다.
 allow_lan = false
@@ -63,6 +65,11 @@ allow_lan = false
 글은 언제나 클립보드에 들어갑니다. 앱에서 "PC에서 → 바로 입력"을 고르면(설정 또는 버블 메뉴) 포커스된 창에
 타이핑까지 요청하는데, 이 컴퓨터가 `allow_type = true`로 허용했을 때만 실제로 칩니다. 허용하지 않았으면
 클립보드에만 넣고, 폰의 버블에 "PC clip"이 뜹니다.
+
+**Hyprland라면 `type_cmd = soksak-paste`를 쓰세요.** 한글 입력기(kime, fcitx5 등)가 떠 있으면 `wtype`이
+만든 가상 키 배열이 무시되고 글자마다 같은 자리의 US 키로 찍혀, 말한 글 대신 `1234567890-=qwer…`가 나옵니다.
+`soksak-paste`는 이미 클립보드에 들어간 글을 붙여넣기 단축키로 넣습니다(터미널이면 Ctrl+Shift+V, 그 밖은 Ctrl+V —
+Omarchy의 Super+V와 같은 방식). 터미널 판별은 Omarchy가 터미널 창에 붙이는 `terminal` 태그를 봅니다.
 
 허용 여부를 컴퓨터 쪽에 둔 이유: 포커스된 창이 터미널이면 받은 글이 명령으로 실행될 수 있어서, 연동 코드를 아는
 기기가 요청만으로 켤 수 없게 했습니다.
