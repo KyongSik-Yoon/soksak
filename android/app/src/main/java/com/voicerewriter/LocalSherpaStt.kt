@@ -58,11 +58,24 @@ object LocalSherpaStt {
      */
     private val MEDIUM_KO_HINT = listOf(50361, 8808, 11, 9457, 36711, 13)
 
-    /** What Medium writes under the hint when a window has no voice in it, as [HallucinationFilter.norm] leaves it. */
+    /**
+     * The same hint for Turbo, which wrote long sentences with no commas or periods at all (run-all
+     * on the phone, 2026-11-11). Same text tokens; `<|startofprev|>` is one id higher in the
+     * large-v3 vocabulary. Whether it costs Turbo sentences, as it did Small ACFT, is checked by
+     * running the same recordings again.
+     */
+    private val TURBO_KO_HINT = listOf(50362, 8808, 11, 9457, 36711, 13)
+
+    /** What Medium (and Turbo, assumed the same until seen) writes under the hint when a window has no voice in it, as [HallucinationFilter.norm] leaves it. */
     private val HINT_ECHOES = setOf("네", "네알겠어", "네알겠습니다")
 
     internal fun qnnHint(modelId: String, language: String): List<Int> =
-        if (modelId == WhisperModelManager.MEDIUM_NPU_MODEL && language == "ko") MEDIUM_KO_HINT else emptyList()
+        when {
+            language != "ko" -> emptyList()
+            modelId == WhisperModelManager.MEDIUM_NPU_MODEL -> MEDIUM_KO_HINT
+            modelId == WhisperModelManager.TURBO_NPU_MODEL -> TURBO_KO_HINT
+            else -> emptyList()
+        }
 
     /** Files a bundle must contain to be usable. */
     fun requiredFiles(m: WhisperModelManager.WhisperModel): List<String> = when (m.engine) {

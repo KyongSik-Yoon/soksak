@@ -65,11 +65,19 @@ class QnnWindowsTest {
         }
     }
 
-    @Test fun hintIsForKoreanOnMediumOnly() {
+    @Test fun hintIsForKoreanOnTheNpuModelsOnly() {
         assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.SMALL_ACFT_MODEL, "ko").isEmpty())
         assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.MEDIUM_NPU_MODEL, "en").isEmpty())
-        // Turbo's vocabulary numbers its special tokens one higher, so Medium's hint would be wrong there.
-        assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.TURBO_NPU_MODEL, "ko").isEmpty())
+        assertTrue(LocalSherpaStt.qnnHint(WhisperModelManager.TURBO_NPU_MODEL, "en").isEmpty())
+    }
+
+    @Test fun turboHintStartsOneTokenHigher() {
+        // large-v3's vocabulary has one more language, so <|startofprev|> moved from 50361 to 50362.
+        val medium = LocalSherpaStt.qnnHint(WhisperModelManager.MEDIUM_NPU_MODEL, "ko")
+        val turbo = LocalSherpaStt.qnnHint(WhisperModelManager.TURBO_NPU_MODEL, "ko")
+        assertEquals(50361, medium.first())
+        assertEquals(50362, turbo.first())
+        assertEquals(medium.drop(1), turbo.drop(1))
     }
 
     @Test fun onlyTheHintsSilenceOutputCountsAsEcho() {
