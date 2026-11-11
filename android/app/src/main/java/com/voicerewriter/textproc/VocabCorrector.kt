@@ -166,13 +166,29 @@ object VocabCorrector {
         return sum / window.size
     }
 
+    /**
+     * Words, split where Latin letters meet Hangul: Korean glues a particle straight onto an
+     * English term ("README에", "Gemini에는"), and as one token the fuzzy match took the
+     * particle for a typo and replaced it along with the term ("README에" -> "README").
+     */
     private fun tokenize(text: String): List<Tok> {
         val out = ArrayList<Tok>()
         for (m in Regex("[\\p{L}\\p{N}'’]+").findAll(text)) {
-            out.add(Tok(m.value.lowercase().trim('\'', '’'), m.range.first, m.range.last + 1))
+            val w = m.value
+            var from = 0
+            for (k in 1..w.length) {
+                val cut = k == w.length ||
+                    (isLatin(w[k - 1]) && isHangul(w[k])) || (isHangul(w[k - 1]) && isLatin(w[k]))
+                if (!cut) continue
+                out.add(Tok(w.substring(from, k).lowercase().trim('\'', '’'), m.range.first + from, m.range.first + k))
+                from = k
+            }
         }
         return out
     }
+
+    private fun isHangul(c: Char) = c in '가'..'힣'
+    private fun isLatin(c: Char) = c in 'a'..'z' || c in 'A'..'Z'
 
     // ---- phonetics / distance ----
 

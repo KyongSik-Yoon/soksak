@@ -24,6 +24,15 @@ class KoreanVocabTest {
     }
 
     @Test
+    fun particleOnLatinTermIsKept() {
+        // "README에" was one token, fuzzy-matched to "README" with the particle as the typo.
+        val v = listOf(VocabEntry("README", aliases = listOf("리드미")), VocabEntry("Gemini", aliases = listOf("제미니")))
+        assertEquals("README에 설치 방법", VocabCorrector.correct("README에 설치 방법", v))
+        assertEquals("Gemini에는 없어", VocabCorrector.correct("Gemini에는 없어", v))
+        assertEquals("README에 적어", VocabCorrector.correct("리드미에 적어", v))
+    }
+
+    @Test
     fun hadaEndingIsKept() {
         assertEquals("commit해줘", fix("커밋해줘"))
     }
