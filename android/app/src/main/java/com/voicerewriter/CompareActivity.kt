@@ -127,8 +127,14 @@ class CompareActivity : ComponentActivity() {
                 // feeds it (512-sample frames): when it would have auto-stopped, and per half
                 // second the loudest frame / noise floor in dB and how many frames counted as
                 // speech. A take ended by hand keeps its tail, which shows why it did not fire.
+                // The takes themselves, where adb can read them (the app's own external folder,
+                // closed to other apps): rules for the detector are tried on the real audio.
+                val outDir = ctx.getExternalFilesDir("bench")
                 for ((i, rec) in recs.withIndex()) {
                     val samples = withContext(Dispatchers.IO) { PendingAudio.samples(ctx, rec.id) } ?: continue
+                    if (outDir != null) withContext(Dispatchers.IO) {
+                        runCatching { WavIo.write(java.io.File(outDir, "%02d.wav".format(i + 1)), samples) }
+                    }
                     val sr = AudioRecorder.SAMPLE_RATE
                     val det = QuietSpeechDetector((base.autoStopSeconds * sr).toInt(), (0.4 * sr).toInt())
                     fun db(v: Float) = (20 * kotlin.math.log10(maxOf(v, 1e-6f))).toInt()
