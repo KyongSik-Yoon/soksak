@@ -7,7 +7,10 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -94,7 +97,14 @@ class LockDictationActivity : ComponentActivity() {
     private fun Screen() {
         val phase by DictationStatus.phase.collectAsState()
         val amp by DictationStatus.amplitude.collectAsState()
-        val silence by DictationStatus.silence.collectAsState()
+        // The recorder reports the wait about 18 times a second; drawn as-is the ring steps.
+        // Glide between reports at the display's rate, and drop back at once when speech resumes.
+        val silenceRaw by DictationStatus.silence.collectAsState()
+        val silence by animateFloatAsState(
+            silenceRaw,
+            animationSpec = if (silenceRaw == 0f) snap() else tween(110, easing = LinearEasing),
+            label = "silence",
+        )
         // The take is started just before this screen; IDLE means "not yet" until it has been
         // seen running, and "ended with nothing" after.
         var seen by remember { mutableStateOf(false) }
