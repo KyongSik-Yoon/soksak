@@ -97,7 +97,7 @@
   자동 중지 대기: 설정 "Auto-stop wait"(탭할 때마다 1.6/3/5초, `AUTO_STOP_CHOICES`, `AudioRecorder.start(hangoverSeconds)`).
   재부팅 직후 등 `micReady=false`면 `RewriteActivity`(투명 시트)로 폴백. 0.7초간 마이크가 디지털 0이면 막힌 것으로 보고 폴백.
 - 받아쓰기 위젯(`DictateWidget.kt`, 1×1, `home_screen|keyguard`): 탭하면 `BubbleService`에 `ACTION_DICTATE`를 보내 버블 탭(`onTap`)과 같게 시작/중지.
-  용도는 폰을 잠근 채 PC로 말 보내기라, 위젯으로 시작한 받아쓰기는 PC 전송 설정과 상관없이 `pc`(실패하면 폰 입력)로 보낸다(`onTap(toPc)`, 설정은 안 바꿈). 시트 폴백 경로에는 적용 안 됨.
+  용도는 폰을 잠근 채 PC로 말 보내기라, 위젯으로 시작한 받아쓰기는 PC 전송 설정과 상관없이 `pc`(실패하면 폰 입력)로 보내고, 조용히 말하기(quietModel 포함)로 녹음한다(`widgetTake`, 설정은 안 바꿈). 시트 폴백 경로에는 적용 안 됨.
   위젯 클릭은 백그라운드 FGS 시작이 허용돼 버블이 꺼져 있어도 서비스를 띄운다. 잠금화면(One UI)에 목록으로 뜨는지는 폰에서 확인할 일.
 - 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 고르면 `sttModel` 저장 + 백그라운드 warm.

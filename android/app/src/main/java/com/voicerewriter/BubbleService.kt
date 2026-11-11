@@ -294,8 +294,8 @@ class BubbleService : Service() {
         // see [micReady]. Harmless when it already holds it.
         if (!micReady) enterForeground()
         // The dictation widget: like tapping the bubble (start, or stop the running take), but
-        // the take goes to the PC — it's used with the phone locked, where there is no field.
-        if (intent?.action == ACTION_DICTATE) mainHandler.post { onTap(toPc = true) }
+        // with the widget's own settings (widgetTake).
+        if (intent?.action == ACTION_DICTATE) mainHandler.post { onTap(fromWidget = true) }
         return START_STICKY
     }
 
@@ -339,10 +339,11 @@ class BubbleService : Service() {
      * Start a dictation: headless when possible ([HeadlessDictation]), otherwise the sheet.
      * Settings are read off the main thread; the gesture's haptic has already fired.
      */
-    private fun beginDictation(pushToTalk: Boolean, toPc: Boolean = false) {
+    private fun beginDictation(pushToTalk: Boolean, fromWidget: Boolean = false) {
         CoroutineScope(Dispatchers.Main).launch {
-            val s = runCatching { SettingsRepository(applicationContext).get().forDictation() }.getOrNull()
-                ?.let { if (toPc) it.copy(pcSend = PcLink.PC_ONLY) else it }
+            val s = runCatching {
+                SettingsRepository(applicationContext).get().let { if (fromWidget) widgetTake(it) else it }.forDictation()
+            }.getOrNull()
             val headless = s != null && HeadlessDictation.canRun(applicationContext, s) &&
                 HeadlessDictation.start(applicationContext, s, pushToTalk) {
                     // Silenced microphone: say nothing, just let the sheet take this take.
@@ -828,17 +829,24 @@ class BubbleService : Service() {
         railRight?.visibility = View.GONE
     }
 
-    /** [toPc]: the widget's take, sent to the PC whatever the PC-send setting says. */
-    private fun onTap(toPc: Boolean = false) {
+    /** [fromWidget]: see [widgetTake]. */
+    private fun onTap(fromWidget: Boolean = false) {
         val stop = recordingStopper
         if (stop != null) {
             hapticEnd()
             mainHandler.post(stop) // stop the in-progress recording
         } else {
             hapticStart()
-            beginDictation(pushToTalk = false, toPc = toPc)
+            beginDictation(pushToTalk = false, fromWidget = fromWidget)
         }
     }
+
+    /**
+     * A widget take, used with the phone locked to talk to the PC: sent to the PC whatever the
+     * PC-send setting says (there is no field to type into), and recorded in Quiet mode (the
+     * user whispers there). The saved settings stay as they are.
+     */
+    private fun widgetTake(s: Settings): Settings = s.copy(pcSend = PcLink.PC_ONLY, quietMode = true)
 
     private fun launchRewrite(autoRecord: Boolean = true, pushToTalk: Boolean = false) {
         startActivity(
