@@ -32,7 +32,7 @@ object WhisperModelManager {
         val acft: Boolean = false,
         /**
          * Hosted as an asset of this release in this repo (built by the convert-model or NPU
-         * workflows). Fetched anonymously, or with the optional GitHub token while the repo is private.
+         * workflows). Fetched anonymously (the repo is public).
          */
         val releaseTag: String? = null,
         /** Which runtime decodes it. NPU models are sherpa-onnx bundles (a directory). */
@@ -212,16 +212,14 @@ object WhisperModelManager {
             val m = model(id)
             if (m.engine != SpeechEngine.WHISPER) {
                 val url = if (m.githubHosted) {
-                    val token = SettingsRepository(context.applicationContext).get().githubToken
-                    AppUpdater.releaseAssetUrl(token, m.releaseTag!!, "${m.fileName}.tar.bz2")
+                    AppUpdater.releaseAssetUrl(m.releaseTag!!, "${m.fileName}.tar.bz2")
                 } else m.url
                 LocalSherpaStt.download(url, modelFile(context, id), m, onProgress)
                 return@withContext
             }
             if (m.importOnly) throw IllegalStateException("${m.label} has no download; import its file instead.")
             val url = if (m.githubHosted) {
-                val token = SettingsRepository(context.applicationContext).get().githubToken
-                AppUpdater.releaseAssetUrl(token, m.releaseTag!!, m.fileName)
+                AppUpdater.releaseAssetUrl(m.releaseTag!!, m.fileName)
             } else m.url
             ModelDownloader.fetch(url, modelFile(context, id), onProgress)
         }

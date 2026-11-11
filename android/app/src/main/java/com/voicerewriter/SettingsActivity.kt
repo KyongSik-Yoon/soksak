@@ -133,7 +133,6 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var quietModel by remember { mutableStateOf(WhisperModelManager.SMALL_ACFT_MODEL) }
     var npuDiagnostics by remember { mutableStateOf(false) }
     var uiLanguage by remember { mutableStateOf(I18n.mode) }
-    var githubToken by remember { mutableStateOf("") }
     var pcSend by remember { mutableStateOf(PcLink.OFF) }
     var pcHost by remember { mutableStateOf("") }
     var pcCode by remember { mutableStateOf("") }
@@ -181,7 +180,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; githubToken = s.githubToken; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         pcSend = s.pcSend; pcHost = s.pcHost; pcCode = s.pcCode; pcType = s.pcType
         reviewBeforeInsert = s.reviewBeforeInsert
         uiLanguage = s.uiLanguage
@@ -266,7 +265,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     fun snapshot() = Settings(
         sttProvider = sttProvider, sttEndpoint = sttEndpoint.trim(), sttKey = sttKey.trim(),
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, githubToken = githubToken.trim(), bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, bubbleOnlyOnFields = bubbleOnlyOnFields,
         pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(), pcType = pcType,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
@@ -343,7 +342,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         AppUpdater.lastResult.value = null // a stale "Installer opened" must not hide the answer
         launch {
             updateStatus = try {
-                val r = AppUpdater.latest(githubToken)
+                val r = AppUpdater.latest()
                 val cur = AppUpdater.installedVersionCode(context)
                 if (r.versionCode > cur) { latestBuild = r; trf("Build %s is available.", r.run) }
                 else trf("Up to date (build %s).", r.run)
@@ -360,7 +359,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         updateProgress = 0f
         launch {
             try {
-                AppUpdater.downloadAndInstall(context, githubToken, r) { p -> updateProgress = p }
+                AppUpdater.downloadAndInstall(context, r) { p -> updateProgress = p }
                 updateStatus = tr("Installing… confirm if Android asks.")
             } catch (e: Exception) {
                 updateStatus = e.message ?: tr("Update failed.")
@@ -781,13 +780,6 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             Section(tr("Updates")) {
                 Card {
                     Padded {
-                        Label(tr("GitHub token (optional)"))
-                        Spacer(Modifier.height(6.dp))
-                        Text(trf("Optional. Only needed while %s is private: a fine-grained token with Contents: Read-only. Stored only on this phone.", AppUpdater.REPO),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
-                        KeyField(githubToken, "github_pat_…", secret = true) { githubToken = it; persist() }
-                        Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val installResult by AppUpdater.lastResult.collectAsState()
                             // Newest first: an available build, then the last action's result,

@@ -13,7 +13,7 @@ class BackupTest {
 
     private val mine = Settings(
         sttModel = "medium-npu", quietMode = true, autoStopSeconds = 3.0, promptExample = "예시 문장",
-        uiLanguage = "ko", githubToken = "github_pat_SECRET", sttKey = "sk-SECRET",
+        uiLanguage = "ko", sttKey = "sk-SECRET",
         pcSend = PcLink.BOTH, pcHost = "100.68.1.2", pcType = true, pcCode = "SECRETCODE",
     )
 
@@ -36,9 +36,8 @@ class BackupTest {
     @Test fun `secrets never reach the file and the restoring install keeps its own`() {
         val text = Backup.encode(mine, vocab)
         assertFalse(text.contains("SECRET"))
-        val here = Settings(githubToken = "github_pat_HERE", sttKey = "sk-HERE", pcCode = "HERECODE23")
+        val here = Settings(sttKey = "sk-HERE", pcCode = "HERECODE23")
         val r = Backup.decode(text, here)
-        assertEquals("github_pat_HERE", r.settings.githubToken)
         assertEquals("sk-HERE", r.settings.sttKey)
         assertEquals("HERECODE23", r.settings.pcCode)
     }

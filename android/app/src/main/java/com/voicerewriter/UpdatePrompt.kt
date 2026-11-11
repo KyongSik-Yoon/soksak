@@ -39,23 +39,20 @@ object UpdateCheck {
 /**
  * Game-style update prompt: when Soksak opens and a newer build is published, offer it in a
  * dialog with one Update button that downloads and installs in place. Silent when the check
- * fails (offline, private repo without a token, rate limit) or when already current.
+ * fails (offline, rate limit) or when already current.
  */
 @Composable
 fun UpdatePrompt() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var release by remember { mutableStateOf<AppUpdater.Release?>(null) }
-    var token by remember { mutableStateOf("") }
     var progress by remember { mutableStateOf<Float?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         if (!UpdateCheck.due()) return@LaunchedEffect
-        val t = runCatching { SettingsRepository(context.applicationContext).get().githubToken }.getOrDefault("")
-        val r = runCatching { AppUpdater.latest(t) }.getOrNull() ?: return@LaunchedEffect
+        val r = runCatching { AppUpdater.latest() }.getOrNull() ?: return@LaunchedEffect
         if (r.versionCode > AppUpdater.installedVersionCode(context) && r.run != UpdateCheck.dismissedRun) {
-            token = t
             release = r
         }
     }
@@ -86,7 +83,7 @@ fun UpdatePrompt() {
                 progress = 0f
                 scope.launch {
                     try {
-                        AppUpdater.downloadAndInstall(context, token, r) { p -> progress = p }
+                        AppUpdater.downloadAndInstall(context, r) { p -> progress = p }
                         message = "Installing… confirm if Android asks."
                     } catch (e: Exception) {
                         message = e.message ?: "Update failed."

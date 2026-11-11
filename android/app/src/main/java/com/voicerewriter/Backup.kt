@@ -8,7 +8,7 @@ import org.json.JSONObject
  * move to another install: a new phone, or this app under a new application id, which Android
  * treats as a different app with empty storage.
  *
- * Secrets stay out of the file: the GitHub token, the speech API key and the PC pairing code are
+ * Secrets stay out of the file: the speech API key and the PC pairing code are
  * never written and a restore keeps whatever this install already has for them. Downloaded models aren't included
  * (hundreds of MB; download them again).
  */

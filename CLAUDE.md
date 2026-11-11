@@ -136,7 +136,7 @@
 - 사용자 PC에는 `~/.local/bin/soksak-daemon` + systemd 사용자 서비스 `soksak-daemon`으로 설치돼 있다. `daemon/**`만 바뀐 커밋은 앱 CI를 돌리지 않고 `.github/workflows/daemon.yml`(cargo test·clippy)만 돈다. cargo는 `~/.cargo/bin`(PATH에 없음).
 
 ## 앱 내 업데이트
-- `AppUpdater.kt`: Releases API(토큰은 선택 — 공개 저장소는 익명 호출, 시간당 60회/IP. 비공개일 때만 설정의 fine-grained 토큰 Contents: Read-only 필요. 2026-11-10 공개 준비로 필수 → 선택. 모델 다운로드도 같은 경로) → APK를 캐시에 받고
+- `AppUpdater.kt`: Releases API를 익명으로 호출(시간당 60회/IP). 저장소가 공개라 GitHub 토큰 설정은 2026-11-11 지웠다(저장된 값은 다음 저장 때 폰에서 삭제). 모델 다운로드도 같은 경로 → APK를 캐시에 받고
   FileProvider(`update_paths.xml`) URI로 **시스템 패키지 설치 관리자**를 연다(ACTION_VIEW, 브라우저 다운로드와 같은 경로).
 - 설정 Updates 카드는 열 때 자동으로 Check하고 "Build N is available"을 우선 표시한다.
 - 앱이 직접 PackageInstaller 세션을 만드는 방식은 쓰지 않는다. 사용자 폰(Galaxy)에서 그 방식은 "self update"로 분류돼,

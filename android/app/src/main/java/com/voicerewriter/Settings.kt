@@ -50,8 +50,6 @@ data class Settings(
     val npuDiagnostics: Boolean = false,
     /** Settings screen language: "auto" (phone), "ko" or "en". See [I18n]. */
     val uiLanguage: String = "auto",
-    /** Optional read-only GitHub token for [AppUpdater]; only needed while the repo is private. */
-    val githubToken: String = "",
     /** Where a finished dictation goes: one of [PcLink.MODES]. See [PcLink]. */
     val pcSend: String = PcLink.OFF,
     /** The computer running soksak-daemon: `host` or `host:port`. */
@@ -107,7 +105,6 @@ class SettingsRepository(private val context: Context) {
         val QUIET_MODE = booleanPreferencesKey("quietMode")
         val QUIET_MODEL = stringPreferencesKey("quietModel")
         val NPU_DIAGNOSTICS = booleanPreferencesKey("npuDiagnostics")
-        val GITHUB_TOKEN = stringPreferencesKey("githubToken")
         val PC_SEND = stringPreferencesKey("pcSend")
         val PC_HOST = stringPreferencesKey("pcHost")
         val PC_CODE = stringPreferencesKey("pcCode")
@@ -122,6 +119,7 @@ class SettingsRepository(private val context: Context) {
          */
         val RETIRED_STRINGS = listOf(
             "provider", "model", "customEndpoint", "apiKey", "voice", "defaultMode", "polishLevel",
+            "githubToken",
         ).map { stringPreferencesKey(it) }
         val RETIRED_BOOLEANS = listOf("antiAI", "deterministicCleanup", "parakeetHotwordsExperimental")
             .map { booleanPreferencesKey(it) }
@@ -145,7 +143,6 @@ class SettingsRepository(private val context: Context) {
             quietMode = p[Keys.QUIET_MODE] ?: defaults.quietMode,
             quietModel = p[Keys.QUIET_MODEL] ?: defaults.quietModel,
             npuDiagnostics = p[Keys.NPU_DIAGNOSTICS] ?: defaults.npuDiagnostics,
-            githubToken = p[Keys.GITHUB_TOKEN] ?: defaults.githubToken,
             pcSend = p[Keys.PC_SEND] ?: defaults.pcSend,
             pcHost = p[Keys.PC_HOST] ?: defaults.pcHost,
             pcCode = p[Keys.PC_CODE] ?: defaults.pcCode,
@@ -174,7 +171,6 @@ class SettingsRepository(private val context: Context) {
             p[Keys.QUIET_MODE] = s.quietMode
             p[Keys.QUIET_MODEL] = s.quietModel
             p[Keys.NPU_DIAGNOSTICS] = s.npuDiagnostics
-            p[Keys.GITHUB_TOKEN] = s.githubToken
             p[Keys.PC_SEND] = s.pcSend
             p[Keys.PC_HOST] = s.pcHost
             p[Keys.PC_CODE] = s.pcCode
