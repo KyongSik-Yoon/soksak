@@ -1,3 +1,5 @@
+import javax.inject.Inject
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -81,6 +83,13 @@ android {
             // with com.microsoft.onnxruntime's at merge time (before abiFilters strips x86).
             // arm64 has only the Microsoft copy, so either pick is correct.
             pickFirsts += "**/libonnxruntime.so"
+            // The QNN runtime AAR carries every Qualcomm backend and Hexagon version. The app runs
+            // only HTP with precompiled context binaries on v79 (SM8750) and v81 (SM8850): drop the
+            // CPU/GPU/DSP backends, the on-device graph compiler (HtpPrepare, 74 MB) and older chips.
+            excludes += listOf(
+                "**/libQnnDsp*.so", "**/libQnnGpu.so", "**/libQnnHtpPrepare.so",
+                "**/libQnnHtpV6*.so", "**/libQnnHtpV73*.so", "**/libQnnHtpV75*.so",
+            )
         }
     }
     testOptions {
@@ -89,6 +98,45 @@ android {
             // tests don't need Robolectric just to no-op logging.
             isReturnDefaultValues = true
         }
+    }
+}
+
+val qnnRuntime = "com.qualcomm.qti:qnn-runtime:2.40.0"
+val qnnNoticeAar: Configuration by configurations.creating { isTransitive = false }
+
+/**
+ * Copies NOTICE.txt out of the QNN runtime AAR into the app's assets (as qualcomm_qnn_notice.txt,
+ * shown under Settings → Open source licenses). Qualcomm's licence forbids removing that file, and
+ * AGP drops an AAR's root files, so without this the APK would ship the libraries without it.
+ */
+abstract class QnnNoticeTask : DefaultTask() {
+    @get:InputFiles abstract val aar: ConfigurableFileCollection
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+    @get:Inject abstract val fs: FileSystemOperations
+    @get:Inject abstract val archives: ArchiveOperations
+
+    @TaskAction fun extract() {
+        fs.sync {
+            from(archives.zipTree(aar.singleFile)) {
+                include("NOTICE.txt")
+                rename { "qualcomm_qnn_notice.txt" }
+            }
+            into(outputDir)
+        }
+        check(outputDir.file("qualcomm_qnn_notice.txt").get().asFile.length() > 0) {
+            "NOTICE.txt missing from ${aar.singleFile.name}; the QNN runtime must not ship without it"
+        }
+    }
+}
+
+val qnnNotice = tasks.register<QnnNoticeTask>("qnnNotice") {
+    aar.from(qnnNoticeAar)
+    outputDir.set(layout.buildDirectory.dir("generated/qnnNotice"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(qnnNotice, QnnNoticeTask::outputDir)
     }
 }
 
@@ -126,6 +174,13 @@ dependencies {
     // the VAD's libonnxruntime.so) and the QNN runtime dropped into jniLibs by CI's sherpa-qnn job.
     // tar.bz2 extraction of the sherpa model bundles.
     implementation("org.apache.commons:commons-compress:1.27.1")
+    // Qualcomm's QNN runtime for the NPU models (libQnnHtp, libQnnSystem, the v79/v81 stub and skel;
+    // the rest is excluded under packaging). Taken from Qualcomm's own Maven package rather than a
+    // third-party copy: its licence (AI Stack License, POM: "Qualcomm AI Hub Model License") allows
+    // shipping it in object code inside an app, on condition its NOTICE file is kept (qnnNotice
+    // below). Same QAIRT build (2.40.0.251030) as the headers libsherpa-onnx-jni.so is compiled with.
+    implementation(qnnRuntime)
+    qnnNoticeAar("$qnnRuntime@aar")
     // Silent in-app updates through Shizuku (ShizukuInstaller).
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")

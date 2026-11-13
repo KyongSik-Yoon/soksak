@@ -23,11 +23,12 @@ on:
 
 jobs:
   # libsherpa-onnx-jni.so built with Qualcomm NPU (QNN) support — the published AAR has none, and
-  # v2.0.1's JNI can't configure Whisper on QNN at all — plus the QNN runtime pieces for Hexagon
-  # v81 (Snapdragon 8 Elite Gen 5, NpuSupport.kt). Built from the same sherpa-onnx commit the app's
+  # v2.0.1's JNI can't configure Whisper on QNN at all. Built from the same sherpa-onnx commit the app's
   # vendored Kotlin API (android/app/src/main/java/com/k2fsa/sherpa/onnx) comes from: the JNI reads
-  # those classes' fields by name. Cached per key. Headers and runtime libs come from sherpa-onnx's
-  # public asr-models-qnn release (QAIRT 2.40), as its own QNN APK builds do.
+  # those classes' fields by name. Cached per key. Only the QNN headers (compile time, not shipped)
+  # come from sherpa-onnx's asr-models-qnn release (QAIRT 2.40); the QNN runtime libraries the APK
+  # ships come from Qualcomm's own Maven package (com.qualcomm.qti:qnn-runtime, app/build.gradle.kts),
+  # which carries the licence and NOTICE file they must travel with.
   sherpa-qnn:
     name: sherpa-onnx JNI with QNN
     runs-on: ubuntu-latest
@@ -37,7 +38,7 @@ jobs:
         id: cache
         with:
           path: qnn-out
-          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-v79v81-${{ hashFiles('.github/patches/sherpa-qnn.patch') }}
+          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-jnionly-${{ hashFiles('.github/patches/sherpa-qnn.patch') }}
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         env:
@@ -49,9 +50,8 @@ jobs:
           mkdir s && cd s && git init -q && git remote add origin https://github.com/k2-fsa/sherpa-onnx
           git fetch -q --depth 1 origin "$SHERPA" && git checkout -q FETCH_HEAD
           git apply ../.github/patches/sherpa-qnn.patch
-          gh release download asr-models-qnn -R k2-fsa/sherpa-onnx -p "qnn-include-$V.tar.bz2" -p "qnn-libs-$V.tar.bz2"
-          tar xf "qnn-include-$V.tar.bz2" && tar xf "qnn-libs-$V.tar.bz2"
-          ls qnn-libs-$V
+          gh release download asr-models-qnn -R k2-fsa/sherpa-onnx -p "qnn-include-$V.tar.bz2"
+          tar xf "qnn-include-$V.tar.bz2"
           export QNN_SDK_ROOT=$PWD/qnn-include-$V
           export SHERPA_ONNX_ENABLE_QNN=ON SHERPA_ONNX_ENABLE_TTS=OFF SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=OFF
           export SHERPA_ONNX_ENABLE_BINARY=OFF BUILD_SHARED_LIBS=OFF
@@ -61,9 +61,6 @@ jobs:
           tail -5 build.log
           mkdir -p ../qnn-out
           cp -v build-android-arm64-v8a-static/install/lib/libsherpa-onnx-jni.so ../qnn-out/
-          for f in libQnnHtp.so libQnnHtpPrepare.so libQnnSystem.so libQnnHtpV79Stub.so libQnnHtpV79Skel.so libQnnHtpV81Stub.so libQnnHtpV81Skel.so; do
-            cp -v "qnn-libs-$V/$f" ../qnn-out/
-          done
           ls -la ../qnn-out
       - uses: actions/upload-artifact@v4
         with:
@@ -101,14 +98,11 @@ jobs:
       - name: Install NDK + CMake (whisper.cpp native module)
         run: sdkmanager "ndk;25.1.8937393" "cmake;3.22.1"
 
-      - name: sherpa-onnx JNI + QNN runtime into jniLibs (gitignored)
+      - name: sherpa-onnx JNI into jniLibs (gitignored)
         uses: actions/download-artifact@v4
         with:
           name: sherpa-qnn
           path: android/app/src/main/jniLibs/arm64-v8a
-
-      - name: Drop the on-device QNN compiler (the NPU model ships as SM8850 context binaries)
-        run: rm -fv android/app/src/main/jniLibs/arm64-v8a/libQnnHtpPrepare.so
 
       # The phone only accepts builds signed with the app's fixed key (kept outside the repo).
       # Pushes to main must have it; pull requests from forks get no secrets and build with a

@@ -54,12 +54,17 @@ IBM Plex Mono
 
 Bundled in the app — Qualcomm proprietary
 -----------------------------------------
-Qualcomm AI Runtime (QNN) libraries: libQnnHtp.so, libQnnHtpV81Stub.so,
-libQnnHtpV81Skel.so, libQnnSystem.so
+Qualcomm AI Runtime (QNN) 2.40.0 libraries: libQnnHtp.so, libQnnSystem.so,
+libQnnHtpV79Stub.so, libQnnHtpV79Skel.so, libQnnHtpV81Stub.so,
+libQnnHtpV81Skel.so — from Qualcomm's package com.qualcomm.qti:qnn-runtime
   Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-  Distributed in object code, only as part of this app, under the
-  Qualcomm AI Hub Model License. These files are not open source and no
-  license is given to use or redistribute them separately from this app.
+  All rights reserved. Confidential and Proprietary - Qualcomm Technologies, Inc.
+  Distributed in object code, only as part of this app, under Qualcomm's
+  AI Stack License ("Qualcomm AI Hub Model License"):
+  https://softwarecenter.qualcomm.com/api/download/software/licenses/ai_model_hub/v1/LICENSE.pdf
+  These files are not open source and no license is given to use or
+  redistribute them separately from this app. Qualcomm's NOTICE file for
+  them follows at the very end of this screen.
 
 
 Speech models (downloaded when you choose them; not inside the app)

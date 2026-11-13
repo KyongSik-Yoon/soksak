@@ -6,7 +6,7 @@ import android.os.Build
  * Whether this phone can run the NPU (Qualcomm QNN, HTP backend) models, and on which chip.
  *
  * A model is compiled per chip (a QNN context binary), and the APK carries the HTP stub and skel
- * of each chip's Hexagon version (CI copies just those from the QNN runtime): v81 for Snapdragon
+ * of each chip's Hexagon version (build.gradle.kts keeps just those from the QNN runtime AAR): v81 for Snapdragon
  * 8 Elite Gen 5 = SM8850, the user's Galaxy S26 Ultra, and v79 for Snapdragon 8 Elite = SM8750
  * (Galaxy Z Fold7; added 2026-11-11 and not yet run on one). Other chips don't see the NPU models.
  */

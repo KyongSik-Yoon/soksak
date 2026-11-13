@@ -1,5 +1,6 @@
 package com.voicerewriter
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -16,7 +17,7 @@ class ThirdPartyNoticesTest {
         for (name in listOf(
             "whisper.cpp", "ONNX Runtime", "Silero VAD", "Shizuku", "sherpa-onnx", "OkHttp",
             "AndroidX", "kotlinx.coroutines", "Apache Commons Compress", "Mulish", "IBM Plex Mono",
-            "Qualcomm AI Runtime", "RohitAg13/openWispr",
+            "Qualcomm AI Runtime", "com.qualcomm.qti:qnn-runtime", "RohitAg13/openWispr",
         )) assertTrue("missing $name", notices.contains(name))
     }
 
@@ -24,5 +25,9 @@ class ThirdPartyNoticesTest {
         assertTrue(notices.contains("Permission is hereby granted, free of charge"))
         assertTrue(notices.contains("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION"))
         assertTrue(notices.contains("SIL OPEN FONT LICENSE Version 1.1"))
+    }
+
+    @Test fun splitsIntoParagraphs() {
+        assertEquals(listOf("a\n  b", "c"), LicensesActivity.paragraphs("a\n  b\n\n \r\n\nc\n"))
     }
 }
