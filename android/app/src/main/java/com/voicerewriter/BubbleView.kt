@@ -297,6 +297,19 @@ class BubbleView(context: Context) : View(context) {
         canvas.restoreToCount(layer)
     }
 
+    /**
+     * Whether a touch at ([x], [y]) in view coordinates is on the model tab. Generous — the tab
+     * is 14dp tall — so it reaches into the padding below the disc and up into its lower edge.
+     */
+    fun badgeHit(x: Float, y: Float): Boolean {
+        val text = badge?.takeIf { it.isNotBlank() } ?: return false
+        val pad = dp(PAD_DP)
+        val bottom = height - pad - dp(1f)
+        val half = max(dp(14f), badgePaint.measureText(text) + dp(8f)) / 2f + dp(8f)
+        val cx = width / 2f
+        return x in (cx - half)..(cx + half) && y in (bottom - dp(11f))..(bottom + dp(10f))
+    }
+
     /** The model tab: a small coral pill straddling the bottom edge of the disc. */
     private fun drawBadge(canvas: Canvas) {
         val text = badge?.takeIf { it.isNotBlank() } ?: return

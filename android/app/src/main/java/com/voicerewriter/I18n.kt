@@ -172,8 +172,8 @@ object I18n {
 
         // Quiet mode + bubble model menu
         "Quiet mode" to "조용히 말하기",
-        "For whispering in a quiet office: keeps the whole recording, stops on your own voice level instead of the speech detector, and uses its own model. Also on the bubble's flick-up menu." to
-            "조용한 사무실에서 속삭이듯 말할 때: 녹음을 자르지 않고 전부 쓰며, 음성 감지기 대신 내 목소리 크기로 자동 중지하고, 전용 모델을 써요. 버블을 위로 밀어 나오는 메뉴에서도 켜고 끌 수 있어요.",
+        "For whispering in a quiet office: keeps the whole recording, stops on your own voice level instead of the speech detector, and uses its own model. Also in the bubble's menu (tap the model tab under the bubble)." to
+            "조용한 사무실에서 속삭이듯 말할 때: 녹음을 자르지 않고 전부 쓰며, 음성 감지기 대신 내 목소리 크기로 자동 중지하고, 전용 모델을 써요. 버블 아래 모델 표시를 누르면 나오는 메뉴에서도 켜고 끌 수 있어요.",
         "Quiet mode model" to "조용히 말하기 모델",
         "%s · tap to change" to "%s · 탭해서 변경",
         "Speech model" to "음성 모델",

@@ -151,7 +151,7 @@ class BubbleService : Service() {
     /** Lives as long as the service; cancelled in [onDestroy]. */
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** Speech-model menu, opened by flicking the bubble up. */
+    /** Speech-model menu, opened by tapping the model tab under the bubble or flicking the bubble up. */
     private var picker: ModelPicker? = null
 
     /** Which edge the bubble is docked to. Persisted indirectly, via the saved x. */
@@ -493,6 +493,9 @@ class BubbleService : Service() {
         var startY = 0
         var moved = false
         var longFired = false
+        // Down on the model tab: a tap there opens the menu instead of dictating. The flick-up
+        // stays, but people new to the bubble didn't find it (2026-11-13); the tab is visible.
+        var onBadge = false
         val touchSlop = 12 * density
 
         // Hold-to-talk. Deliberately the *short* gesture: your finger is pinned for the whole
@@ -547,7 +550,8 @@ class BubbleService : Service() {
                     startY = params.y
                     moved = false
                     longFired = false
-                    mainHandler.postDelayed(longPress, 450)
+                    onBadge = recordingStopper == null && view.state == BubbleView.State.IDLE && view.badgeHit(e.x, e.y)
+                    if (!onBadge) mainHandler.postDelayed(longPress, 450)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -640,7 +644,10 @@ class BubbleService : Service() {
                             },
                         )
                     }
-                    if (!moved) onTap()
+                    if (!moved && onBadge) {
+                        hapticThreshold()
+                        showModelPicker()
+                    } else if (!moved) onTap()
                     true
                 }
                 else -> false

@@ -524,7 +524,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                     Divider()
                     ToggleRow(
                         tr("Quiet mode"),
-                        tr("For whispering in a quiet office: keeps the whole recording, stops on your own voice level instead of the speech detector, and uses its own model. Also on the bubble's flick-up menu."),
+                        tr("For whispering in a quiet office: keeps the whole recording, stops on your own voice level instead of the speech detector, and uses its own model. Also in the bubble's menu (tap the model tab under the bubble)."),
                         quietMode,
                     ) { quietMode = it; persist() }
                     if (quietMode) {
