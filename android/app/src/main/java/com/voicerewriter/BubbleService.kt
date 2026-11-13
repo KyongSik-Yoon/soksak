@@ -83,7 +83,7 @@ class BubbleService : Service() {
          * docked edge, and translucent (as Typeless does), so it covers less of the app beneath.
          * Any touch or any non-idle state brings it straight back.
          */
-        private const val IDLE_SHRINK_MS = 3500L
+        private const val IDLE_SHRINK_MS = 8000L // 3.5s tucked it away while you were still deciding what to say (2026-11-13)
         private const val SHRUNK_SCALE = 0.7f
         private const val SHRUNK_ALPHA = 0.5f
 
