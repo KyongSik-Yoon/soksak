@@ -110,14 +110,16 @@
   마이크를 못 잡은 경우만 화면이 뜬 뒤 한 번 재시도(`widgetTakeFromScreen`).
   위젯 클릭은 백그라운드 FGS 시작이 허용돼 버블이 꺼져 있어도 서비스를 띄운다. 잠금화면(One UI)에 올려 쓰고 있다.
   앱을 업데이트하면 잠금화면 위젯이 "위젯 정보를 불러오는 중"에 멈춰 매번 다시 등록해야 했다 → `DictateWidget.refreshAll`이 패키지 교체·부팅(`BootReceiver`)·버블 서비스 시작·앱 열기 때 RemoteViews를 다시 보낸다(2026-11-11, build-124·125 업데이트에서 사용자 확인: 멈추지 않음). 멈춘 정확한 원인은 로그로 확인하지 못했다.
-- 모델 전환: 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
+- 모델 전환: 버블 아래 **모델 탭(배지)을 누르거나**(`BubbleView.badgeHit`, 탭보다 넉넉한 영역; 2026-11-13 — 위로 밀기는 다른 개발자들이 어려워해서 추가, 길게 누르기는 누르는 동안 녹음이라 쓰지 않음) 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 위쪽은 설정 행(선 아이콘 `ic_menu_*` + 이름 + 현재 값, 이모지·글자 배지는 쓰지 않음), 구분선 아래가 모델 목록. 고르면 `sttModel` 저장 + 백그라운드 warm.
   버블 아래쪽 작은 탭에 현재 모델 약자(`WhisperModel.badge`: SA T MN TN)를 표시. 느린 끌기는 그대로 위치 이동.
 - **조용히 말하기**(설정 "Quiet mode", 버블 메뉴 맨 위 행): 받아쓰기 때 `Settings.forDictation()`이 모델을 `quietModel`
   (기본 Small ACFT)로 바꾸고, `AudioRecorder.start(quiet = true)`가 Silero 대신 `QuietSpeechDetector`(500~2500Hz 대역에서 소음 바닥 대비 2.5배·절대 3e-4 이상이 0.1초 이어지면
   말로 봄, 마이크 시작 0.3초는 무시 — 전체 음량으로는 실제 폰에서 한 번도 발동 안 했다: 첫 조각이 0이라 바닥이 -90dB로 잡히고, 500Hz 아래 방 소음이 속삭임보다 15~20dB 큼. 2026-11-11, 속삭임 녹음 20개로 확인)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 장밋빛(#B4608E, 어두운 테마 #E8A3C6 — 보라 마크와 어울리되 구분됨; 처음엔 청록이었는데 보라와 안 어울려 2026-11-11 변경), 메뉴에서 고른 모델은 quietModel에 저장.
-- 버블 축소: 3.5초 무활동이면 작아지고(`scheduleShrink`), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
+- 버블 축소: 8초 무활동이면 작아지고(`scheduleShrink`, `IDLE_SHRINK_MS`; 2026-11-13 3.5초에서 늘림 — 말할 내용을 생각하는 동안 작아졌다), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
+- 듣는 중·변환 중에는 버블 창에 FLAG_KEEP_SCREEN_ON을 건다(`keepScreenOn`; 길게 말하면 화면 꺼짐 시간이 지나 화면이 잠겼다).
+- 변환 진행률(`TranscribeProgress.kt`, 2026-11-13): 멈춘 뒤 남은 오디오 × 모델의 실측 속도(조각마다 `record`, 기본값은 Run all 값)로 추정하고 조각이 끝날 때마다 실제 비율로 당긴다. 혼자서는 94%를 넘지 않고 글이 나와야 닫힌다. 버블은 PROCESSING 테두리, 잠금화면은 150dp 링으로 그린다(`DictationStatus.progress`, 헤드리스 경로만).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, CPU·NPU 공통, 헤드리스 경로만):
   녹음 중 0.5초 쉼에서(조각 5초 이상일 때) 잘라 바로 디코드하고, 앞 텍스트 끝 200자를 프롬프트 끝에 붙인다(`buildPrompt`의 previous, NPU는 프롬프트 미지원이라 없음).
   멈추면 꼬리만 디코드(자동 중지 무음은 잘라 마지막 소리 뒤 0.4초까지, `tailEnd`). 소리 0.3초 미만 조각은 건너뜀. 조각 하나라도 실패하면 전체를 통째로 다시 디코드.
