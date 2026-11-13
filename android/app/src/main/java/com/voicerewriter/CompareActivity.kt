@@ -2,6 +2,7 @@ package com.voicerewriter
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +61,7 @@ class CompareActivity : ComponentActivity() {
     private data class ModelRun(val modelId: String, val label: String, val text: String?, val ms: Long?, val error: String?)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge() // dark status/nav bar icons in the light theme (the XML theme leaves them white)
         super.onCreate(savedInstanceState)
         setContent { SoksakTheme { Surface(Modifier.fillMaxSize()) { Screen() } } }
     }

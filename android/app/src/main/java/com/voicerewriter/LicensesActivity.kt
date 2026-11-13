@@ -2,6 +2,7 @@ package com.voicerewriter
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import java.io.IOException
 class LicensesActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge() // dark status/nav bar icons in the light theme (the XML theme leaves them white)
         super.onCreate(savedInstanceState)
         val qnn = readAsset(QNN_NOTICE_ASSET)?.let { "$QNN_NOTICE_HEADING\n\n$it" }
         // About 4,000 lines once Qualcomm's file is in: laid out lazily, a paragraph per item.
