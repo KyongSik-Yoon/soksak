@@ -142,6 +142,7 @@
 - 전송 지점은 `PcLink.deliver` 하나(`HeadlessDictation`, `RewriteActivity.acceptVoice`가 호출). 단어장 교정이 끝난 최종 글을 보낸다. `both`는 폰 입력과 동시에, `pc`는 PC 실패 시에만 폰에 입력(글을 잃지 않게). `pc`에서는 버블의 "입력창에서만 보이기"를 무시한다(`gateFor`).
   결과는 버블 알약(`showPcResult`: "To PC"/"PC clip"/"No PC")으로 알린다 — 백그라운드 토스트는 안 뜬다.
 - 연동 코드는 비밀정보: 백업 파일에 넣지 않고, 사용자가 폰에 직접 입력한다. 데몬 로그에는 글 내용을 남기지 않는다.
+  Android 자동 백업(Google Drive)·기기 간 이전도 끈다(`allowBackup="false"` + `res/xml/data_extraction_rules.xml`이 모든 도메인 제외, 2026-11-13) — 원작부터 켜져 있어 연동 코드·받아쓴 글·녹음 WAV가 대상이었다. targetSdk 31+에서는 allowBackup만으로 기기 이전이 안 막힌다. 폰 이전은 설정 → General 수동 백업으로.
 - 사용자 PC에는 `~/.local/bin/soksak-daemon` + systemd 사용자 서비스 `soksak-daemon`으로 설치돼 있다. `daemon/**`만 바뀐 커밋은 앱 CI를 돌리지 않고 `.github/workflows/daemon.yml`(cargo test·clippy)만 돈다. cargo는 `~/.cargo/bin`(PATH에 없음).
 
 ## 앱 내 업데이트
