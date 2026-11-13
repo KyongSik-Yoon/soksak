@@ -136,6 +136,10 @@ class BubbleView(context: Context) : View(context) {
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val edgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -169,6 +173,7 @@ class BubbleView(context: Context) : View(context) {
             field = value
             enteredAt = SystemClock.uptimeMillis()
             if (value == State.LISTENING) resetBars()
+            if (value == State.PROCESSING) shownProgress = 0f
             invalidate()
         }
 
@@ -399,11 +404,15 @@ class BubbleView(context: Context) : View(context) {
         }
     }
 
+    /** The progress ring as drawn: eases toward [DictationStatus.progress] a little each frame. */
+    private var shownProgress = 0f
+
     /**
-     * Transcribing and polishing. Deliberately not a spinner and deliberately not the
-     * waveform: the bars mean "I can hear you", and leaving them running after the microphone
-     * is closed says something false. Three slow dots over a breathing glow say "thinking"
-     * without implying a measured countdown — you see this many times a day.
+     * Transcribing. Deliberately not a spinner and deliberately not the waveform: the bars mean
+     * "I can hear you", and leaving them running after the microphone is closed says something
+     * false. Three slow dots over a breathing glow say "thinking"; a ring round the edge fills
+     * with the estimated share done ([TranscribeProgress]), so a long take reads as long rather
+     * than stuck.
      */
     private fun drawProcessing(canvas: Canvas, t: Float) {
         fillPaint.shader = null
@@ -448,6 +457,18 @@ class BubbleView(context: Context) : View(context) {
             canvas.drawCircle(cx + (i - 1) * step, cy + dy, dotR, accentPaint)
         }
         accentPaint.alpha = 255
+
+        // Progress ring: a faint full track and the share done, from twelve o'clock.
+        val target = DictationStatus.progress.value
+        shownProgress += (target - shownProgress) * 0.12f
+        val inset = dp(2.5f)
+        scratch.set(content.left + inset, content.top + inset, content.right - inset, content.bottom - inset)
+        ringPaint.strokeWidth = dp(2.5f)
+        ringPaint.color = if (dark) MARK_DK else MARK
+        ringPaint.alpha = 46
+        canvas.drawArc(scratch, 0f, 360f, false, ringPaint)
+        ringPaint.alpha = 255
+        if (shownProgress > 0.005f) canvas.drawArc(scratch, -90f, 360f * shownProgress, false, ringPaint)
     }
 
     /** Inserted. Pops once, draws the check in, and [BubbleService] returns it to idle. */

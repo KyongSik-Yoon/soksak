@@ -18,6 +18,9 @@ object DictationStatus {
     /** While listening: how much of the auto-stop silence wait has passed, 0..1. */
     val silence = MutableStateFlow(0f)
 
+    /** While working: the estimated share of the transcription done, 0..1 ([TranscribeProgress]). */
+    val progress = MutableStateFlow(0f)
+
     /** Phases that end a take with its text delivered somewhere (or, for NO_PC, not to the PC). */
     fun isResult(p: Phase) = p != Phase.IDLE && p != Phase.LISTENING && p != Phase.WORKING
 }

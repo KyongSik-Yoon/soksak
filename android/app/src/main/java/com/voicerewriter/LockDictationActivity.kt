@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -109,6 +108,13 @@ class LockDictationActivity : ComponentActivity() {
             animationSpec = if (silenceRaw == 0f) snap() else tween(110, easing = LinearEasing),
             label = "silence",
         )
+        // The estimated share of the transcription done; same source as the bubble's ring.
+        val progressRaw by DictationStatus.progress.collectAsState()
+        val progress by animateFloatAsState(
+            progressRaw,
+            animationSpec = if (progressRaw == 0f) snap() else tween(300, easing = LinearEasing),
+            label = "progress",
+        )
         // The take is started just before this screen; IDLE means "not yet" until it has been
         // seen running, and "ended with nothing" after.
         var seen by remember { mutableStateOf(false) }
@@ -159,6 +165,14 @@ class LockDictationActivity : ComponentActivity() {
                     if (listening) Box(Modifier.size(120.dp).scale(pulse).background(BrandLavender.copy(alpha = 0.22f), CircleShape))
                     // The silence wait running out: a ring closing round the mark. Not drawn
                     // for the gaps between words (under a quarter of the wait).
+                    // Transcribing: a faint track and the share done, from twelve o'clock.
+                    if (phase == Phase.WORKING) {
+                        Canvas(Modifier.size(150.dp)) {
+                            val stroke = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
+                            drawArc(color = MarkLight.copy(alpha = 0.18f), startAngle = 0f, sweepAngle = 360f, useCenter = false, style = stroke)
+                            drawArc(color = MarkLight, startAngle = -90f, sweepAngle = 360f * progress, useCenter = false, style = stroke)
+                        }
+                    }
                     if (listening && silence > 0.25f) {
                         Canvas(Modifier.size(150.dp)) {
                             drawArc(
@@ -168,11 +182,7 @@ class LockDictationActivity : ComponentActivity() {
                         }
                     }
                     Box(Modifier.size(120.dp).background(BrandPlum, CircleShape), contentAlignment = Alignment.Center) {
-                        if (phase == Phase.WORKING) {
-                            CircularProgressIndicator(Modifier.size(56.dp), color = MarkLight, strokeWidth = 4.dp)
-                        } else {
-                            Icon(painterResource(R.drawable.ic_mark), null, Modifier.size(72.dp), tint = MarkLight)
-                        }
+                        Icon(painterResource(R.drawable.ic_mark), null, Modifier.size(72.dp), tint = MarkLight)
                     }
                 }
                 Text(title(phase, seen, failed), color = MarkLight, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)

@@ -112,12 +112,23 @@ class StreamingWhisper(
     private val model = OnDeviceStt.resolveModel(context, settings.sttModel)
     private val s = settings.copy(sttModel = model)
     private var pieces = 0
+    // Audio sent to the decoder and audio it has finished, for [TranscribeProgress].
+    private val queuedSamples = java.util.concurrent.atomic.AtomicLong()
+    private val doneSamples = java.util.concurrent.atomic.AtomicLong()
+
+    private fun enqueue(r: IntRange) {
+        queuedSamples.addAndGet((r.last + 1 - r.first).toLong())
+        queue.trySend(r)
+    }
 
     fun start() {
         worker = scope.launch(Dispatchers.Default) {
             for (r in queue) {
                 if (failure != null) continue
                 try { decode(r) } catch (t: Throwable) { failure = t; Log.w(TAG, "piece failed", t) }
+                val sec = (r.last + 1 - r.first) / SR.toFloat()
+                doneSamples.addAndGet((r.last + 1 - r.first).toLong())
+                TranscribeProgress.pieceDone(sec)
             }
         }
         scanner = scope.launch(Dispatchers.Default) {
@@ -140,7 +151,7 @@ class StreamingWhisper(
         currentLevel = lvl
         while (true) {
             val (cut, next) = findCut(energies, pieceStart, scanFrom, lvl) ?: break
-            queue.trySend(pieceStart until cut)
+            enqueue(pieceStart until cut)
             pieces++
             pieceStart = cut
             scanFrom = next
@@ -166,7 +177,9 @@ class StreamingWhisper(
             SpeechEngine.WHISPER -> LocalWhisperStt.transcribe(context, s, samples, bias(), previousText = texts.joinToString(" "))
             else -> LocalSherpaStt.transcribe(context, s, samples)
         }.trim()
-        Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${(System.nanoTime() - t0) / 1_000_000}ms")
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        TranscribeProgress.record(model, pcm.size / SR.toFloat(), ms)
+        Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${ms}ms")
         if (text.isNotEmpty()) texts.add(text)
     }
 
@@ -182,8 +195,11 @@ class StreamingWhisper(
         // length, so decoding that silence was most of the wait after stop on Turbo, and silence
         // is where Whisper invents text. Keep a short margin after the last voiced frame.
         val end = tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel)
-        if (end > pieceStart) queue.trySend(pieceStart until end)
+        if (end > pieceStart) enqueue(pieceStart until end)
         queue.close()
+        // What is still to decode now that the user has stopped: the tail plus any piece queued
+        // or in flight. The ring on the bubble estimates from this.
+        TranscribeProgress.begin(model, (queuedSamples.get() - doneSamples.get()) / SR.toFloat(), android.os.SystemClock.uptimeMillis())
         val t0 = System.nanoTime()
         worker?.join()
         Log.i(TAG, "finished: ${pieces + 1} pieces, wait after stop ${(System.nanoTime() - t0) / 1_000_000}ms")

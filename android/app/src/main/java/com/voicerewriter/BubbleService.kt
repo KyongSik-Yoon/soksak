@@ -904,6 +904,7 @@ class BubbleService : Service() {
      */
     fun showWorking() {
         DictationStatus.silence.value = 0f
+        DictationStatus.progress.value = 0f
         DictationStatus.phase.value = DictationStatus.Phase.WORKING
         mainHandler.post {
             holdUntil = 0L

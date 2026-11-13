@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.voicerewriter.textproc.VocabCorrector
@@ -41,6 +42,7 @@ object HeadlessDictation {
 
     private const val TAG = "HeadlessDictation"
     private const val SILENT_PROBE_MS = 700L
+    private const val PROGRESS_TICK_MS = 50L
 
     private val main = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -161,9 +163,28 @@ object HeadlessDictation {
                 val vocab = VocabRepository(ctx).get()
                 val bias = if (vocab.isEmpty()) null else VocabCorrector.biasPrompt(vocab)
                 // Pieces already decoded while recording; only the tail is left. If any piece
-                // failed, decode the whole take as before.
-                val raw = stream?.finish()
-                    ?: OnDeviceStt.transcribe(ctx, s, WavIo.toFloats(samples), bias)
+                // failed, decode the whole take as before. The ticker feeds the progress ring.
+                val ticker = launch {
+                    while (isActive) {
+                        DictationStatus.progress.value = TranscribeProgress.fraction(SystemClock.uptimeMillis()) ?: 0f
+                        delay(PROGRESS_TICK_MS)
+                    }
+                }
+                val raw = try {
+                    stream?.finish() ?: run {
+                        val floats = WavIo.toFloats(samples)
+                        TranscribeProgress.begin(
+                            OnDeviceStt.resolveModel(ctx, s.sttModel),
+                            floats.size / AudioRecorder.SAMPLE_RATE.toFloat(),
+                            SystemClock.uptimeMillis(),
+                        )
+                        OnDeviceStt.transcribe(ctx, s, floats, bias)
+                    }
+                } finally {
+                    ticker.cancel()
+                    TranscribeProgress.end()
+                }
+                DictationStatus.progress.value = 1f
                 val text = if (vocab.isEmpty()) raw else VocabCorrector.correct(raw, vocab)
                 if (text.isBlank()) {
                     Log.i(TAG, "empty transcript (${s.sttModel}, ${durationSec}s)")
