@@ -53,7 +53,7 @@ jobs:
           case "${{ matrix.model }}" in
             sensevoice) b=sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17
                         gh release download asr-models -R k2-fsa/sherpa-onnx -p "$b.tar.bz2"; tar xjf "$b.tar.bz2" ;;
-            small) curl -fsSL --retry 5 --retry-all-errors -o small_acft_q8_0.bin https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin ;;
+            small) curl -fsSL --retry 5 --retry-all-errors -o small_acft_q8_0.bin https://github.com/KyongSik-Yoon/soksak/releases/download/model-acft-small-q8_0/small_acft_q8_0.bin ;;
             turbo) gh release download model-acft-large-v3-turbo-q4_0 -R "$GITHUB_REPOSITORY" -p '*.bin' ;;
           esac
           ls

@@ -70,7 +70,8 @@ libQnnHtpV81Skel.so — from Qualcomm's package com.qualcomm.qti:qnn-runtime
 Speech models (downloaded when you choose them; not inside the app)
 --------------------------------------------------------------------
 Small ACFT — FUTO's audio-context fine-tune of OpenAI Whisper small.
-  Apache License 2.0 (FUTO). Downloaded from FUTO's server.
+  Apache License 2.0 (FUTO). FUTO's q8_0 file, unchanged, from this
+  project's GitHub release.
 Large v3 Turbo ACFT (q4_0) — by Mahmoud Ashraf, Apache License 2.0.
   Converted to ggml and quantized to q4_0 for this app.
 Medium (NPU) — OpenAI Whisper medium, MIT License, Copyright (c) 2022 OpenAI.

@@ -48,7 +48,7 @@ jobs:
             test -d "$b"
           done
           gh release download model-acft-large-v3-turbo-q4_0 -R "$GITHUB_REPOSITORY" -p '*.bin'
-          curl -fsSL --retry 5 --retry-all-errors -o small_acft_q8_0.bin https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin
+          curl -fsSL --retry 5 --retry-all-errors -o small_acft_q8_0.bin https://github.com/KyongSik-Yoon/soksak/releases/download/model-acft-small-q8_0/small_acft_q8_0.bin
           ls -la
 
       - name: Fetch FLEURS ko_kr test

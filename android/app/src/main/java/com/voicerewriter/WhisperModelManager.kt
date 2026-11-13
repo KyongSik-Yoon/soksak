@@ -57,11 +57,15 @@ object WhisperModelManager {
         // github.com/futo-org/whisper-acft) — the same weights FUTO Voice Input ships. jni.c
         // shrinks audio_ctx to the clip length (768 floor) for speed; stock Whisper was never
         // trained on a truncated context and loses accuracy there, ACFT was trained for it.
+        // FUTO's own q8_0 file (voiceinput.futo.org), mirrored unchanged to this repo's release so
+        // the app doesn't lean on FUTO's server; the release notes carry its SHA-256 and licence.
+        // The plain download URL, not releaseTag: that goes through the anonymous GitHub API
+        // (60 requests an hour per IP), too tight for the model every first run fetches.
         WhisperModel(
             id = SMALL_ACFT_MODEL,
             label = "Small ACFT (FUTO)",
             fileName = "small_acft_q8_0.bin",
-            url = "https://voiceinput.futo.org/VoiceInput/small_acft_q8_0.bin",
+            url = "https://github.com/${AppUpdater.REPO}/releases/download/model-acft-small-q8_0/small_acft_q8_0.bin",
             sizeLabel = "~264MB · tuned for short clips",
             acft = true,
             badge = "SA",
