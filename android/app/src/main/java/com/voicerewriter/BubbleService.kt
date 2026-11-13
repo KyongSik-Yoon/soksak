@@ -738,10 +738,26 @@ class BubbleService : Service() {
         val v = bubble ?: return
         if (v.state == state) return
         v.state = state
+        keepScreenOn(state == BubbleView.State.LISTENING || state == BubbleView.State.PROCESSING)
         // Anything happening (listening, working, a confirmation) is shown at full size; back
         // to idle starts the countdown to tuck away again.
         if (state == BubbleView.State.IDLE) scheduleShrink() else wake(animate = true)
         redock(animate = true)
+    }
+
+    /**
+     * Keeps the screen from timing out while the user talks and while the take is transcribed:
+     * a long sentence outlasted the phone's screen timeout and locked it mid-dictation (the
+     * recording went on, but the screen went dark under the user). A flag on the bubble's own
+     * window, so it only holds while the bubble is on screen and drops the moment it isn't.
+     */
+    private fun keepScreenOn(on: Boolean) {
+        val v = bubble ?: return
+        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        val has = (params.flags and flag) != 0
+        if (has == on) return
+        params.flags = if (on) params.flags or flag else params.flags and flag.inv()
+        runCatching { wm.updateViewLayout(v, params) }
     }
 
     // ---- drag-to-dismiss target (bottom center) ----
