@@ -3,10 +3,15 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-13 — 밝은 테마의 모든 화면에서 상단바 아이콘이 보이게 (c9f911c, build-132)
+- 사용자 지적: 라이선스·Compare 화면에서 상단바 시계·배터리가 안 보임(밝은 배경에 흰 아이콘). Material3 테마는 아이콘 색을 정하지 않고 `enableEdgeToEdge()`를 부르는 홈·설정·온보딩만 어두운 아이콘이었다.
+- 나머지 불투명 화면도 호출, 잠금화면 받아쓰기는 늘 흰 아이콘. `SystemBarsTest`가 매니페스트의 불투명 액티비티마다 호출을 검사. 반투명 시트는 뒤 앱의 상단바라 그대로.
+- 폰 확인 전.
+
 ## 2026-11-13 — Play 출시 대비 라이선스 정리: QNN 런타임 출처·NOTICE, 기본 모델 자체 호스팅 (fe05d58, 52113fd)
 - Play 출시 검토에서 나온 라이선스 항목. QNN 런타임을 sherpa 재배포 묶음(라이선스 파일 없음) 대신 Qualcomm Maven `com.qualcomm.qti:qnn-runtime:2.40.0`에서 받음 — 같은 빌드(`v2.40.0.251030114326`)인 것 확인. AI Stack License가 요구하는 NOTICE 파일을 라이선스 화면 끝에 추가.
 - 기본 모델 Small ACFT를 FUTO 서버 대신 이 저장소 Release `model-acft-small-q8_0`(원본 그대로, SHA-256 일치 확인)의 직접 주소에서 받음. 이미 받은 폰은 다시 받지 않음.
-- CI `build-131` 성공, APK에 QNN 6개·sherpa JNI·NOTICE 들어간 것 확인. 폰에서 NPU 모델 동작·라이선스 화면은 아직 확인 전.
+- CI `build-131` 성공, APK에 QNN 6개·sherpa JNI·NOTICE 들어간 것 확인. 사용자 폰: Compare에서 Turbo (NPU) 정상(17초 녹음 2.6초, Small ACFT 3.2초), 라이선스 화면 문제없음. Medium (NPU)는 미확인(같은 라이브러리).
 
 ## 2026-11-11 — Turbo (NPU)를 Snapdragon 8 Elite(SM8750, Galaxy Z Fold7)용으로도 (44d76bb)
 - 사용자 요청. 모델 빌드 워크플로를 칩 입력(`soc`)을 받는 수동 실행으로 바꾸고 컴파일 스크립트가 `$SOC`를 받게 함(`npu_compile.sh`로 이름 변경).
