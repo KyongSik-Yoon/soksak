@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-15 — 내 목소리 등록(CAM++ 화자 게이팅 + VoxLock v2 NPU 수동 음성 분리 + 정면 지향성 마이크 힌트)
+- **목소리 1회 등록**: 설정 화면(`Voice lock`)에서 기기에 맞는 Apache-2.0 온디바이스 모델 3종(Snapdragon QNN 지원 기기 `SM8850`/`SM8750`은 `voxlock_chunk_qnn_<soc>.bin` 포함 ~93MB, 기타 기기는 CPU INT8 `voxlock_chunk_int8.onnx` 포함 ~105MB)을 내려받고 5~6초 녹음으로 내 목소리 임베딩·조건 텐서를 저장한다.
+- **상시 초경량 화자 게이팅**(기본 켬): `KaldiFbank` + `CampPlusEmbedder`로 `SpeakerGateSession`이 백그라운드 채점해 TV·타인 말소리 속 Auto-stop 타이머가 풀리지 않게 보호하고, 독립 비타겟 발화·혼합 발화 꼬리만 `0`으로 마스킹한다(내 발화 진행 중 내부 구간은 동시 발화 보호를 위해 유지).
+- **수동 VoxLock NPU 분리 토글**(기본 끔): 시끄러운 카페·식당 등에서는 버블 메뉴(`Isolate my voice` / `내 목소리만`, 세이지 그린 배지)로 실시간 타겟 음성 분리를 켜고 끌 수 있다. 지원 기기에서는 QAIRT 2.40 HTP 네이티브 백엔드(`VoxLockQnn`, `libvoxlock_qnn.so`, `K=25` 고정 청크 FP16 컨텍스트 바이너리, `NpuLoadGuard` 보호)로 실행하고 미지원·실패 시 CPU INT8로 폴백하며, `Quiet mode`와는 상호 배타적으로 동작하고 Quiet mode 중에는 두 기능 모두 자동 우회된다.
+- **정면 지향성 마이크 힌트**: Android 10(API 29)+ 기기에서 `AudioRecord`에 `MIC_DIRECTION_TOWARDS_USER` (`0.7f`) 힌트를 best-effort 적용한다.
+
 ## 2026-11-13 — 앱 데이터를 Google Drive 자동 백업·기기 간 이전에서 뺌 (b6286e1, build-134)
 - 이전 코드 리뷰 지적. 원작부터 `allowBackup="true"`에 규칙이 없어 연동 코드·받아쓴 글·녹음 WAV가 자동 백업·기기 이전 대상이었다. `allowBackup="false"` + `data_extraction_rules.xml`(모든 도메인 제외). 폰 이전은 설정 → General 수동 백업으로(연동 코드는 다시 입력).
 

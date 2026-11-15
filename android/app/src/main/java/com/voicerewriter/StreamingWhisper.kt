@@ -143,7 +143,7 @@ class StreamingWhisper(
         val len = recorder.rawLength()
         val have = energies.size * FRAME
         if (len - have >= FRAME) {
-            val pcm = recorder.rawCopy(have, len - (len - have) % FRAME)
+            val pcm = recorder.gatedCopy(have, len - (len - have) % FRAME)
             var off = 0
             while (off + FRAME <= pcm.size) { energies.add(rms(pcm, off, off + FRAME)); off += FRAME }
         }
@@ -162,7 +162,7 @@ class StreamingWhisper(
     }
 
     private suspend fun decode(r: IntRange) {
-        val pcm = recorder.rawCopy(r.first, r.last + 1)
+        val pcm = recorder.gatedCopy(r.first, r.last + 1)
         val lvl = currentLevel
         var voiced = 0
         var off = 0

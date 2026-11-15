@@ -233,8 +233,10 @@ object ModelDownloader {
         val root = File(context.filesDir, "models")
         if (!root.isDirectory) return
         sweepRetired(root)
-        // Sherpa bundles download as "<dir>.tar.bz2" before unpacking; keep their resume sidecars.
-        val known = WhisperModelManager.MODELS.flatMap { listOf(it.fileName, "${it.fileName}.tar.bz2") }.toSet()
+        // Sherpa bundles download as "<dir>.tar.bz2" before unpacking; keep their resume sidecars
+        // along with VoiceLock ONNX files so a resumed download isn't wiped mid-flight.
+        val known = WhisperModelManager.MODELS.flatMap { listOf(it.fileName, "${it.fileName}.tar.bz2") }.toSet() +
+            VoiceLockManager.MODEL_FILE_NAMES
         root.walkTopDown().filter { it.isFile }.forEach { f ->
             val suffix = SIDECARS.firstOrNull { f.name.endsWith(it) } ?: return@forEach
             if (f.name.removeSuffix(suffix) !in known && f.delete()) {

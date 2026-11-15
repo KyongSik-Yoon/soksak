@@ -458,7 +458,16 @@ class RewriteActivity : ComponentActivity() {
             // auto-stop firing on a mid-sentence pause would cut the user off while they are
             // still visibly holding the button down.
             val useVad = s.vadAutoStop && !pushToTalk
-            try { audioRecorder.start(vadAutoStop = useVad, hangoverSeconds = s.autoStopSeconds, quiet = s.quietMode, onAutoStop = { stopRecording(s) }) }
+            try {
+                audioRecorder.start(
+                    vadAutoStop = useVad,
+                    hangoverSeconds = s.autoStopSeconds,
+                    quiet = s.quietMode,
+                    speakerGate = s.speakerGate,
+                    voiceIsolation = s.voiceIsolation,
+                    onAutoStop = { stopRecording(s) },
+                )
+            }
             catch (e: Exception) { error = e.message ?: "Couldn't start the mic."; stage = Stage.ERROR; return }
             stage = Stage.RECORDING
             BubbleService.instance?.showRecording()

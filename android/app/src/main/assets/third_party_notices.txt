@@ -79,6 +79,10 @@ Medium (NPU) — OpenAI Whisper medium, MIT License, Copyright (c) 2022 OpenAI.
 Large v3 Turbo (NPU) — Mahmoud Ashraf's fine-tune above, Apache License 2.0.
   Compiled to Qualcomm QNN context binaries for SM8850 and SM8750.
 The ACFT models are based on OpenAI Whisper (MIT License, Copyright (c) 2022 OpenAI).
+3D-Speaker CAM++ (speech_campplus_sv_zh_en_16k-common_advanced) — Copyright (c) Alibaba DAMO Academy / 3D-Speaker contributors, Apache License 2.0.
+  Downloaded on demand for lightweight on-device speaker gating.
+VoxLock v2 (enroll.onnx, chunk_int8.onnx / QNN HTP context binaries) — Copyright (c) Arbaz Siddiqui (arbazsiddiqui/voxlock), Apache License 2.0.
+  Downloaded on demand for optional on-device target-speaker isolation (QNN HTP on Snapdragon NPU or INT8 ONNX Runtime CPU fallback).
 
 
 ========================================================================

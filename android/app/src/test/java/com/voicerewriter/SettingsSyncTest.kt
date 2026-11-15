@@ -11,9 +11,9 @@ class SettingsSyncTest {
     }
 
     @Test fun theBubblesSwitchesAreReported() {
-        val after = base.copy(quietMode = true, pcSend = PcLink.BOTH, pcType = true)
+        val after = base.copy(quietMode = true, voiceIsolation = true, pcSend = PcLink.BOTH, pcType = true)
         assertEquals(
-            SettingsSync.Changes(quietMode = true, pcSend = PcLink.BOTH, pcType = true),
+            SettingsSync.Changes(quietMode = true, voiceIsolation = true, pcSend = PcLink.BOTH, pcType = true),
             SettingsSync.changedByOthers(base, after),
         )
     }

@@ -60,6 +60,8 @@ class ModelPicker(
         onMore: () -> Unit,
         quiet: Boolean = false,
         onQuiet: ((Boolean) -> Unit)? = null,
+        voiceIsolation: Boolean = false,
+        onVoiceIsolation: ((Boolean) -> Unit)? = null,
         /** The "Send to PC" mode ([PcLink.MODES]); null hides the row (no PC set up). */
         pcSend: String? = null,
         onPcSend: () -> Unit = {},
@@ -95,6 +97,14 @@ class ModelPicker(
             card.addView(switchRow(R.drawable.ic_menu_quiet, tr("Quiet mode"), tr(if (quiet) "On" else "Off"), tint, quiet, ink, sub, font) {
                 dismiss()
                 onQuiet(!quiet)
+            })
+        }
+        if (onVoiceIsolation != null) {
+            switches = true
+            val tint = if (voiceIsolation) (if (dark) VOICE_LOCK_DK else VOICE_LOCK) else sub
+            card.addView(switchRow(R.drawable.ic_menu_voice_lock, tr("Isolate my voice"), tr(if (voiceIsolation) "On" else "Off"), tint, voiceIsolation, ink, sub, font) {
+                dismiss()
+                onVoiceIsolation(!voiceIsolation)
             })
         }
         if (pcSend != null) {
@@ -293,6 +303,9 @@ class ModelPicker(
         // Quiet mode's rose (BubbleView's badge).
         const val QUIET = 0xFFB4608E.toInt()
         const val QUIET_DK = 0xFFE8A3C6.toInt()
+        // Voice isolation's sage green (BubbleView's badge).
+        const val VOICE_LOCK = 0xFF2E7D5B.toInt()
+        const val VOICE_LOCK_DK = 0xFF88CFAF.toInt()
         const val INK = 0xFF2E2A38.toInt()
         const val SUB = 0xFF6B6478.toInt()
         const val SUB_DK = 0xFFC5BDD3.toInt()

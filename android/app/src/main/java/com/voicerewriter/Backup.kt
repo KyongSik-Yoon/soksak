@@ -36,6 +36,8 @@ object Backup {
             .put("pcSend", s.pcSend)
             .put("pcHost", s.pcHost)
             .put("pcType", s.pcType)
+            .put("speakerGate", s.speakerGate)
+            .put("voiceIsolation", s.voiceIsolation)
         val root = JSONObject()
             .put("format", FORMAT)
             .put("version", VERSION)
@@ -73,6 +75,8 @@ object Backup {
             pcSend = str("pcSend", current.pcSend),
             pcHost = str("pcHost", current.pcHost),
             pcType = bool("pcType", current.pcType),
+            speakerGate = bool("speakerGate", current.speakerGate),
+            voiceIsolation = bool("voiceIsolation", current.voiceIsolation),
         )
         val vocab = root.optJSONArray("vocab")?.takeIf { it.length() > 0 }?.toString()
         return Restored(settings, vocab)

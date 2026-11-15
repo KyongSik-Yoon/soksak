@@ -5,14 +5,16 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.MicrophoneDirection
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import java.io.File
-import java.io.FileOutputStream
+import android.util.Log
 import kotlin.math.abs
-import kotlin.math.sqrt
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Captures raw 16 kHz mono PCM16 from the mic with AudioRecord. [stop] hands back the
@@ -75,6 +77,9 @@ class AudioRecorder(private val context: Context) {
     private var worker: Thread? = null
     @Volatile private var recording = false
     @Volatile private var lastPeak = 0 // most recent buffer peak, for the waveform
+    /** 원시 마이크에서 0이 아닌 샘플을 한 번이라도 받았는지 여부 (배경 무음 차단 감지용). */
+    @Volatile var micDeliveredNonZero = false
+        private set
     private val chunks = ArrayList<ShortArray>()
 
     // The raw take as one growing array, for [StreamingWhisper] to read pieces of while the
@@ -94,6 +99,13 @@ class AudioRecorder(private val context: Context) {
     private var autoStopFired = false
     private var speechSamples = 0
     private var quietDetector: QuietSpeechDetector? = null
+    private var speakerGateSession: SpeakerGateSession? = null
+    private var voxLockStream: VoxLockEngine.Stream? = null
+    private var rawCaptureOnlyMode = false
+
+    // VoxLock 스트림처럼 가변 길이 출력을 내는 경로에서 512샘플 단위 VAD 잔여분 누적용
+    private var vadTail = FloatArray(SileroVad.CHUNK)
+    private var vadTailLen = 0
 
     val isRecording: Boolean get() = recording
 
@@ -104,6 +116,7 @@ class AudioRecorder(private val context: Context) {
     fun silenceProgress(): Float {
         if (!vadActive || !recording) return 0f
         quietDetector?.let { return it.silenceFraction(totalSamples) }
+        speakerGateSession?.let { return it.silenceProgress() }
         if (speechSamples < MIN_SPEECH_SAMPLES) return 0f
         return ((totalSamples - lastSpeechSample).toFloat() / hangoverSamples).coerceIn(0f, 1f)
     }
@@ -126,6 +139,12 @@ class AudioRecorder(private val context: Context) {
         pcm.copyOfRange(a, b)
     }
 
+    /** [StreamingWhisper]용: 화자 게이트가 켜져 있으면 확정된 비타겟 세그먼트를 0으로 마스킹해 반환한다. */
+    fun gatedCopy(from: Int, to: Int): ShortArray {
+        val raw = rawCopy(from, to)
+        return speakerGateSession?.maskStreamingChunk(from, to, raw) ?: raw
+    }
+
     /** Current peak amplitude (0..32767) for waveform visualization. */
     fun amplitude(): Int = lastPeak
 
@@ -143,6 +162,9 @@ class AudioRecorder(private val context: Context) {
         vadAutoStop: Boolean = false,
         hangoverSeconds: Double = DEFAULT_HANGOVER_S,
         quiet: Boolean = false,
+        speakerGate: Boolean = false,
+        voiceIsolation: Boolean = false,
+        rawCaptureOnly: Boolean = false,
         onAutoStop: (() -> Unit)? = null,
     ) {
         if (recording) return
@@ -150,20 +172,50 @@ class AudioRecorder(private val context: Context) {
         chunks.clear()
         synchronized(pcmLock) { pcmLen = 0 }
         lastPeak = 0
+        micDeliveredNonZero = false
         totalSamples = 0
         speechStarted = false
         firstSpeechSample = 0
         lastSpeechSample = 0
         autoStopFired = false
         speechSamples = 0
-        vad = if (vadAutoStop && !quiet) SileroVad.shared(context)?.also { it.reset() } else null
-        quietDetector = if (vadAutoStop && quiet) QuietSpeechDetector(hangoverSamples, MIN_SPEECH_SAMPLES) else null
-        vadActive = vad != null || quietDetector != null
+        vadTailLen = 0
+        rawCaptureOnlyMode = rawCaptureOnly
+
+        val useVad = vadAutoStop && !quiet && !rawCaptureOnly
+        vad = if (useVad || (speakerGate && !quiet && !rawCaptureOnly)) {
+            SileroVad.shared(context)?.also { it.reset() }
+        } else null
+        quietDetector = if (vadAutoStop && quiet && !rawCaptureOnly) {
+            QuietSpeechDetector(hangoverSamples, MIN_SPEECH_SAMPLES)
+        } else null
+
+        voxLockStream = if (voiceIsolation && !quiet && !rawCaptureOnly) {
+            VoiceLockManager.openVoxLockStream(context)
+        } else null
+
+        speakerGateSession = if (speakerGate && voxLockStream == null && !quiet && !rawCaptureOnly && vad != null) {
+            val embedder = VoiceLockManager.acquireEmbedder(context)
+            val enrolled = VoiceLockManager.getEnrolledEmbedding(context)
+            if (embedder != null && enrolled != null) {
+                SpeakerGateSession(
+                    scorer = { start, len ->
+                        val slice = rawCopy(start, start + len)
+                        embedder.scoreSimilarity(enrolled, WavIo.toFloats(slice))
+                    },
+                    vadAutoStop = vadAutoStop,
+                    hangoverSamples = hangoverSamples,
+                )
+            } else null
+        } else null
+
+        vadActive = (vad != null && vadAutoStop) || quietDetector != null
 
         val frame = SileroVad.CHUNK // 512 samples; small reads → responsive VAD
+        // 2초(64KB) 링 버퍼를 확보해 ONNX 추론 중 커널 오디오 버퍼 오버런을 막는다.
         val minBuf = max(
             AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT),
-            frame * 8,
+            max(frame * 8, SAMPLE_RATE * 2 * 2),
         )
         val rec = AudioRecord(
             MediaRecorder.AudioSource.VOICE_RECOGNITION,
@@ -174,8 +226,21 @@ class AudioRecorder(private val context: Context) {
         )
         if (rec.state != AudioRecord.STATE_INITIALIZED) {
             rec.release()
+            voxLockStream?.close()
+            voxLockStream = null
             throw IllegalStateException("Couldn't initialize the microphone.")
         }
+
+        // Android 10+: 사용자 정면 방향 지향성 힌트를 best-effort 적용 (속삭임 모드 제외).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !quiet && !rawCaptureOnly) {
+            runCatching {
+                rec.setPreferredMicrophoneDirection(MicrophoneDirection.MIC_DIRECTION_TOWARDS_USER)
+                rec.setPreferredMicrophoneFieldDimension(0.7f)
+            }.onFailure {
+                Log.d("AudioRecorder", "microphone direction not applied: ${it.message}")
+            }
+        }
+
         record = rec
         recording = true
         rec.startRecording()
@@ -183,35 +248,106 @@ class AudioRecorder(private val context: Context) {
             val buf = ShortArray(frame)
             val vadInst = vad
             val quietInst = quietDetector
+            val vox = voxLockStream
+            val gate = speakerGateSession
             while (recording) {
                 val n = rec.read(buf, 0, frame)
                 if (n <= 0) continue
-                var peak = 0
-                for (i in 0 until n) {
-                    val a = abs(buf[i].toInt())
-                    if (a > peak) peak = a
-                }
-                lastPeak = peak
-                synchronized(chunks) { chunks.add(buf.copyOf(n)) }
-                synchronized(pcmLock) {
-                    if (pcmLen + n > pcm.size) pcm = pcm.copyOf(pcm.size * 2)
-                    buf.copyInto(pcm, pcmLen, 0, n)
-                    pcmLen += n
-                }
-                totalSamples += n
-                if (quietInst != null && !autoStopFired) {
-                    if (quietInst.feedPcm(buf, n, totalSamples)) {
-                        autoStopFired = true
-                        onAutoStop?.let { cb -> mainHandler.post { cb() } }
+
+                if (!micDeliveredNonZero) {
+                    for (i in 0 until n) {
+                        if (buf[i].toInt() != 0) {
+                            micDeliveredNonZero = true
+                            break
+                        }
                     }
                 }
-                if (vadInst != null && n == frame) {
-                    val f = FloatArray(frame) { buf[it] / 32768f }
-                    val prob = try { vadInst.process(f) } catch (_: Exception) { 0f }
-                    updateVad(prob, totalSamples, onAutoStop)
+
+                if (vox != null) {
+                    val floats = FloatArray(n) { buf[it] / 32768f }
+                    val isolated = vox.push(floats)
+                    if (isolated.isNotEmpty()) {
+                        val isoPcm = floatsToPcm16(isolated)
+                        emitProcessedChunk(isoPcm, isoPcm.size, vadInst, quietInst = null, gate = null, vadAutoStop = vadAutoStop, onAutoStop = onAutoStop)
+                    }
+                } else {
+                    emitProcessedChunk(buf, n, vadInst, quietInst, gate, vadAutoStop, onAutoStop)
                 }
             }
         }.also { it.start() }
+    }
+
+    private fun emitProcessedChunk(
+        buf: ShortArray,
+        n: Int,
+        vadInst: SileroVad?,
+        quietInst: QuietSpeechDetector?,
+        gate: SpeakerGateSession?,
+        vadAutoStop: Boolean,
+        onAutoStop: (() -> Unit)?,
+    ) {
+        var peak = 0
+        for (i in 0 until n) {
+            val a = abs(buf[i].toInt())
+            if (a > peak) peak = a
+        }
+        lastPeak = peak
+        synchronized(chunks) { chunks.add(buf.copyOf(n)) }
+        synchronized(pcmLock) {
+            var newSize = pcm.size
+            while (pcmLen + n > newSize) newSize *= 2
+            if (newSize != pcm.size) pcm = pcm.copyOf(newSize)
+            buf.copyInto(pcm, pcmLen, 0, n)
+            pcmLen += n
+        }
+        totalSamples += n
+
+        if (quietInst != null && !autoStopFired) {
+            if (quietInst.feedPcm(buf, n, totalSamples)) {
+                autoStopFired = true
+                onAutoStop?.let { cb -> mainHandler.post { cb() } }
+            }
+        }
+        if (vadInst != null) {
+            var off = 0
+            if (vadTailLen == 0 && n == SileroVad.CHUNK) {
+                val f = FloatArray(SileroVad.CHUNK) { buf[it] / 32768f }
+                val prob = try { vadInst.process(f) } catch (_: Exception) { 0f }
+                handleVadProb(prob, totalSamples, gate, vadAutoStop, onAutoStop)
+            } else {
+                while (off < n) {
+                    val take = min(SileroVad.CHUNK - vadTailLen, n - off)
+                    for (i in 0 until take) {
+                        vadTail[vadTailLen + i] = buf[off + i] / 32768f
+                    }
+                    vadTailLen += take
+                    off += take
+                    if (vadTailLen == SileroVad.CHUNK) {
+                        vadTailLen = 0
+                        val chunkEnd = totalSamples - (n - off)
+                        val prob = try { vadInst.process(vadTail) } catch (_: Exception) { 0f }
+                        handleVadProb(prob, chunkEnd, gate, vadAutoStop, onAutoStop)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleVadProb(
+        prob: Float,
+        endSample: Int,
+        gate: SpeakerGateSession?,
+        vadAutoStop: Boolean,
+        onAutoStop: (() -> Unit)?,
+    ) {
+        if (gate != null) {
+            if (gate.onVadFrame(prob, endSample) && !autoStopFired && vadAutoStop) {
+                autoStopFired = true
+                onAutoStop?.let { cb -> mainHandler.post { cb() } }
+            }
+            return
+        }
+        if (vadAutoStop) updateVad(prob, endSample, onAutoStop)
     }
 
     /** Speech-end detection: fire [onAutoStop] once the speaker pauses. */
@@ -246,13 +382,70 @@ class AudioRecorder(private val context: Context) {
             r.release()
         }
         record = null
+
+        val vox = voxLockStream
+        voxLockStream = null
+        if (vox != null) {
+            val flushed = runCatching { vox.flush() }.getOrDefault(FloatArray(0))
+            if (flushed.isNotEmpty()) {
+                val tailPcm = floatsToPcm16(flushed)
+                synchronized(chunks) { chunks.add(tailPcm) }
+                synchronized(pcmLock) {
+                    var newSize = pcm.size
+                    while (pcmLen + tailPcm.size > newSize) newSize *= 2
+                    if (newSize != pcm.size) pcm = pcm.copyOf(newSize)
+                    tailPcm.copyInto(pcm, pcmLen)
+                    pcmLen += tailPcm.size
+                }
+                totalSamples += tailPcm.size
+                // 남은 tail에 대해서도 VAD 끝점 보정
+                vad?.let { vadInst ->
+                    var off = 0
+                    while (off < tailPcm.size) {
+                        val take = min(SileroVad.CHUNK - vadTailLen, tailPcm.size - off)
+                        for (i in 0 until take) vadTail[vadTailLen + i] = tailPcm[off + i] / 32768f
+                        vadTailLen += take
+                        off += take
+                        if (vadTailLen == SileroVad.CHUNK) {
+                            vadTailLen = 0
+                            val prob = try { vadInst.process(vadTail) } catch (_: Exception) { 0f }
+                            if (prob >= SPEECH_START_PROB) {
+                                if (!speechStarted) {
+                                    speechStarted = true
+                                    firstSpeechSample = max(0, totalSamples - tailPcm.size + off - SileroVad.CHUNK - PRE_PAD_SAMPLES)
+                                }
+                                lastSpeechSample = totalSamples - (tailPcm.size - off)
+                                speechSamples += SileroVad.CHUNK
+                            }
+                        }
+                    }
+                }
+            } else {
+                vox.close()
+            }
+        }
+
         val all = synchronized(chunks) { chunks.toList() }
         chunks.clear()
         val total = all.sumOf { it.size }
-        if (total < SAMPLE_RATE / 4) return null // < ~0.25s: nothing meaningful
+        val gate = speakerGateSession
+        speakerGateSession = null
+
+        if (total < SAMPLE_RATE / 4) {
+            gate?.finishAndApply(ShortArray(0))
+            return null // < ~0.25s: nothing meaningful
+        }
         val full = ShortArray(total)
         var off = 0
         for (c in all) { c.copyInto(full, off); off += c.size }
+
+        if (rawCaptureOnlyMode) return full
+
+        if (gate != null) {
+            val res = gate.finishAndApply(full)
+            return if (res.samples.size >= SAMPLE_RATE / 4) res.samples else null
+        }
+
         // VAD trim: keep just the speech region (with a little padding) — avoids
         // whisper hallucinating on trailing silence.
         if (speechStarted) {
@@ -264,6 +457,22 @@ class AudioRecorder(private val context: Context) {
     }
 
     fun cancel() {
-        stop()
+        recording = false
+        try { worker?.join(500) } catch (_: InterruptedException) {}
+        worker = null
+        record?.let { r ->
+            try { r.stop() } catch (_: Exception) {}
+            r.release()
+        }
+        record = null
+        voxLockStream?.close()
+        voxLockStream = null
+        speakerGateSession?.finishAndApply(ShortArray(0))
+        speakerGateSession = null
+        synchronized(chunks) { chunks.clear() }
+    }
+
+    private fun floatsToPcm16(floats: FloatArray): ShortArray = ShortArray(floats.size) { i ->
+        (floats[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
     }
 }

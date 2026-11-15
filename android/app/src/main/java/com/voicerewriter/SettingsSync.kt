@@ -14,6 +14,7 @@ object SettingsSync {
         val sttModel: String? = null,
         val pcSend: String? = null,
         val pcType: Boolean? = null,
+        val voiceIsolation: Boolean? = null,
     )
 
     fun changedByOthers(before: Settings, after: Settings) = Changes(
@@ -22,5 +23,6 @@ object SettingsSync {
         sttModel = after.sttModel.takeIf { it != before.sttModel },
         pcSend = after.pcSend.takeIf { it != before.pcSend },
         pcType = after.pcType.takeIf { it != before.pcType },
+        voiceIsolation = after.voiceIsolation.takeIf { it != before.voiceIsolation },
     )
 }

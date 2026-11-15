@@ -212,11 +212,18 @@ class BubbleService : Service() {
     private fun watchModelBadge() {
         serviceScope.launch {
             SettingsRepository(applicationContext).settings
-                .map { s -> s.forDictation().sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL } to s.quietMode }
+                .map { s ->
+                    Triple(
+                        s.forDictation().sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL },
+                        s.quietMode,
+                        s.voiceIsolation && !s.quietMode,
+                    )
+                }
                 .distinctUntilChanged()
-                .collect { (id, quiet) ->
+                .collect { (id, quiet, voiceIso) ->
                     bubble?.badge = WhisperModelManager.MODELS.firstOrNull { it.id == id }?.badge
                     bubble?.badgeQuiet = quiet
+                    bubble?.badgeVoiceLock = voiceIso
                 }
         }
     }
@@ -229,10 +236,11 @@ class BubbleService : Service() {
         val v = bubble ?: return
         serviceScope.launch {
             val settings = SettingsRepository(applicationContext).get()
-            val items = withContext(Dispatchers.IO) {
-                WhisperModelManager.MODELS
+            val (items, canIsolate) = withContext(Dispatchers.IO) {
+                val models = WhisperModelManager.MODELS
                     .filter { WhisperModelManager.isReady(applicationContext, it.id) }
                     .map { ModelPicker.Item(it.id, it.label, it.badge) }
+                models to VoiceLockManager.canIsolate(applicationContext)
             }
             val p = picker ?: ModelPicker(this@BubbleService, wm, overlayType).also { picker = it }
             val cw = params.width - 2 * pad()
@@ -254,6 +262,8 @@ class BubbleService : Service() {
                 },
                 quiet = settings.quietMode,
                 onQuiet = { on -> setQuietMode(on) },
+                voiceIsolation = settings.voiceIsolation && !settings.quietMode,
+                onVoiceIsolation = if (canIsolate) { on -> setVoiceIsolation(on) } else null,
                 pcSend = if (PcLink.configured(settings)) PcLink.mode(settings) else null,
                 onPcSend = { cyclePcSend() },
                 pcType = settings.pcType,
@@ -262,12 +272,27 @@ class BubbleService : Service() {
         }
     }
 
-    /** Quiet mode on/off from the bubble menu; the menu reopens to show the new state. */
+    /** Quiet mode on/off from the bubble menu; turns voice isolation off if enabling quiet. */
     private fun setQuietMode(on: Boolean) {
         hapticStart()
         serviceScope.launch {
             val repo = SettingsRepository(applicationContext)
-            val s = repo.get().copy(quietMode = on)
+            val cur = repo.get()
+            val s = cur.copy(quietMode = on, voiceIsolation = if (on) false else cur.voiceIsolation)
+            repo.save(s)
+            withContext(Dispatchers.IO) { runCatching { OnDeviceStt.warm(applicationContext, s.forDictation().sttModel) } }
+        }
+        mainHandler.postDelayed({ showModelPicker() }, 120)
+    }
+
+    /** Real-time VoxLock isolation on/off from the bubble menu; turns quiet mode off when enabled. */
+    private fun setVoiceIsolation(on: Boolean) {
+        hapticStart()
+        serviceScope.launch {
+            if (on) VoiceLockManager.resetNpuGuard(applicationContext)
+            val repo = SettingsRepository(applicationContext)
+            val cur = repo.get()
+            val s = cur.copy(voiceIsolation = on, quietMode = if (on) false else cur.quietMode)
             repo.save(s)
             withContext(Dispatchers.IO) { runCatching { OnDeviceStt.warm(applicationContext, s.forDictation().sttModel) } }
         }

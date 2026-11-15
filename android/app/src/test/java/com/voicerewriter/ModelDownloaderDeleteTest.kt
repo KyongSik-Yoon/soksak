@@ -89,6 +89,8 @@ class ModelDownloaderDeleteTest {
         val mediumNpu = tmp.newFolder("sherpa-onnx-qnn-SM8850-binary-whisper-medium")
         val whisper = write("small_acft_q8_0.bin", 100)
         val whisperPart = write("small_acft_q8_0.bin.part", 50)
+        val vlFiles = VoiceLockManager.MODEL_FILE_NAMES.map { write(it, 80) }
+        val vlParts = VoiceLockManager.MODEL_FILE_NAMES.map { write("$it.part", 40) }
 
         ModelDownloader.sweepRetired(tmp.root)
 
@@ -103,5 +105,7 @@ class ModelDownloaderDeleteTest {
         assertTrue("Medium (NPU) must survive", mediumNpu.exists())
         assertTrue("a current model must survive", whisper.exists())
         assertTrue("a current model's resume state must survive", whisperPart.exists())
+        vlFiles.forEach { assertTrue("voice lock model ${it.name} must survive", it.exists()) }
+        vlParts.forEach { assertTrue("voice lock part ${it.name} must survive", it.exists()) }
     }
 }

@@ -1,0 +1,106 @@
+# VoxLock v2 실시간 음성 분리 모델(K=25, 200ms 청크)을 Qualcomm QNN 컨텍스트 바이너리로 빌드해
+# GitHub Release에 올린다. 한 번에 칩 하나씩 수동 실행:
+#   gh workflow run npu-voxlock.yml -f soc=SM8850
+# SM8850 = Snapdragon 8 Elite Gen 5 (Galaxy S26 Ultra), SM8750 = Snapdragon 8 Elite (Galaxy Z Fold7).
+name: Build VoxLock NPU model
+
+on:
+  workflow_dispatch:
+    inputs:
+      soc:
+        description: Chip to compile for
+        type: choice
+        options: [SM8850, SM8750]
+        default: SM8850
+
+permissions:
+  contents: write
+
+env:
+  SHERPA: 347ec768a01ca53e766780f7759b14e145b643e6
+  VOXLOCK_REV: 2413b292bc2c337bfc19a9802aaf3e011e68e9c4
+  SOC: ${{ inputs.soc }}
+  BIN_NAME: voxlock_chunk_qnn_${{ inputs.soc == 'SM8750' && 'sm8750' || 'sm8850' }}.bin
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Download VoxLock FP32 models and export static K=25 ONNX
+        run: |
+          set -ex
+          python3 -m pip install -q numpy onnx onnxsim onnxruntime
+          mkdir -p work
+          curl -fsSL --retry 5 -o work/chunk_fp32.onnx \
+            "https://huggingface.co/arbazsiddiqui/voxlock/resolve/$VOXLOCK_REV/onnx/v2/chunk.onnx"
+          curl -fsSL --retry 5 -o work/enroll_fp32.onnx \
+            "https://huggingface.co/arbazsiddiqui/voxlock/resolve/$VOXLOCK_REV/onnx/v2/enroll.onnx"
+          python3 scripts/npu_voxlock_export.py \
+            --src work/chunk_fp32.onnx \
+            --enroll work/enroll_fp32.onnx \
+            --dst work/chunk_k25_qnn.onnx \
+            --k-frames 25
+          rm -f work/chunk_fp32.onnx work/enroll_fp32.onnx
+      - name: Compile QNN context binary (QAIRT 2.40 image)
+        run: |
+          cat > work/compile.sh <<'SH'
+          set -ex
+          cd /w
+          source "$QNN_SDK_ROOT/bin/envsetup.sh" >/dev/null
+          curl -fsSL --retry 5 -o generate_config.py "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/$SHERPA/scripts/qnn/generate_config.py"
+          curl -fsSL --retry 5 -o device_info.py "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/$SHERPA/scripts/qnn/device_info.py"
+          mkdir -p cpp libs cfg out
+          qnn-onnx-converter \
+            --input_network chunk_k25_qnn.onnx \
+            --preserve_io \
+            --act_bitwidth 16 \
+            --bias_bitwidth 32 \
+            --float_bitwidth 16 \
+            --output_path cpp/chunk_k25.cpp
+          python3 generate_config.py --soc "$SOC" --graph-name chunk_k25 --output-dir cfg --qnn-sdk-root "$QNN_SDK_ROOT"
+          python3 "$QNN_SDK_ROOT/bin/x86_64-linux-clang/qnn-model-lib-generator" \
+            -c cpp/chunk_k25.cpp \
+            -b cpp/chunk_k25.bin \
+            -o libs \
+            -t x86_64-linux-clang
+          "$QNN_SDK_ROOT/bin/x86_64-linux-clang/qnn-context-binary-generator" \
+            --backend "$QNN_SDK_ROOT/lib/x86_64-linux-clang/libQnnHtp.so" \
+            --model libs/x86_64-linux-clang/libchunk_k25.so \
+            --output_dir out \
+            --binary_file chunk_k25 \
+            --config_file cfg/htp_backend_extensions.json \
+            --log_level info | tee gen.log
+          grep -E "spill_bytes|finalize_runlist" gen.log
+          cp out/chunk_k25.bin "$BIN_NAME"
+          ls -lh "$BIN_NAME"
+          SH
+          docker run --rm -v "$PWD/work:/w" -e SHERPA -e SOC -e BIN_NAME ghcr.io/k2-fsa/qnn-sdk:2.40 bash /w/compile.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voxlock-qnn-bin
+          path: work/${{ env.BIN_NAME }}
+          retention-days: 7
+
+  publish:
+    needs: compile
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: voxlock-qnn-bin
+      - name: Publish as a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -ex
+          TAG="model-qnn-voxlock-$(echo "$SOC" | tr 'A-Z' 'a-z')"
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --title "VoxLock v2 (NPU) for $SOC" \
+              --notes "QNN context binary (K=25, FP16 HTP with preserved FP32 IO) of arbazsiddiqui/voxlock (Apache 2.0) for Snapdragon $SOC, compiled with QAIRT 2.40. Built by .github/workflows/npu-voxlock.yml."
+          gh release upload "$TAG" "$BIN_NAME" -R "$GITHUB_REPOSITORY" --clobber

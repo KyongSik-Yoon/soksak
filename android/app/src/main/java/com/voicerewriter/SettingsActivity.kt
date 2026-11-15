@@ -148,6 +148,25 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var dlProgress by remember { mutableFloatStateOf(0f) }
     var modelsRev by remember { mutableStateOf(0) } // bump to recompute readiness after a download
 
+    // Voice lock (내 목소리 학습 · 상시 화자 게이팅 · 수동 VoxLock 분리)
+    var speakerGate by remember { mutableStateOf(true) }
+    var voiceIsolation by remember { mutableStateOf(false) }
+    var vlModelsReady by remember { mutableStateOf(false) }
+    var vlProfileReady by remember { mutableStateOf(false) }
+    var vlDownloading by remember { mutableStateOf(false) }
+    var vlProgress by remember { mutableFloatStateOf(0f) }
+    var vlEnrollRecording by remember { mutableStateOf(false) }
+    var vlEnrolling by remember { mutableStateOf(false) }
+    var vlEnrollSec by remember { mutableFloatStateOf(0f) }
+    var vlEnrollLevel by remember { mutableFloatStateOf(0f) }
+    var vlErrorMsg by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteVl by remember { mutableStateOf(false) }
+    val enrollRecorder = remember { AudioRecorder(context.applicationContext) }
+
+    DisposableEffect(Unit) {
+        onDispose { enrollRecorder.cancel() }
+    }
+
     val overlayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (android.provider.Settings.canDrawOverlays(context)) { SetupUtils.startBubble(context); bubbleOn = true }
         else Toast.makeText(context, tr("Permission needed to show the bubble"), Toast.LENGTH_SHORT).show()
@@ -178,9 +197,12 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
         vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        speakerGate = s.speakerGate; voiceIsolation = s.voiceIsolation
         pcSend = s.pcSend; pcHost = s.pcHost; pcCode = s.pcCode; pcType = s.pcType
         reviewBeforeInsert = s.reviewBeforeInsert
         uiLanguage = s.uiLanguage
+        vlModelsReady = withContext(Dispatchers.IO) { VoiceLockManager.isModelsReady(context) }
+        vlProfileReady = withContext(Dispatchers.IO) { VoiceLockManager.hasProfile(context) }
         // The screen was composed with whatever language was active before the setting was
         // read; redraw it once if the saved choice differs.
         if (I18n.mode != s.uiLanguage) {
@@ -210,6 +232,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 if (c.sttModel != null) sttModel = c.sttModel
                 if (c.pcSend != null) pcSend = c.pcSend
                 if (c.pcType != null) pcType = c.pcType
+                if (c.voiceIsolation != null) voiceIsolation = c.voiceIsolation
             }
         }
     }
@@ -265,6 +288,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(), pcType = pcType,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
+        speakerGate = speakerGate, voiceIsolation = voiceIsolation,
     )
 
     // Persist silently on every change (the design saves immediately).
@@ -448,6 +472,33 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 )
             }
 
+            if (pendingDeleteVl) {
+                DeleteModelDialog(
+                    target = DeletableModel(
+                        "voicelock",
+                        tr("Voice lock models"),
+                        if (NpuSupport.available) "~93MB" else "~105MB",
+                    ),
+                    onConfirm = {
+                        pendingDeleteVl = false
+                        launch {
+                            val freed = VoiceLockManager.deleteModels(context)
+                            vlModelsReady = false
+                            voiceIsolation = false
+                            persist()
+                            val mb = freed / (1024 * 1024)
+                            Toast.makeText(
+                                context,
+                                if (mb > 0) trf("Deleted %s — %sMB freed", tr("Voice lock models"), mb)
+                                else trf("Deleted %s", tr("Voice lock models")),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
+                    onDismiss = { pendingDeleteVl = false },
+                )
+            }
+
             if (showA11yConsent) {
                 AccessibilityConsentDialog(
                     onConfirm = {
@@ -554,6 +605,197 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                         tr("Show the text and wait, instead of typing it straight into the field"),
                         reviewBeforeInsert,
                     ) { reviewBeforeInsert = it; persist() }
+                }
+            }
+
+            // ---------------- VOICE LOCK ----------------
+            fun finishVoiceEnroll() {
+                if (!vlEnrollRecording) return
+                vlEnrollRecording = false
+                vlEnrolling = true
+                vlErrorMsg = null
+                launch {
+                    val samples = withContext(Dispatchers.IO) { enrollRecorder.stop() }
+                    if (samples == null) {
+                        vlEnrolling = false
+                        vlErrorMsg = tr("Recording is too short. Please speak for at least 4 seconds.")
+                        return@launch
+                    }
+                    try {
+                        VoiceLockManager.enrollFromSamples(context, samples)
+                        vlProfileReady = true
+                        Toast.makeText(context, tr("Your voice profile is ready."), Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        vlErrorMsg = tr(e.message ?: "Failed to save voice profile.")
+                    } finally {
+                        vlEnrolling = false
+                    }
+                }
+            }
+
+            fun startVoiceEnroll() {
+                if (!micGranted) {
+                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    return
+                }
+                if (vlEnrollRecording || vlEnrolling) return
+                vlErrorMsg = null
+                vlEnrollSec = 0f
+                vlEnrollLevel = 0f
+                try {
+                    enrollRecorder.start(rawCaptureOnly = true)
+                    vlEnrollRecording = true
+                    launch {
+                        val startedAt = System.currentTimeMillis()
+                        while (vlEnrollRecording && enrollRecorder.isRecording) {
+                            val sec = (System.currentTimeMillis() - startedAt) / 1000f
+                            vlEnrollSec = sec
+                            vlEnrollLevel = AudioRecorder.level(enrollRecorder.amplitude())
+                            if (sec >= 6.5f) {
+                                finishVoiceEnroll()
+                                break
+                            }
+                            kotlinx.coroutines.delay(55)
+                        }
+                    }
+                } catch (e: Exception) {
+                    vlEnrollRecording = false
+                    vlErrorMsg = e.message ?: tr("Couldn't start the mic.")
+                }
+            }
+
+            Section(tr("Voice lock")) {
+                Card {
+                    Padded {
+                        Text(
+                            tr("Learn your voice once on this device to keep TV or nearby voices out and unlock voice isolation for noisy cafes."),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        val vlState = when {
+                            vlDownloading -> "downloading"
+                            vlModelsReady && vlProfileReady -> "active"
+                            vlModelsReady -> "downloaded"
+                            else -> "idle"
+                        }
+                        ModelRow(
+                            name = tr("Voice lock models"),
+                            meta = trf("%s · speaker gate + voice isolation", if (NpuSupport.available) "~93MB" else "~105MB"),
+                            recommended = false,
+                            state = vlState,
+                            progress = vlProgress,
+                            onGet = {
+                                if (vlDownloading) return@ModelRow
+                                vlDownloading = true
+                                vlProgress = 0f
+                                vlErrorMsg = null
+                                launch {
+                                    try {
+                                        VoiceLockManager.downloadModels(context) { p -> vlProgress = p }
+                                        vlModelsReady = true
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, e.message ?: tr("Download failed"), Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        vlDownloading = false
+                                    }
+                                }
+                            },
+                            onUse = { startVoiceEnroll() },
+                            onDelete = if (vlModelsReady && !vlDownloading && !voiceIsolation) {
+                                { pendingDeleteVl = true }
+                            } else null,
+                        )
+
+                        if (vlModelsReady) {
+                            Spacer(Modifier.height(12.dp))
+                            Column(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .padding(13.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    if (vlProfileReady) tr("Your voice is registered.") else tr("Read this sample aloud for 5–6 seconds in a quiet spot:"),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    "\"${tr("GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘. API 응답이 느려서 Redis 캐시도 같이 붙여야 해.")}\"",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (vlEnrollRecording) {
+                                    LinearProgressIndicator(
+                                        progress = { (vlEnrollSec / 6.5f).coerceIn(0f, 1f) },
+                                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)),
+                                    )
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text(
+                                            trf("Listening… %ss / 6.5s", "%.1f".format(vlEnrollSec)),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                        PillButton(tr("Finish now")) { finishVoiceEnroll() }
+                                    }
+                                } else if (vlEnrolling) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        Text(tr("Saving voice signature…"), style = MaterialTheme.typography.bodySmall)
+                                    }
+                                } else {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        PillButton(if (vlProfileReady) tr("Re-record") else tr("Record my voice")) {
+                                            startVoiceEnroll()
+                                        }
+                                        if (vlProfileReady) {
+                                            PillOutline(tr("Clear voice")) {
+                                                VoiceLockManager.clearProfile(context)
+                                                vlProfileReady = false
+                                                if (voiceIsolation) {
+                                                    voiceIsolation = false
+                                                    persist()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                vlErrorMsg?.let { msg ->
+                                    Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                    if (vlModelsReady && vlProfileReady) {
+                        Divider()
+                        ToggleRow(
+                            tr("Speaker gate"),
+                            tr("Always-on lightweight guard (~7% 1 core): ignores TV or other people between sentences and keeps auto-stop working"),
+                            speakerGate,
+                        ) { speakerGate = it; persist() }
+                        Divider()
+                        ToggleRow(
+                            tr("Isolate my voice"),
+                            if (NpuSupport.available) {
+                                tr("Deep neural extraction on NPU when others talk over you at the same time (recommended only in noisy places). You can also toggle it from the bubble menu.")
+                            } else {
+                                tr("Deep neural extraction when others talk over you at the same time (uses more CPU). You can also toggle it from the bubble menu.")
+                            },
+                            voiceIsolation,
+                        ) { on ->
+                            voiceIsolation = on
+                            if (on) {
+                                if (quietMode) quietMode = false
+                                VoiceLockManager.resetNpuGuard(context)
+                            }
+                            persist()
+                        }
+                    }
                 }
             }
 
@@ -671,6 +913,12 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                         launch {
                             DictationHistory.all(context).forEach { DictationHistory.delete(context, it.id) }
                             PendingAudio.purgeAll(context)
+                            VoiceLockManager.clearProfile(context)
+                            vlProfileReady = false
+                            if (voiceIsolation) {
+                                voiceIsolation = false
+                                persist()
+                            }
                         }
                         Toast.makeText(context, tr("On-device history cleared"), Toast.LENGTH_SHORT).show()
                     }

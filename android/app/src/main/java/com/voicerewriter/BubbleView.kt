@@ -128,6 +128,9 @@ class BubbleView(context: Context) : View(context) {
         /** Quiet-mode badge: a dusk rose, next to the violet brand mark on the colour wheel but not mistaken for it. */
         private const val QUIET_BADGE = 0xFFB4608E.toInt()
         private const val QUIET_BADGE_DK = 0xFFE8A3C6.toInt()
+        /** Voice-isolation badge: a calm sage green indicating target speaker lock is active. */
+        private const val VOICE_LOCK_BADGE = 0xFF2E7D5B.toInt()
+        private const val VOICE_LOCK_BADGE_DK = 0xFF88CFAF.toInt()
     }
 
     private val d = resources.displayMetrics.density
@@ -204,6 +207,10 @@ class BubbleView(context: Context) : View(context) {
 
     /** Quiet mode is on: the model tab turns slate blue instead of coral. */
     var badgeQuiet: Boolean = false
+        set(value) { if (field != value) { field = value; invalidate() } }
+
+    /** Voice isolation (VoxLock) is on: the model tab turns sage green. */
+    var badgeVoiceLock: Boolean = false
         set(value) { if (field != value) { field = value; invalidate() } }
 
     private val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -319,7 +326,11 @@ class BubbleView(context: Context) : View(context) {
         scratch.set(content.centerX() - w / 2f, cy - h / 2f, content.centerX() + w / 2f, cy + h / 2f)
         fillPaint.shader = null
         fillPaint.clearShadowLayer()
-        fillPaint.color = if (badgeQuiet) (if (dark) QUIET_BADGE_DK else QUIET_BADGE) else markColor()
+        fillPaint.color = when {
+            badgeQuiet -> if (dark) QUIET_BADGE_DK else QUIET_BADGE
+            badgeVoiceLock -> if (dark) VOICE_LOCK_BADGE_DK else VOICE_LOCK_BADGE
+            else -> markColor()
+        }
         roundRect(canvas, scratch, fillPaint)
         badgePaint.color = surface()
         val fm = badgePaint.fontMetrics

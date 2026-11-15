@@ -63,10 +63,18 @@ data class Settings(
     val reviewBeforeInsert: Boolean = false,
     val bubbleOnlyOnFields: Boolean = true, // show the bubble only while a text field is focused (needs accessibility)
     val hasCompletedOnboarding: Boolean = false, // first-run onboarding shown once; re-launchable from Settings
+    /** 평상시 상시 초경량 화자 게이팅 (내 목소리 등록 시 자동 중지 보호 및 타인 구간 마스킹). */
+    val speakerGate: Boolean = true,
+    /** 시끄러운 환경에서 실시간 VoxLock 음성 분리 ON/OFF (버블 메뉴 수동 토글). */
+    val voiceIsolation: Boolean = false,
 ) {
-    /** The settings a dictation runs with: Quiet mode swaps in its own model. */
+    /** The settings a dictation runs with: Quiet mode swaps in its own model and bypasses speaker lock. */
     fun forDictation(): Settings =
-        if (quietMode && quietModel.isNotBlank()) copy(sttModel = quietModel) else this
+        if (quietMode) copy(
+            sttModel = quietModel.ifBlank { sttModel },
+            speakerGate = false,
+            voiceIsolation = false,
+        ) else this
 
     /**
      * The settings a widget take runs with: sent to the PC whatever the PC-send setting says
@@ -106,6 +114,8 @@ class SettingsRepository(private val context: Context) {
         val REVIEW_BEFORE_INSERT = booleanPreferencesKey("reviewBeforeInsert")
         val BUBBLE_ONLY_ON_FIELDS = booleanPreferencesKey("bubbleOnlyOnFields")
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("hasCompletedOnboarding")
+        val SPEAKER_GATE = booleanPreferencesKey("speakerGate")
+        val VOICE_ISOLATION = booleanPreferencesKey("voiceIsolation")
 
         /**
          * Preferences of features this build no longer has (LLM polish/rewrite, rule-based
@@ -142,6 +152,8 @@ class SettingsRepository(private val context: Context) {
             reviewBeforeInsert = p[Keys.REVIEW_BEFORE_INSERT] ?: defaults.reviewBeforeInsert,
             bubbleOnlyOnFields = p[Keys.BUBBLE_ONLY_ON_FIELDS] ?: defaults.bubbleOnlyOnFields,
             hasCompletedOnboarding = p[Keys.HAS_COMPLETED_ONBOARDING] ?: defaults.hasCompletedOnboarding,
+            speakerGate = p[Keys.SPEAKER_GATE] ?: defaults.speakerGate,
+            voiceIsolation = p[Keys.VOICE_ISOLATION] ?: defaults.voiceIsolation,
         )
     }
 
@@ -167,6 +179,8 @@ class SettingsRepository(private val context: Context) {
             p[Keys.REVIEW_BEFORE_INSERT] = s.reviewBeforeInsert
             p[Keys.BUBBLE_ONLY_ON_FIELDS] = s.bubbleOnlyOnFields
             p[Keys.HAS_COMPLETED_ONBOARDING] = s.hasCompletedOnboarding
+            p[Keys.SPEAKER_GATE] = s.speakerGate
+            p[Keys.VOICE_ISOLATION] = s.voiceIsolation
             Keys.RETIRED_STRINGS.forEach { p.remove(it) }
             Keys.RETIRED_BOOLEANS.forEach { p.remove(it) }
             p.remove(Keys.RETIRED_TEMPERATURE)

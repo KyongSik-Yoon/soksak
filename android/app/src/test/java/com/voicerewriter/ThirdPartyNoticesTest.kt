@@ -18,6 +18,7 @@ class ThirdPartyNoticesTest {
             "whisper.cpp", "ONNX Runtime", "Silero VAD", "Shizuku", "sherpa-onnx", "OkHttp",
             "AndroidX", "kotlinx.coroutines", "Apache Commons Compress", "Mulish", "IBM Plex Mono",
             "Qualcomm AI Runtime", "com.qualcomm.qti:qnn-runtime", "RohitAg13/openWispr",
+            "3D-Speaker CAM++", "VoxLock v2",
         )) assertTrue("missing $name", notices.contains(name))
     }
 

@@ -18,6 +18,7 @@ on:
       - ".github/workflows/npu-bench.yml"
       - ".github/workflows/npu-model.yml"
       - ".github/workflows/npu-turbo.yml"
+      - ".github/workflows/npu-voxlock.yml"
   pull_request:
   workflow_dispatch:
 
@@ -38,7 +39,7 @@ jobs:
         id: cache
         with:
           path: qnn-out
-          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-jnionly-${{ hashFiles('.github/patches/sherpa-qnn.patch') }}
+          key: sherpa-qnn-jni-347ec76-qairt2.40.0.251030-jnionly-${{ hashFiles('.github/patches/sherpa-qnn.patch', 'android/app/src/main/cpp/voxlock_qnn_jni.c') }}
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         env:
@@ -61,6 +62,13 @@ jobs:
           tail -5 build.log
           mkdir -p ../qnn-out
           cp -v build-android-arm64-v8a-static/install/lib/libsherpa-onnx-jni.so ../qnn-out/
+          "$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" \
+            -O3 -fPIC -shared -Wall -Wextra -Werror \
+            -Wl,-z,max-page-size=16384 \
+            -I"$QNN_SDK_ROOT/include/QNN" \
+            ../android/app/src/main/cpp/voxlock_qnn_jni.c \
+            -ldl -llog \
+            -o ../qnn-out/libvoxlock_qnn.so
           ls -la ../qnn-out
       - uses: actions/upload-artifact@v4
         with:

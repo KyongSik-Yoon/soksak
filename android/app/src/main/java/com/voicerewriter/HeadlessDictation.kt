@@ -76,7 +76,14 @@ object HeadlessDictation {
         startMs = System.currentTimeMillis()
         try {
             // Same rule as the sheet: hold-to-talk never auto-stops, the release ends it.
-            rec.start(vadAutoStop = s.vadAutoStop && !pushToTalk, hangoverSeconds = s.autoStopSeconds, quiet = s.quietMode, onAutoStop = { stop(app, s) })
+            rec.start(
+                vadAutoStop = s.vadAutoStop && !pushToTalk,
+                hangoverSeconds = s.autoStopSeconds,
+                quiet = s.quietMode,
+                speakerGate = s.speakerGate,
+                voiceIsolation = s.voiceIsolation,
+                onAutoStop = { stop(app, s) },
+            )
         } catch (e: Exception) {
             Log.w(TAG, "recorder failed to start", e)
             return false
@@ -99,14 +106,12 @@ object HeadlessDictation {
         BubbleService.instance?.showRecording()
         BubbleService.recordingStopper = { stop(app, s) }
 
-        var loudest = 0
         ampJob = scope.launch {
             while (isActive && rec.isRecording) {
                 val raw = rec.amplitude()
-                if (raw > loudest) loudest = raw
                 BubbleService.instance?.showAmplitude(raw)
                 DictationStatus.silence.value = rec.silenceProgress()
-                if (loudest == 0 && System.currentTimeMillis() - startMs > SILENT_PROBE_MS) {
+                if (!rec.micDeliveredNonZero && System.currentTimeMillis() - startMs > SILENT_PROBE_MS) {
                     // A live microphone is never digital zero for this long; a silenced one is.
                     Log.w(TAG, "microphone is silenced in the background; falling back to the sheet")
                     abandon()

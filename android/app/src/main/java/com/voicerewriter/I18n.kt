@@ -227,6 +227,37 @@ object I18n {
         "Couldn't start dictation" to "받아쓰기를 시작하지 못했어요",
         "Tap anywhere to finish" to "화면을 누르면 끝나요",
         "Finishing · tap to finish now" to "곧 끝나요 · 누르면 바로 끝",
+
+        // Voice lock (speaker gate + VoxLock isolation)
+        "Voice lock" to "내 목소리 학습 · 차단",
+        "Learn your voice once on this device to keep TV or nearby voices out and unlock voice isolation for noisy cafes." to
+            "이 기기에 내 목소리를 한 번 등록해 두면 TV나 주변 말소리를 걸러 내고, 시끄러운 카페용 내 목소리만 듣기 기능을 쓸 수 있어요.",
+        "Voice lock models" to "목소리 인식·분리 모델",
+        "%s · speaker gate + voice isolation" to "%s · 화자 게이트 + 음성 분리",
+        "Your voice is registered." to "내 목소리가 등록됐어요.",
+        "Read this sample aloud for 5–6 seconds in a quiet spot:" to "조용한 곳에서 아래 예시 문장을 5~6초 동안 자연스럽게 읽어 주세요:",
+        "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘. API 응답이 느려서 Redis 캐시도 같이 붙여야 해." to
+            "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘. API 응답이 느려서 Redis 캐시도 같이 붙여야 해.",
+        "Listening… %ss / 6.5s" to "듣는 중… %s초 / 6.5초",
+        "Finish now" to "완료",
+        "Saving voice signature…" to "목소리 특징을 저장하는 중…",
+        "Re-record" to "다시 녹음",
+        "Record my voice" to "내 목소리 녹음",
+        "Clear voice" to "등록 지우기",
+        "Your voice profile is ready." to "내 목소리를 등록했어요.",
+        "Recording is too short. Please speak for at least 4 seconds." to "녹음이 너무 짧아요. 4초 이상 말해 주세요.",
+        "Not enough clear speech captured (need at least 3 seconds of your voice). Please try again in a quiet spot." to
+            "또렷한 목소리가 3초 미만으로 잡혔어요. 조용한 곳에서 다시 시도해 주세요.",
+        "Failed to save voice profile." to "목소리 프로필을 저장하지 못했어요.",
+        "Couldn't start the mic." to "마이크를 시작할 수 없어요.",
+        "Speaker gate" to "상시 화자 게이트",
+        "Always-on lightweight guard (~7% 1 core): ignores TV or other people between sentences and keeps auto-stop working" to
+            "평상시 초경량 차단(1코어 약 7%): 쉬는 틈의 TV·타인 말소리를 걸러 내고 자동 중지가 안 끊기게 지켜 줘요",
+        "Isolate my voice" to "내 목소리만",
+        "Deep neural extraction on NPU when others talk over you at the same time (recommended only in noisy places). You can also toggle it from the bubble menu." to
+            "카페나 큰 TV처럼 내 말과 겹칠 때 NPU로 실시간 목소리를 분리해요(시끄러운 곳에서만 켜는 걸 권장). 버블 메뉴에서도 켜고 끌 수 있어요.",
+        "Deep neural extraction when others talk over you at the same time (uses more CPU). You can also toggle it from the bubble menu." to
+            "카페나 큰 TV처럼 내 말과 겹칠 때 실시간으로 목소리를 분리해요(CPU 사용 증가). 버블 메뉴에서도 켜고 끌 수 있어요.",
     )
 }
 

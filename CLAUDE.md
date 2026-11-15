@@ -122,6 +122,11 @@
 - 변환 진행률(`TranscribeProgress.kt`, 2026-11-13): 멈춘 뒤 남은 오디오 × 모델의 실측 속도(조각마다 `record`, 기본값은 Run all 값)로 추정하고 조각이 끝날 때마다 실제 비율로 당긴다. 혼자서는 94%를 넘지 않고 글이 나와야 닫힌다. 버블은 PROCESSING 테두리, 잠금화면은 150dp 링으로 그린다(`DictationStatus.progress`, 헤드리스 경로만).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, CPU·NPU 공통, 헤드리스 경로만):
   녹음 중 0.5초 쉼에서(조각 5초 이상일 때) 잘라 바로 디코드하고, 앞 텍스트 끝 200자를 프롬프트 끝에 붙인다(`buildPrompt`의 previous, NPU는 프롬프트 미지원이라 없음).
+- **내 목소리 학습·인식(Voice lock)**(`VoiceLockManager.kt`, `SpeakerGate.kt`, `CampPlusEmbedder.kt`, `KaldiFbank.kt`, `VoxLockEngine.kt`, `VoxLockQnn.kt`, `voxlock_qnn_jni.c`, `.github/workflows/npu-voxlock.yml`):
+  설정(`SettingsActivity.kt`)에서 기기에 맞는 모델 3종(`campplus.onnx`, `voxlock_enroll.onnx`, 그리고 Snapdragon QNN 지원 기기는 `voxlock_chunk_qnn_<soc>.bin` / 미지원 기기는 `voxlock_chunk_int8.onnx`)을 받고 내 목소리를 1회(5~6초, 유성 3초+) 등록하면 `speaker_emb.bin`과 `voxlock_voice.bin`이 저장된다.
+  1) **상시 초경량 화자 게이팅**(`speakerGate`, 기본 켬): 3D-Speaker CAM++(192차원, `KaldiFbank`)로 `0.8s`/`0.25s` 홉 채점해 TV·타인 발화가 Auto-stop을 초기화하지 못하게 막고, 독립 타인 세그먼트와 혼합 세그먼트의 앞뒤 비타겟 꼬리만 `0` 마스킹한다(진행 중 세그먼트 내부는 동시 발화 `overlap0` 보호를 위해 마스킹하지 않음).
+  2) **수동 음성 분리(VoxLock v2)**(`voiceIsolation`, 기본 끔): 시끄러운 환경에서 버블 메뉴(`ModelPicker.kt`, `BubbleView.kt` 세이지 그린 배지)나 설정에서 켜면 `AudioRecorder.kt` 녹음 청크가 실시간 `VoxLockEngine.Stream`을 거쳐 타겟 음성만 분리한다. SM8850/SM8750 기기에서는 QAIRT 2.40 HTP 네이티브 백엔드(`VoxLockQnn.kt`, `libvoxlock_qnn`, `K=25` 고정 청크 FP16 컨텍스트 바이너리, `NpuLoadGuard` 보호)를 우선 사용하고, 미지원·실패 시 INT8 ONNX CPU 모델로 폴백한다.
+  3) **우회·보조**: Quiet mode가 켜지면(`Settings.forDictation()`) 게이팅과 VoxLock이 모두 자동 우회된다. Android Q(API 29)+에서는 `AudioRecord`에 `MIC_DIRECTION_TOWARDS_USER` 지향성 힌트도 best-effort 적용한다.
   멈추면 꼬리만 디코드(자동 중지 무음은 잘라 마지막 소리 뒤 0.4초까지, `tailEnd`). 소리 0.3초 미만 조각은 건너뜀. 조각 하나라도 실패하면 전체를 통째로 다시 디코드.
   근거: `chunk-bench.yml` — 15초 코드스위칭 CER 22.6→23.8%(동급), 30초+ 및 쉼 많은 실음성은 통째 디코드가 문장을 통째로 빠뜨림
   (45→14%), 멈춘 뒤 대기 ~20초→~3초. Retry/Compare는 여전히 통째로. 녹음 원본은 `AudioRecorder.rawCopy`.
