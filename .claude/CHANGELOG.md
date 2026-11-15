@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-15 — 홈페이지에 내 목소리 등록·버블 개선·자동 백업 제외 반영 (docs만)
+- `docs/index.html`: 조용히 말하기 장 다음에 `내 목소리 등록` 장(`#voice`)을 추가해 CAM++ 상시 화자 게이트와 수동 VoxLock NPU 분리 시연을 탭으로 제공.
+- 버블 장·시연에 화면 꺼짐 방지, 변환 진행률 링, 아래 모델 표시 클릭으로 메뉴 열기, `내 목소리만` 토글(세이지 그린 배지 · 조용히 말하기와 상호배타)을 반영.
+- 기기 장·모델 표에 Google Drive 자동 백업 제외, Small ACFT 자체 Release 다운로드, Snapdragon 8 Elite(SM8750)용 Turbo NPU 번들(실기기 미확인)을 반영하고 `CLAUDE.md`·`README.md`를 맞춤.
+- 확인: 헤드리스 Chromium(1280×900, 420×900, `prefers-reduced-motion`) 렌더링·오류 0건·가로 넘침 없음·스크린샷 검수.
+
 ## 2026-11-15 — 홈페이지 주소를 soksak.ksyoon.com으로 (cae1212)
 - 사용자가 Cloudflare Registrar에서 `ksyoon.com`을 사서 서브도메인 `soksak.ksyoon.com`을 GitHub Pages에 연결했다. `ksyoon.com` 본 주소는 다른 용도로 남겨 둔다(사용자 선택).
 - Cloudflare에 `soksak` CNAME(DNS only)과 GitHub 소유 인증 TXT를 넣고, GitHub 계정에서 `ksyoon.com`을 verified domain으로 등록했다. Pages에 커스텀 도메인을 걸자 GitHub가 `docs/CNAME`을 커밋했고, HTTPS 강제까지 켰다. 저장소 homepage도 새 주소로.

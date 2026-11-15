@@ -18,6 +18,7 @@
   --ink: #241D2E; --ink-2: #5C536B; --ink-3: #8A8198;
   --plum: #3B2F4A; --dusk: #4B3A6B; --violet: #6E56A8; --violet-deep: #574289; --lavender: #A894DD;
   --mark: #F7F5FB; --teal: #2F8C85; --mint: #7FD0C8; --night: #1A1530;
+  --sage: #2E7D5B; --sage-soft: #88CFAF;
   --serif: "Gowun Batang", "Noto Serif KR", "AppleMyungjo", serif;
   --sans: "Mulish", system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -53,7 +54,7 @@ nav .brand svg { width: 24px; height: 24px; border-radius: 7px; }
 nav a.link { text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 999px; color: var(--ink-2); }
 nav a.link:hover { background: var(--soft); color: var(--ink); }
 nav a.get { background: var(--plum); color: var(--mark); font-weight: 700; font-size: 13px; padding: 7px 14px; border-radius: 999px; text-decoration: none; }
-@media (max-width: 560px) { nav a.link.hide { display: none; } }
+@media (max-width: 640px) { nav a.link.hide { display: none; } }
 
 /* hero */
 .hero { padding: 128px 0 110px; text-align: center; }
@@ -105,10 +106,15 @@ nav a.get { background: var(--plum); color: var(--mark); font-weight: 700; font-
 .caret { display: inline-block; width: 1.5px; height: 1.1em; background: #6E56A8; vertical-align: -2px; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .bubble-dock { position: absolute; right: 12px; bottom: 112px; display: grid; justify-items: center; }
-.bubble { width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer; background: linear-gradient(150deg, #7a62b6, #4B3A6B); box-shadow: 0 8px 20px -6px rgba(59,47,74,.7); display: grid; place-items: center; touch-action: none; transition: transform .2s ease; }
+.bubble { position: relative; width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer; background: linear-gradient(150deg, #7a62b6, #4B3A6B); box-shadow: 0 8px 20px -6px rgba(59,47,74,.7); display: grid; place-items: center; touch-action: none; transition: transform .2s ease; }
 .bubble:hover { transform: scale(1.06); }
-.bubble svg { width: 34px; height: 34px; }
+.bubble svg.ico { width: 34px; height: 34px; position: relative; z-index: 1; }
 .bubble .bar { transform-box: fill-box; transform-origin: center; }
+.bubble .prog { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.bubble .prog circle { fill: none; stroke-width: 3.2; }
+.bubble .prog .tr { stroke: rgba(255,255,255,.22); }
+.bubble .prog .val { stroke: #E5DBFF; stroke-linecap: round; stroke-dasharray: 157; stroke-dashoffset: var(--off, 157); }
+.bubble[data-state="work"] .prog { opacity: 1; }
 .bubble[data-state="idle"] { animation: nudge 2.8s ease-in-out infinite; }
 @keyframes nudge { 8% { transform: scale(1.1); } 16% { transform: none; } }
 .bubble[data-state="rec"] { animation: halo 1.4s ease-out infinite; }
@@ -117,14 +123,19 @@ nav a.get { background: var(--plum); color: var(--mark); font-weight: 700; font-
 .bubble[data-state="work"] .bar:nth-of-type(2) { animation-delay: .15s; }
 .bubble[data-state="work"] .bar:nth-of-type(3) { animation-delay: .3s; }
 @keyframes halo { 0% { box-shadow: 0 0 0 0 rgba(168,148,221,.6), 0 8px 20px -6px rgba(59,47,74,.7); } 100% { box-shadow: 0 0 0 16px rgba(168,148,221,0), 0 8px 20px -6px rgba(59,47,74,.7); } }
-.badge { margin-top: -7px; z-index: 1; font: 500 9.5px/1 var(--mono); color: #fff; background: #574289; padding: 3px 6px; border-radius: 6px; border: 1.5px solid #fbfaf8; }
+.badge { position: relative; margin-top: -7px; z-index: 2; font: 600 9.5px/1 var(--mono); color: #fff; background: #574289; padding: 3.5px 7px; border-radius: 6px; border: 1.5px solid #fbfaf8; cursor: pointer; transition: background .2s, transform .15s; }
+.badge:hover { transform: scale(1.06); }
 .badge.quiet { background: #B4608E; }
-.menu { position: absolute; right: 0; bottom: 78px; width: 190px; background: #2e2639; color: #eeeaf5; border-radius: 16px; padding: 6px; box-shadow: 0 18px 40px -14px rgba(0,0,0,.6); display: none; font-size: 12.5px; }
+.badge.vlock { background: var(--sage); }
+.menu { position: absolute; right: 0; bottom: 80px; width: 196px; background: #2e2639; color: #eeeaf5; border-radius: 16px; padding: 6px; box-shadow: 0 18px 40px -14px rgba(0,0,0,.6); display: none; font-size: 12.5px; z-index: 3; }
 .menu.open { display: block; animation: rise .2s ease both; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 9px; border: 0; background: none; color: inherit; border-radius: 10px; font: inherit; cursor: pointer; text-align: left; }
 .menu button:hover { background: rgba(255,255,255,.08); }
 .menu button[aria-checked="true"] { background: rgba(168,148,221,.22); }
-.menu .k { font: 500 10px var(--mono); width: 22px; color: #bba6ee; }
+.menu #quietBtn[aria-checked="true"] .k { color: #E8A3C6; }
+.menu #vlockBtn[aria-checked="true"] .k { color: var(--sage-soft); }
+.menu #vlockBtn[aria-checked="true"] { background: rgba(46,125,91,.34); }
+.menu .k { font: 500 10px var(--mono); width: 22px; color: #bba6ee; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .menu hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 4px 6px; }
 .status { font: 500 12.5px var(--mono); color: var(--ink-2); min-height: 1.7em; text-align: center; }
 .hint { font-size: 12.5px; color: var(--ink-3); text-align: center; max-width: 34ch; }
@@ -165,6 +176,63 @@ nav a.get { background: var(--plum); color: var(--mark); font-weight: 700; font-
 .heard { margin: 30px auto 0; max-width: 620px; padding: 16px 20px; border-radius: 20px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); font-size: 16px; text-align: left; display: flex; gap: 12px; align-items: center; }
 .heard .q { font: 500 10px var(--mono); background: var(--teal); color: #fff; padding: 4px 7px; border-radius: 6px; flex: none; }
 @media (max-width: 700px) { .moon { top: 60px; right: 26px; width: 40px; height: 40px; box-shadow: -9px 6px 0 0 #EDE6C8; } .strip { gap: 2px; height: 110px; } .labels { font-size: 10.5px; } }
+
+/* voice lock */
+.vstage { margin: 36px auto 0; max-width: 880px; padding: 28px; border-radius: 32px; background: var(--card); border: 1px solid var(--line); text-align: left; }
+.vpane { display: none; }
+[data-mode="gate"] .vpane.gate, [data-mode="iso"] .vpane.iso { display: block; }
+.vhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.vbadge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font: 500 11.5px var(--mono); background: var(--soft); color: var(--violet); }
+.vbadge.sage { background: rgba(46,125,91,.12); color: var(--sage); }
+.vnote { font: 500 12px var(--mono); color: var(--ink-3); }
+.ggrid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; align-items: stretch; }
+.gtrack { display: grid; grid-template-columns: 1.15fr .95fr 1.15fr; gap: 8px; padding: 14px; border-radius: 22px; background: var(--bg); border: 1px solid var(--line); }
+.gseg { padding: 12px 12px 10px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); transition: border-color .3s, background .3s, opacity .3s; min-width: 0; }
+.gseg .who { display: flex; justify-content: space-between; align-items: center; font: 500 10.5px var(--mono); color: var(--ink-3); margin-bottom: 8px; gap: 4px; }
+.gseg .tag { padding: 2px 6px; border-radius: 999px; font-size: 10px; background: var(--soft); color: var(--ink-2); }
+.gseg .bars, .gseg .gbars { height: 34px; display: flex; align-items: center; gap: 3px; }
+.gseg .gbars i { flex: 1; height: calc(var(--h) * 1%); border-radius: 3px; background: var(--lavender); transition: transform .3s, background .3s, opacity .3s; }
+.gseg.tv .gbars i { background: #C8BECB; }
+.gseg .cap { margin-top: 8px; font-size: 12.5px; color: var(--ink-2); }
+.gseg.me.on { border-color: var(--violet); box-shadow: 0 0 0 2px rgba(110,86,168,.12); }
+.gseg.me.on .gbars i { background: var(--violet); }
+.gseg.me.on .tag { background: var(--plum); color: var(--mark); }
+.gseg.tv.masked { background: #FAF8FC; opacity: .72; }
+.gseg.tv.masked .gbars i { transform: scaleY(.18); background: #D7D0DE; }
+.gseg.tv.masked .tag { background: rgba(214,88,88,.12); color: #A63C3C; }
+.vout { padding: 16px 18px; border-radius: 22px; background: var(--bg); border: 1px solid var(--line); display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-width: 0; }
+.vout .bar { display: flex; justify-content: space-between; font: 500 11px var(--mono); color: var(--ink-3); }
+.vout .box { padding: 12px 14px; border-radius: 16px; background: var(--card); border: 1.5px solid var(--line); min-height: 76px; font-size: 14.5px; color: var(--ink); transition: border-color .3s, box-shadow .3s; }
+.vout .box.live { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(110,86,168,.12); }
+.vout.sage .box.live { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(46,125,91,.14); }
+.vout .box .ph { color: var(--ink-3); }
+.vout .box .piece { animation: land .4s ease both; }
+.vout .box .skip { font-size: 12px; color: var(--ink-3); text-decoration: line-through; text-decoration-color: #d65858; display: inline-block; margin: 0 4px; opacity: 0; transition: opacity .3s; }
+.vout .box .skip.on { opacity: .85; }
+.vout .timer { font: 500 11px var(--mono); color: var(--sage); }
+.igrid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; }
+.iwave { padding: 14px 16px; border-radius: 20px; background: var(--bg); border: 1px solid var(--line); min-width: 0; }
+.iwave .lab { display: flex; justify-content: space-between; font: 500 11px var(--mono); color: var(--ink-3); margin-bottom: 10px; gap: 8px; }
+.iwave .cols2 { display: flex; align-items: center; gap: 4px; height: 54px; }
+.iwave .cols2 i { flex: 1; border-radius: 3px; height: calc(var(--h) * 1%); transition: transform .35s ease, opacity .35s ease, background .35s ease; }
+.iwave .cols2 i.me { background: var(--violet); }
+.iwave .cols2 i.nz { background: #C8BECB; }
+.iwave.clean .cols2 i.me { background: var(--sage); transform: scaleY(.2); opacity: .25; }
+.iwave.clean .cols2 i.nz { background: #D7D0DE; transform: scaleY(.12); opacity: .25; }
+.iwave.clean.active .cols2 i.me { transform: scaleY(1); opacity: 1; }
+.iwave.clean.active .cols2 i.nz { transform: scaleY(.1); opacity: .16; }
+.ishield { display: grid; justify-items: center; gap: 6px; padding: 10px 12px; }
+.ishield .disc { width: 52px; height: 52px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--line); display: grid; place-items: center; color: var(--ink-3); transition: background .3s, border-color .3s, color .3s, transform .3s; }
+.ishield.on .disc { background: rgba(46,125,91,.12); border-color: var(--sage); color: var(--sage); transform: scale(1.06); }
+.ishield span { font: 500 10.5px var(--mono); color: var(--ink-3); }
+.ishield.on span { color: var(--sage); }
+.vpane.iso .vout { margin-top: 16px; }
+@media (max-width: 820px) {
+  .ggrid, .igrid { grid-template-columns: 1fr; }
+  .gtrack { grid-template-columns: 1fr; }
+  .vstage { padding: 20px 16px; border-radius: 26px; }
+  .ishield { padding: 4px 0; }
+}
 
 /* on-device */
 .device { margin: 46px auto 0; max-width: 900px; position: relative; padding: 34px 28px 30px; border-radius: 36px; border: 2px solid var(--plum); background: var(--card); }
@@ -310,6 +378,7 @@ footer a { color: var(--ink-2); }
   <a class="link hide" href="#bubble">버블</a>
   <a class="link hide" href="#pc">PC</a>
   <a class="link hide" href="#quiet">조용히</a>
+  <a class="link hide" href="#voice">목소리</a>
   <a class="link hide" href="#numbers">숫자</a>
   <a class="link" href="https://github.com/KyongSik-Yoon/soksak">GitHub</a>
   <a class="get" href="#install">설치</a>
@@ -346,8 +415,8 @@ footer a { color: var(--ink-2); }
       <h2 class="r" style="--i:1">쓰던 앱 그대로,<br><em>버블 하나.</em></h2>
       <p class="lede r" style="--i:2">키보드를 바꾸지 않습니다. 화면 가장자리에 떠 있는 버블을 누르고 말하면, 쓰던 앱의 커서 자리에 글이 들어갑니다.</p>
       <ul class="points r" style="--i:3">
-        <li><b>누르고 말하기</b>말이 멈추면 알아서 끝내고 글을 넣습니다.</li>
-        <li><b>모델 표시 누르기</b>버블 아래 작은 모델 표시를 누르거나 버블을 위로 휙 밀면, 모델과 조용히 말하기를 고르는 메뉴가 버블 옆에 뜹니다.</li>
+        <li><b>누르고 말하기</b>말이 멈추면 알아서 끝내고 글을 넣습니다. 말하는 동안에는 화면이 잠기지 않고, 멈춘 뒤 남은 변환 양은 버블 테두리 링으로 보여 줍니다.</li>
+        <li><b>모델 표시 누르기</b>버블 아래 작은 모델 표시를 누르거나 버블을 위로 휙 밀면, 모델과 조용히 말하기 · 내 목소리만 토글을 고르는 메뉴가 버블 옆에 뜹니다.</li>
         <li><b>포커스는 그대로</b>화면을 띄우지 않아 대상 앱의 커서와 키보드가 남습니다. 삼성 노트처럼 입력창을 따로 그리는 앱에도 키보드처럼 넣습니다.</li>
         <li><b>단어장</b>"클로드 코드"를 <code>Claude Code</code>로. 조사와 어미가 붙어도 찾아 바꿉니다.</li>
       </ul>
@@ -361,19 +430,21 @@ footer a { color: var(--ink-2); }
           <div class="bubble-dock">
             <div class="menu" id="menu" role="menu" aria-label="모델 고르기">
               <button role="menuitemcheckbox" id="quietBtn" aria-checked="false"><span class="k"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13.2A8.6 8.6 0 1 1 10.8 3.5a6.7 6.7 0 0 0 9.7 9.7z"/></svg></span>조용히 말하기</button>
+              <button role="menuitemcheckbox" id="vlockBtn" aria-checked="false"><span class="k"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8L19.2 5.6V11.4C19.2 16.1 16.1 19.7 12 21.2C7.9 19.7 4.8 16.1 4.8 11.4V5.6Z"/><path d="M12 8.5V14.5M9.2 10.3V12.7M14.8 10.3V12.7"/></svg></span>내 목소리만</button>
               <hr>
               <button role="menuitemradio" data-m="SA" aria-checked="true"><span class="k">SA</span>Small ACFT</button>
               <button role="menuitemradio" data-m="T" aria-checked="false"><span class="k">T</span>Large v3 Turbo</button>
               <button role="menuitemradio" data-m="MN" aria-checked="false"><span class="k">MN</span>Medium · NPU</button>
               <button role="menuitemradio" data-m="TN" aria-checked="false"><span class="k">TN</span>Large v3 Turbo · NPU</button>
             </div>
-            <button class="bubble" id="bubbleBtn" data-state="idle" aria-label="받아쓰기 시작. 위로 밀거나 위쪽 화살표 키로 모델 메뉴">
-              <svg viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+            <button class="bubble" id="bubbleBtn" data-state="idle" aria-label="받아쓰기 시작. 아래 모델 표시를 누르거나 위로 밀면 모델 메뉴">
+              <svg class="prog" viewBox="0 0 56 56" aria-hidden="true"><circle class="tr" cx="28" cy="28" r="25"/><circle class="val" id="bubbleProg" cx="28" cy="28" r="25"/></svg>
+              <svg class="ico" viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#F7F5FB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
                 <path class="shell" d="M34 20H66A16 16 0 0 1 82 36V54A16 16 0 0 1 66 70H46L29 83L33 70A16 16 0 0 1 18 54V36A16 16 0 0 1 34 20Z"/>
                 <path class="bar" d="M38 40V50"/><path class="bar" d="M50 35V55"/><path class="bar" d="M62 40V50"/>
               </svg>
             </button>
-            <span class="badge" id="badge">SA</span>
+            <button type="button" class="badge" id="badge" aria-label="모델 메뉴 열기" aria-haspopup="menu" aria-expanded="false">SA</button>
           </div>
         </div>
       </div>
@@ -479,6 +550,82 @@ footer a { color: var(--ink-2); }
   </div>
 </section>
 
+<section class="sheet light sec center" id="voice">
+  <div class="wrap">
+    <p class="eyebrow r">내 목소리 등록</p>
+    <h2 class="r" style="--i:1">옆에서 말해도,<br><em>내 말만 듣습니다.</em></h2>
+    <p class="lede r" style="--i:2">설정에서 내 목소리를 5~6초 한 번 들려주면 기기가 목소리 특징을 기억합니다. 평소에는 쉬는 틈의 TV·옆 사람 말소리를 걸러 내고, 시끄러운 곳에서는 내 목소리만 분리해 받아씁니다.</p>
+    <div class="modes r" style="--i:3" role="tablist" aria-label="목소리 보호 방식">
+      <button role="tab" id="vcModeG" aria-selected="true">평소 · 화자 게이트</button>
+      <button role="tab" id="vcModeI" aria-selected="false">시끄러운 곳 · 내 목소리만</button>
+    </div>
+    <div class="vstage r" style="--i:4" id="vcStage" data-mode="gate">
+      <div class="vpane gate">
+        <div class="vhead">
+          <span class="vbadge">CAM++ 상시 화자 게이트 · 기본 켬</span>
+          <span class="vnote">쉬는 틈의 TV·타인 말소리만 마스킹</span>
+        </div>
+        <div class="ggrid">
+          <div class="gtrack">
+            <div class="gseg me" id="gSeg1">
+              <div class="who"><span>내 목소리</span><span class="tag" id="gTag1">대기</span></div>
+              <div class="gbars" id="gBars1"></div>
+              <p class="cap">"로그인 테스트부터"</p>
+            </div>
+            <div class="gseg tv" id="gSeg2">
+              <div class="who"><span>TV · 타인</span><span class="tag" id="gTag2">감지</span></div>
+              <div class="gbars" id="gBars2"></div>
+              <p class="cap">"오늘 저녁 뉴스..."</p>
+            </div>
+            <div class="gseg me" id="gSeg3">
+              <div class="who"><span>내 목소리</span><span class="tag" id="gTag3">대기</span></div>
+              <div class="gbars" id="gBars3"></div>
+              <p class="cap">"다시 돌려 줘."</p>
+            </div>
+          </div>
+          <div class="vout">
+            <div class="bar"><span>입력창</span><span id="gTimer">자동 중지 대기 유지</span></div>
+            <div class="box" id="gBox"><span class="ph">듣는 중…</span></div>
+            <span class="timer" id="gNote">타인 발화가 끼어들어도 자동 중지가 풀리지 않습니다</span>
+          </div>
+        </div>
+      </div>
+      <div class="vpane iso">
+        <div class="vhead">
+          <span class="vbadge sage">VoxLock · QNN NPU 분리 · 버블 메뉴로 켜기</span>
+          <span class="vnote">말이 동시에 겹쳐도 타겟 목소리만 추출</span>
+        </div>
+        <div class="igrid">
+          <div class="iwave">
+            <div class="lab"><span>마이크 입력 · 말소리 겹침</span><span>내 말 + 옆 사람</span></div>
+            <div class="cols2" id="iMix"></div>
+          </div>
+          <div class="ishield" id="iShield">
+            <div class="disc">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8L19.2 5.6V11.4C19.2 16.1 16.1 19.7 12 21.2C7.9 19.7 4.8 16.1 4.8 11.4V5.6Z"/><path d="M12 8.5V14.5M9.2 10.3V12.7M14.8 10.3V12.7"/></svg>
+            </div>
+            <span>VoxLock NPU</span>
+          </div>
+          <div class="iwave clean" id="iClean">
+            <div class="lab"><span>분리된 목소리</span><span>배지 세이지 그린</span></div>
+            <div class="cols2" id="iOut"></div>
+          </div>
+        </div>
+        <div class="vout sage">
+          <div class="bar"><span>입력창</span><span>지원 Snapdragon NPU · 미지원 시 CPU</span></div>
+          <div class="box" id="iBox"><span class="ph">겹친 소리를 분리하는 중…</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="status r" style="--i:5;margin-top:20px" id="vcStatus">탭을 눌러 두 가지 보호 방식을 바꿔 볼 수 있습니다</p>
+    <div class="facts r" style="--i:6">
+      <div class="fact"><b>한 번, 5초</b>조용한 곳에서 예시 문장을 한 번 읽으면 끝납니다. 목소리 특징 파일은 기기 안에만 저장됩니다.</div>
+      <div class="fact"><b>평소엔 가볍게</b>상시 화자 게이트(CAM++)가 쉬는 틈의 TV·타인 말소리를 걸러 내고, 자동 중지가 끊기지 않게 지킵니다.</div>
+      <div class="fact"><b>겹칠 땐 NPU로</b>카페처럼 말이 동시에 겹치면 버블 메뉴에서 <code>내 목소리만</code>을 켭니다. 조용히 말하기 중에는 자동으로 쉬어 갑니다.</div>
+    </div>
+  </div>
+</section>
+
 <section class="sheet soft sec center" id="device">
   <div class="wrap">
     <p class="eyebrow r">기기 안에서</p>
@@ -486,13 +633,13 @@ footer a { color: var(--ink-2); }
     <p class="lede r" style="--i:2">음성 인식 모델(Whisper)이 폰에서 직접 돕니다. 모델을 한 번 받은 뒤에는 비행기 모드에서도 받아씁니다.</p>
     <div class="device r" style="--i:3">
       <div class="pipe">
-        <div class="step"><b>소리</b>마이크로 들어온 말. 서버로 보내지 않습니다.</div>
-        <div class="step"><b>Whisper</b>Snapdragon 8 Elite Gen 5는 NPU, 그 밖의 폰은 CPU. 클라우드 엔진은 없습니다.</div>
+        <div class="step"><b>소리</b>마이크로 들어온 말. 목소리를 등록해 두면 주변 말소리를 폰 안에서 먼저 걸러 냅니다.</div>
+        <div class="step"><b>Whisper</b>지원 Snapdragon은 NPU, 그 밖의 폰은 CPU. 클라우드 엔진은 없습니다.</div>
         <div class="step"><b>단어장</b>이름과 개발 용어를 가르친 대로 고칩니다.</div>
         <div class="step"><b>글</b>쓰던 앱의 입력창으로 들어갑니다.</div>
       </div>
     </div>
-    <p class="outside r" style="--i:4"><span><s>서버</s></span><span><s>계정</s></span><span><s>로그인</s></span><span><s>업로드</s></span></p>
+    <p class="outside r" style="--i:4"><span><s>서버</s></span><span><s>계정</s></span><span><s>로그인</s></span><span><s>업로드</s></span><span><s>자동 클라우드 백업</s></span></p>
     <p class="lede r" style="--i:5">받아쓴 글만 내 컴퓨터로 보낼 수도 있습니다. 켰을 때만, 중간 서버 없이 갑니다. <a href="#pc">PC로 보내기</a></p>
   </div>
 </section>
@@ -536,15 +683,15 @@ footer a { color: var(--ink-2); }
     <div class="sub2">
       <p class="eyebrow">모델</p>
       <h2>네 가지 Whisper.</h2>
-      <p class="lede">처음에는 Small ACFT 하나만 받습니다. 나머지는 설정에서 고를 때 내려받고, 버블 아래 모델 표시를 눌러 바로 바꿉니다. NPU 모델은 Snapdragon 8 Elite Gen 5에서만 목록에 보입니다. 단어장과 설정은 파일 하나로 백업하고 복원할 수 있습니다.</p>
+      <p class="lede">처음에는 이 저장소 Release에서 Small ACFT 하나만 받습니다. 나머지는 설정에서 고를 때 내려받고, 버블 아래 모델 표시를 눌러 바로 바꿉니다. NPU 모델은 지원 Snapdragon 칩용 번들이 있는 경우에만 목록에 보입니다. Google Drive 자동 백업과 기기 이전에서는 빠져 있어, 단어장과 설정은 파일 하나로 직접 백업하고 복원합니다.</p>
       <div class="tbl">
         <table>
           <thead><tr><th>모델</th><th>엔진</th><th>쓰임</th></tr></thead>
           <tbody>
             <tr><td><span class="tag">SA</span>Small ACFT (FUTO)</td><td class="dim">whisper.cpp · CPU</td><td class="dim">기본값. 짧은 말에 맞춰 조정된 모델</td></tr>
             <tr><td><span class="tag">T</span>Large v3 Turbo ACFT q4_0</td><td class="dim">whisper.cpp · CPU</td><td class="dim">CPU에서 가장 정확하고 가장 느림</td></tr>
-            <tr><td><span class="tag">MN</span>Medium (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">NPU 전용. 문장부호를 잘 찍음</td></tr>
-            <tr><td><span class="tag">TN</span>Large v3 Turbo (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">NPU 전용. 가장 빠르고 개발 용어에 강함</td></tr>
+            <tr><td><span class="tag">MN</span>Medium (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">Snapdragon 8 Elite Gen 5 전용. 문장부호를 잘 찍음</td></tr>
+            <tr><td><span class="tag">TN</span>Large v3 Turbo (NPU)</td><td class="dim">sherpa-onnx · QNN</td><td class="dim">8 Elite Gen 5 전용, 가장 빠르고 개발 용어에 강함 (8 Elite용 번들도 있으나 실기기 미확인)</td></tr>
           </tbody>
         </table>
       </div>
@@ -604,7 +751,8 @@ footer a { color: var(--ink-2); }
 
   // ── bubble demo ──
   const bubble = $('bubbleBtn'), field = $('field'), status = $('status'), chat = $('chat'),
-        badge = $('badge'), menu = $('menu'), quietBtn = $('quietBtn');
+        badge = $('badge'), menu = $('menu'), quietBtn = $('quietBtn'), vlockBtn = $('vlockBtn'),
+        bubbleProg = $('bubbleProg');
   const bars = [...bubble.querySelectorAll('.bar')];
   const lines = [
     ['이 PR에서 flaky한 테스트부터 고치고,', 'CI 다시 돌려 줘.'],
@@ -613,7 +761,8 @@ footer a { color: var(--ink-2); }
     ['README 맨 위에', '포크라는 걸 밝혀 줘.'],
   ];
   const speed = { SA: 1, T: 2.4, MN: .8, TN: .7 }; // relative only
-  let model = 'SA', quiet = false, n = 0, state = 'idle', timers = [], raf = 0, stopNow = null;
+  const RING_LEN = 157;
+  let model = 'SA', quiet = false, vlock = false, n = 0, state = 'idle', timers = [], raf = 0, progRaf = 0, stopNow = null;
   const say = t => status.textContent = t;
   const later = (ms, f) => timers.push(setTimeout(f, ms));
   const clear = () => { timers.forEach(clearTimeout); timers = []; };
@@ -626,7 +775,22 @@ footer a { color: var(--ink-2); }
     });
     raf = requestAnimationFrame(pulse);
   }
-  const calm = () => { cancelAnimationFrame(raf); bars.forEach(b => b.style.transform = ''); };
+  const calm = () => {
+    cancelAnimationFrame(raf); cancelAnimationFrame(progRaf);
+    bars.forEach(b => b.style.transform = '');
+    bubbleProg.style.setProperty('--off', RING_LEN);
+  };
+  function ring(ms) {
+    cancelAnimationFrame(progRaf);
+    if (still) { bubbleProg.style.setProperty('--off', (RING_LEN * .08).toFixed(1)); return; }
+    const t0 = performance.now();
+    const tick = now => {
+      const p = Math.min(.94, (now - t0) / ms * .94);
+      bubbleProg.style.setProperty('--off', (RING_LEN * (1 - p)).toFixed(1));
+      if (state === 'work' && p < .94) progRaf = requestAnimationFrame(tick);
+    };
+    progRaf = requestAnimationFrame(tick);
+  }
   function put(text) {
     field.querySelector('.caret')?.remove();
     const s = document.createElement('span'); s.className = 'piece'; s.textContent = text + ' '; field.append(s);
@@ -635,11 +799,17 @@ footer a { color: var(--ink-2); }
   function start() {
     const [a, b] = lines[n++ % lines.length], k = speed[model];
     let first = false;
+    closeMenu();
     field.innerHTML = '<span class="caret"></span>'; field.classList.add('live');
-    set('rec'); pulse(); say(quiet ? '듣는 중 · 조용히 말하기' : '듣는 중…');
+    set('rec'); pulse();
+    say(quiet ? '듣는 중 · 조용히 말하기' : vlock ? '듣는 중 · 내 목소리만' : '듣는 중…');
     const finish = () => {
       clear(); calm(); set('work'); stopNow = null; say('남은 부분 변환 중…');
-      later((first ? 500 : 1100) * k, () => {
+      const waitMs = (first ? 500 : 1100) * k;
+      ring(waitMs);
+      later(waitMs, () => {
+        cancelAnimationFrame(progRaf);
+        bubbleProg.style.setProperty('--off', RING_LEN);
         if (!first) put(a);
         put(b); set('idle'); say('입력됨 · 소리는 폰을 떠나지 않았습니다');
         later(1300, send);
@@ -657,15 +827,18 @@ footer a { color: var(--ink-2); }
     field.innerHTML = '<span class="ph">메시지 입력…</span>'; field.classList.remove('live');
     say('버블을 다시 눌러 보세요');
   }
-  const openMenu = () => { if (state === 'idle') { menu.classList.add('open'); say('모델 메뉴'); } };
-  const closeMenu = () => menu.classList.remove('open');
+  const openMenu = () => { if (state === 'idle') { menu.classList.add('open'); badge.setAttribute('aria-expanded', 'true'); say('모델 메뉴'); } };
+  const closeMenu = () => { menu.classList.remove('open'); badge.setAttribute('aria-expanded', 'false'); };
   function tap() {
     if (menu.classList.contains('open')) return closeMenu();
     if (state === 'idle') { clear(); start(); } else if (state === 'rec' && stopNow) stopNow();
   }
   const paint = () => {
-    badge.textContent = model; badge.classList.toggle('quiet', quiet);
+    badge.textContent = model;
+    badge.classList.toggle('quiet', quiet);
+    badge.classList.toggle('vlock', vlock && !quiet);
     quietBtn.setAttribute('aria-checked', quiet);
+    vlockBtn.setAttribute('aria-checked', vlock && !quiet);
     menu.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-checked', b.dataset.m === model));
   };
   // Tap, or flick up (36px within 250ms, mostly vertical) for the model menu — as in the app.
@@ -678,6 +851,10 @@ footer a { color: var(--ink-2); }
     down = null;
   });
   bubble.addEventListener('click', () => { if (flicked) { flicked = false; return; } tap(); });
+  badge.addEventListener('click', e => {
+    e.stopPropagation();
+    if (menu.classList.contains('open')) closeMenu(); else openMenu();
+  });
   bubble.addEventListener('keydown', e => {
     if (e.key === 'ArrowUp') { e.preventDefault(); openMenu(); menu.querySelector('button').focus(); }
     if (e.key === 'Escape') closeMenu();
@@ -685,10 +862,20 @@ footer a { color: var(--ink-2); }
   menu.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); bubble.focus(); } });
   menu.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b === quietBtn) quiet = !quiet; else model = b.dataset.m;
+    if (b === quietBtn) {
+      quiet = !quiet;
+      if (quiet) vlock = false;
+      say(quiet ? '조용히 말하기 켬 · 배지가 장밋빛' : '조용히 말하기 끔');
+    } else if (b === vlockBtn) {
+      vlock = !vlock;
+      if (vlock) quiet = false;
+      say(vlock ? '내 목소리만 켬 · 배지가 세이지 그린' : '내 목소리만 끔');
+    } else {
+      model = b.dataset.m;
+      const name = b.lastChild.textContent;
+      say(`모델: ${name}`);
+    }
     paint(); closeMenu(); bubble.focus();
-    const name = menu.querySelector(`[data-m="${model}"]`).lastChild.textContent;
-    say(b === quietBtn ? (quiet ? '조용히 말하기 켬 · 배지가 장밋빛' : '조용히 말하기 끔') : `모델: ${name}`);
   });
   document.addEventListener('pointerdown', e => { if (!e.target.closest('.bubble-dock')) closeMenu(); });
   let played = false;
@@ -817,6 +1004,115 @@ footer a { color: var(--ink-2); }
   for (let i = 0; i < 64; i++) {
     const loud = i < 22, base = loud ? 42 + 50 * Math.abs(Math.sin(i * 1.9) * Math.cos(i * .7)) : 7 + 13 * Math.abs(Math.sin(i * 2.3));
     strip.insertAdjacentHTML('beforeend', `<i class="${loud ? '' : 'w'}" style="--h:${!loud && i % 13 === 0 ? 3 : base.toFixed(0)};--n:${i}"></i>`);
+  }
+
+  // ── voice lock: speaker gate (always on) + VoxLock isolation (manual toggle) ──
+  {
+    const stage = $('vcStage'), st = $('vcStatus');
+    const tabs = { gate: $('vcModeG'), iso: $('vcModeI') };
+    const segs = [$('gSeg1'), $('gSeg2'), $('gSeg3')], tags = [$('gTag1'), $('gTag2'), $('gTag3')];
+    const gBox = $('gBox'), gTimer = $('gTimer'), gNote = $('gNote');
+    const iShield = $('iShield'), iClean = $('iClean'), iBox = $('iBox');
+    const fillBars = (id, vals) => $(id).innerHTML = vals.map(v => `<i style="--h:${v}"></i>`).join('');
+    fillBars('gBars1', [32, 66, 88, 54, 92, 74, 48, 80, 62, 38]);
+    fillBars('gBars2', [40, 72, 58, 86, 46, 78, 64, 50, 70, 44]);
+    fillBars('gBars3', [38, 76, 94, 62, 84, 52, 72, 86, 56, 36]);
+    const mixPattern = [
+      ['me', 58], ['nz', 84], ['me', 76], ['nz', 72], ['me', 92], ['nz', 88],
+      ['me', 64], ['nz', 78], ['me', 86], ['nz', 68], ['me', 72], ['nz', 82],
+      ['me', 90], ['nz', 74], ['me', 62], ['nz', 70],
+    ];
+    $('iMix').innerHTML = mixPattern.map(([c, h]) => `<i class="${c}" style="--h:${h}"></i>`).join('');
+    $('iOut').innerHTML = mixPattern.map(([c, h]) => `<i class="${c}" style="--h:${c === 'me' ? h : Math.round(h * .7)}"></i>`).join('');
+
+    let mode = 'gate', pinned = false, tm = [], live = false, busy = false;
+    const at = (ms, f) => tm.push(setTimeout(f, ms));
+    const setMode = m => {
+      mode = m; stage.dataset.mode = m;
+      for (const k in tabs) tabs[k].setAttribute('aria-selected', k === m);
+    };
+    const reset = () => {
+      tm.forEach(clearTimeout); tm = []; busy = false;
+      segs.forEach(s => s.classList.remove('on', 'masked'));
+      tags[0].textContent = '대기'; tags[1].textContent = '감지'; tags[2].textContent = '대기';
+      gBox.classList.remove('live'); gBox.innerHTML = '<span class="ph">듣는 중…</span>';
+      gTimer.textContent = '자동 중지 대기 유지';
+      gNote.textContent = '타인 발화가 끼어들어도 자동 중지가 풀리지 않습니다';
+      iShield.classList.remove('on'); iClean.classList.remove('active');
+      iBox.classList.remove('live'); iBox.innerHTML = '<span class="ph">겹친 소리를 분리하는 중…</span>';
+    };
+    const rest = () => {
+      reset();
+      if (mode === 'gate') {
+        segs[0].classList.add('on'); segs[1].classList.add('masked'); segs[2].classList.add('on');
+        tags[0].textContent = '내 말'; tags[1].textContent = '걸러 냄'; tags[2].textContent = '내 말';
+        gTimer.textContent = '자동 중지 완료';
+        gBox.classList.add('live');
+        gBox.innerHTML = '<span class="piece">로그인 테스트부터 </span><span class="skip on">오늘 저녁 뉴스</span><span class="piece">다시 돌려 줘.</span>';
+        st.textContent = 'TV·타인 발화는 빼고 내 말만 들어갔습니다';
+      } else {
+        iShield.classList.add('on'); iClean.classList.add('active');
+        iBox.classList.add('live');
+        iBox.innerHTML = '<span class="piece">카페가 시끄러운데, PR 리뷰부터 볼게.</span>';
+        st.textContent = '겹친 소음 속에서 내 목소리만 분리해 적었습니다';
+      }
+    };
+    function run() {
+      reset(); busy = true;
+      if (mode === 'gate') {
+        st.textContent = '평소에는 CAM++ 화자 게이트가 내 목소리인지 가볍게 봅니다';
+        at(250, () => {
+          segs[0].classList.add('on'); tags[0].textContent = '내 말';
+          gBox.classList.add('live');
+          gBox.innerHTML = '<span class="piece">로그인 테스트부터 </span><span class="caret"></span>';
+        });
+        at(1250, () => {
+          segs[1].classList.add('masked'); tags[1].textContent = '걸러 냄';
+          gTimer.textContent = 'TV 소리 무시 · 타이머 유지';
+          gBox.innerHTML = '<span class="piece">로그인 테스트부터 </span><span class="skip on">오늘 저녁 뉴스</span><span class="caret"></span>';
+          st.textContent = '쉬는 틈의 TV·타인 말소리는 마스킹하고 자동 중지를 지킵니다';
+        });
+        at(2350, () => {
+          segs[2].classList.add('on'); tags[2].textContent = '내 말';
+          gBox.innerHTML = '<span class="piece">로그인 테스트부터 </span><span class="piece">다시 돌려 줘. </span><span class="caret"></span>';
+          st.textContent = '이어진 내 말만 받아쓰고 조용해지면 끝냅니다';
+        });
+        at(3550, () => {
+          gBox.querySelector('.caret')?.remove();
+          gTimer.textContent = '자동 중지 완료';
+          busy = false;
+          st.textContent = 'TV·타인 발화는 빼고 내 말만 들어갔습니다';
+          at(2800, () => { if (!live) return; if (!pinned) setMode('iso'); run(); });
+        });
+      } else {
+        st.textContent = '시끄러운 곳에서는 버블 메뉴에서 내 목소리만을 켭니다';
+        at(350, () => {
+          iShield.classList.add('on');
+          st.textContent = 'VoxLock이 내 목소리 주파수만 실시간으로 추려 냅니다';
+        });
+        at(1150, () => {
+          iClean.classList.add('active');
+          iBox.classList.add('live');
+          iBox.innerHTML = '<span class="piece">카페가 시끄러운데, </span><span class="caret"></span>';
+        });
+        at(2350, () => {
+          iBox.innerHTML = '<span class="piece">카페가 시끄러운데, </span><span class="piece">PR 리뷰부터 볼게. </span><span class="caret"></span>';
+        });
+        at(3450, () => {
+          iBox.querySelector('.caret')?.remove();
+          busy = false;
+          st.textContent = '겹친 소음 속에서 내 목소리만 분리해 적었습니다';
+          at(2800, () => { if (!live) return; if (!pinned) setMode('gate'); run(); });
+        });
+      }
+    }
+    for (const k in tabs) tabs[k].addEventListener('click', () => { pinned = true; setMode(k); still ? rest() : run(); });
+    reset();
+    if (still) rest();
+    else {
+      $('voice').addEventListener('enter', () => { live = true; if (!busy) at(600, run); });
+      $('voice').addEventListener('leave', () => { live = false; reset(); });
+    }
   }
 
   // ── numbers ──
