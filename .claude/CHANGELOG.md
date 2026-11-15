@@ -3,6 +3,11 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-15 — 홈페이지 주소를 soksak.ksyoon.com으로 (cae1212)
+- 사용자가 Cloudflare Registrar에서 `ksyoon.com`을 사서 서브도메인 `soksak.ksyoon.com`을 GitHub Pages에 연결했다. `ksyoon.com` 본 주소는 다른 용도로 남겨 둔다(사용자 선택).
+- Cloudflare에 `soksak` CNAME(DNS only)과 GitHub 소유 인증 TXT를 넣고, GitHub 계정에서 `ksyoon.com`을 verified domain으로 등록했다. Pages에 커스텀 도메인을 걸자 GitHub가 `docs/CNAME`을 커밋했고, HTTPS 강제까지 켰다. 저장소 homepage도 새 주소로.
+- 확인: https://soksak.ksyoon.com 200, 옛 주소는 301로 새 주소로 넘어감.
+
 ## 2026-11-15 — 내 목소리 등록(CAM++ 화자 게이팅 + VoxLock v2 NPU 수동 음성 분리 + 정면 지향성 마이크 힌트)
 - **목소리 1회 등록**: 설정 화면(`Voice lock`)에서 기기에 맞는 Apache-2.0 온디바이스 모델 3종(Snapdragon QNN 지원 기기 `SM8850`/`SM8750`은 `voxlock_chunk_qnn_<soc>.bin` 포함 ~93MB, 기타 기기는 CPU INT8 `voxlock_chunk_int8.onnx` 포함 ~105MB)을 내려받고 5~6초 녹음으로 내 목소리 임베딩·조건 텐서를 저장한다.
 - **상시 초경량 화자 게이팅**(기본 켬): `KaldiFbank` + `CampPlusEmbedder`로 `SpeakerGateSession`이 백그라운드 채점해 TV·타인 말소리 속 Auto-stop 타이머가 풀리지 않게 보호하고, 독립 비타겟 발화·혼합 발화 꼬리만 `0`으로 마스킹한다(내 발화 진행 중 내부 구간은 동시 발화 보호를 위해 유지).

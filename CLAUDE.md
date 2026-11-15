@@ -29,7 +29,8 @@
   - Android 전용. macOS 앱은 사용자가 맥을 쓰지 않아 2026-11-10 지웠고, 원본의 홍보 사이트·Play 스토어
     메타데이터(fastlane)·태그 릴리스 워크플로·브랜드 자료도 함께 지웠다. 되살리지 않는다.
     벤치·모델 패키징 워크플로 변경은 CI를 돌리지 않는다(paths-ignore).
-  - 홈페이지: `docs/index.html` 한 파일(빌드 없음)을 GitHub Pages(main의 /docs)로 낸다 — https://kyongsik-yoon.github.io/soksak/ (2026-11-10, 저장소 homepage도 이 주소).
+  - 홈페이지: `docs/index.html` 한 파일(빌드 없음)을 GitHub Pages(main의 /docs)로 낸다 — https://soksak.ksyoon.com/ (2026-11-15부터, 저장소 homepage도 이 주소; 옛 주소 kyongsik-yoon.github.io/soksak/은 GitHub가 301로 넘긴다).
+    도메인 `ksyoon.com`은 사용자가 Cloudflare Registrar에서 샀다. DNS도 Cloudflare: `soksak` CNAME → `kyongsik-yoon.github.io`(**DNS only** — 프록시를 켜면 GitHub가 HTTPS 인증서를 못 갱신), TXT `_github-pages-challenge-KyongSik-Yoon`(GitHub 계정의 도메인 소유 인증, 지우지 말 것). `docs/CNAME`이 커스텀 도메인 설정이라 지우면 연결이 풀린다.
     한 가지 차분한 화풍(고운바탕 제목, dusk 색, 둥근 시트가 겹쳐 넘어감; 첫 화면은 소리 파형이 마크를 지나 글 리본으로 나오는 그림). 같은 분야 제품(Wispr Flow 등)의 배색·문구를 닮게 만들지 않는다.
     버블 장 바로 다음이 "PC로 보내기" 장(`#pc`, 2026-11-11 — 사용자에게 가장 중요한 기능이라 따로 크게): 잠긴 폰의 위젯(또는 PC 전송을 켠 버블)을 누르면 듣고, 글 조각이 점선을 타고 날아가 컴퓨터 화면의 입력창에 찍히는 시연. 두 방식을 번갈아 돌고 탭·위젯·버블을 눌러 다시 볼 수 있다. 실제 동작대로 글은 말이 끝난 뒤 한 번에 간다.
     이전 판은 `docs/scenes.html`(장마다 화풍이 다른 판)과 `docs/classic.html`(첫 버전)로 보존.
