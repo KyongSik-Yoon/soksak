@@ -199,7 +199,7 @@ object HeadlessDictation {
                     return@launch
                 }
                 PcLink.deliver(s, text) {
-                    if (!OpenWisprAccessibilityService.enqueueInsert(text, s.autoEnterMs())) {
+                    if (!OpenWisprAccessibilityService.enqueueInsert(text, s.autoEnterMs(), s.fieldOnScreen())) {
                         (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                             .setPrimaryClip(ClipData.newPlainText("rewrite", text))
                         BubbleService.instance?.showClipboardFallback()

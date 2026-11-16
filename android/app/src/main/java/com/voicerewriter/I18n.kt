@@ -80,6 +80,7 @@ object I18n {
         "Only on text fields" to "입력창에서만",
         "Needs auto-insert. The bubble stays visible until you turn it back on." to "자동 입력이 필요해요. 다시 켤 때까지 버블은 계속 보여요.",
         "Appear only when you can type" to "입력할 수 있을 때만 나타나요",
+        "Always shown. With the keyboard down, the text goes into the field on screen." to "항상 보여요. 키보드가 없으면 화면의 입력창에 넣어요.",
 
         // Privacy
         "Privacy" to "개인정보",

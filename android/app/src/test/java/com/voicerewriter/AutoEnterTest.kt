@@ -87,4 +87,30 @@ class AutoEnterTest {
         assertNull(AutoEnter.editorActionFor(EditorInfo.IME_ACTION_NONE))
         assertNull(AutoEnter.editorActionFor(EditorInfo.IME_ACTION_NEXT))
     }
+
+    @Test fun `the field on screen only with the bubble always shown, and never for PC only`() {
+        assertFalse(Settings().fieldOnScreen()) // the bubble shows only on fields by default
+        val always = Settings(bubbleOnlyOnFields = false)
+        assertTrue(always.fieldOnScreen())
+        assertTrue(always.copy(pcSend = PcLink.BOTH, pcHost = "h", pcCode = "c").fieldOnScreen())
+        assertFalse(always.copy(pcSend = PcLink.PC_ONLY, pcHost = "h", pcCode = "c").fieldOnScreen())
+        // The widget take on a locked phone: the PC fallback must not land in some field on screen.
+        assertFalse(always.forWidgetTake(2.2).fieldOnScreen())
+        assertFalse(always.copy(pcHost = "h", pcCode = "c").forWidgetTake(2.2).fieldOnScreen())
+    }
+
+    @Test fun `which field on screen takes the text`() {
+        assertNull(AutoEnter.pickField(0) { true })
+        // One field: it, and Enter may follow. Its send button is not even asked about.
+        val one = AutoEnter.pickField(1) { error("not asked") }!!
+        assertEquals(0, one.index)
+        assertTrue(one.enter)
+        // Several: the only one beside a send button, text only.
+        val composer = AutoEnter.pickField(3) { it == 2 }!!
+        assertEquals(2, composer.index)
+        assertFalse(composer.enter)
+        // None or more than one beside a send button: do not guess.
+        assertNull(AutoEnter.pickField(2) { false })
+        assertNull(AutoEnter.pickField(3) { it != 0 })
+    }
 }

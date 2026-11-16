@@ -824,7 +824,8 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                     ToggleRow(
                         tr("Only on text fields"),
                         if (bubbleOnlyOnFields && !a11yEnabled) tr("Needs auto-insert. The bubble stays visible until you turn it back on.")
-                        else tr("Appear only when you can type"),
+                        else if (bubbleOnlyOnFields) tr("Appear only when you can type")
+                        else tr("Always shown. With the keyboard down, the text goes into the field on screen."),
                         bubbleOnlyOnFields,
                     ) { bubbleOnlyOnFields = it; persist() }
                 }

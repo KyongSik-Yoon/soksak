@@ -1,6 +1,7 @@
 package com.voicerewriter
 
 import android.accessibilityservice.AccessibilityService
+import android.app.KeyguardManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -76,11 +77,12 @@ class OpenWisprAccessibilityService : AccessibilityService() {
          * Stage [text] on the clipboard and insert it into the host app's focused
          * field as soon as that app is back in front. Returns true if the service
          * is running (so the caller knows auto-insert will be attempted).
-         * Call from the main thread.
+         * Call from the main thread. [onScreen] ([Settings.fieldOnScreen]): with no field
+         * selected, write into the text field on screen without raising the keyboard.
          */
-        fun enqueueInsert(text: String, enterAfterMs: Long = 0L): Boolean {
+        fun enqueueInsert(text: String, enterAfterMs: Long = 0L, onScreen: Boolean = false): Boolean {
             val svc = instance ?: return false
-            svc.startInsert(text, enterAfterMs)
+            svc.startInsert(text, enterAfterMs, onScreen)
             return true
         }
 
@@ -113,14 +115,21 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     /** Auto Enter's own queue: `main` is wiped on every insert. */
     private val enterHandler = Handler(Looper.getMainLooper())
 
-    /** Where an armed Auto Enter will go; null when none is armed. */
-    private class EnterTarget(val pkg: String, val text: String, val armedAt: Long)
+    /**
+     * Where an armed Auto Enter will go; null when none is armed. [field]: the field on screen the
+     * text went into without focus ([fieldOnScreen]); Enter has no focused field to find there.
+     */
+    private class EnterTarget(val pkg: String, val text: String, val armedAt: Long, val field: AccessibilityNodeInfo? = null)
     @Volatile private var enterTarget: EnterTarget? = null
     /** Set by [cancelEnter] while a press is being checked, so the send-button fallback holds off. */
     @Volatile private var enterCancelled = false
     /** Auto Enter delay for the insert in flight, handed over by [enqueueInsert]. */
     @Volatile private var pendingEnterMs = 0L
     @Volatile private var pendingText: String? = null
+    /** The insert in flight may use the field on screen ([enqueueInsert]'s onScreen). */
+    @Volatile private var pendingOnScreen = false
+    /** When [fieldOnScreen] last scanned, to keep a burst of content events from rescanning. */
+    private var lastScanAt = 0L
     private val retryDelays = longArrayOf(250, 500, 900, 1400, 2000)
 
     /**
@@ -265,13 +274,15 @@ class OpenWisprAccessibilityService : AccessibilityService() {
 
     // ---------------- insertion ----------------
 
-    private fun startInsert(text: String, enterAfterMs: Long) {
+    private fun startInsert(text: String, enterAfterMs: Long, onScreen: Boolean) {
         // Note: we deliberately do NOT stage the clipboard here. The common insert path
         // writes the text straight into the field (ACTION_SET_TEXT) without touching the
         // clipboard, so a successful dictation no longer clobbers what the user had copied.
         // The clipboard is only used as a fallback (see attemptInsert / the give-up branch).
         pendingText = text
         pendingEnterMs = enterAfterMs
+        pendingOnScreen = onScreen
+        lastScanAt = 0L
         if (enterTarget != null) {
             enterTarget = null
             BubbleService.instance?.cancelEnter()
@@ -323,13 +334,25 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             inserted(inputConnectionPackage(), text)
             return
         }
+        var onScreen: AutoEnter.FieldPick? = null
         val node = focused
             ?: rememberedEditable()?.also { refocus = true }
-            ?: run { lastAttempt = "no editable field found"; return }
+            ?: fieldOnScreen()?.let { (n, pick) -> onScreen = pick; n }
+            ?: run { if (!pendingOnScreen) lastAttempt = "no editable field found"; return } // else fieldOnScreen said why
         val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
         val pkg = node.packageName?.toString()
         var viaPaste = false
+        // Kept for Auto Enter, which finds no focused field to press in after an unfocused insert.
+        @Suppress("DEPRECATION")
+        val screenField = onScreen?.takeIf { it.enter }?.let { AccessibilityNodeInfo.obtain(node) }
         val ok = try {
+            if (onScreen != null) {
+                // No keyboard: neither focus nor click, which would raise it. No paste either,
+                // which needs focus and would leave the text on the clipboard. Without a cursor the
+                // text goes at the end. A field that takes SET_TEXT only with focus gets just that.
+                insertAtCursor(node, text) || appendAtEnd(node, text) ||
+                    (node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) && appendAtEnd(node, text))
+            } else {
             if (refocus) {
                 // Give the field input focus back before writing, and click it so the app
                 // raises its keyboard again — the user was mid-typing when they tapped the
@@ -346,6 +369,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             insertAtCursor(node, text) ||
                 run { viaPaste = true; pasteViaClipboard(node, text) } ||
                 run { viaPaste = false; appendAtEnd(node, text) }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "insert action failed", e); false
         } finally {
@@ -356,8 +380,15 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             // Worth distinguishing: the paste path leaves the dictation on the clipboard,
             // overwriting whatever the user had copied, and on Android 13+ the system shows
             // its own "Copied" confirmation for it. Both read as success without this.
-            Log.i(TAG, if (viaPaste) "inserted via clipboard paste (clipboard overwritten)"
-                       else "inserted at cursor (clipboard untouched)")
+            Log.i(TAG, when {
+                onScreen != null -> "inserted into the field on screen without focus"
+                viaPaste -> "inserted via clipboard paste (clipboard overwritten)"
+                else -> "inserted at cursor (clipboard untouched)"
+            })
+            if (onScreen?.enter == false && pendingEnterMs > 0) {
+                Log.i(TAG, "auto Enter not armed: the field on screen was one of several")
+                pendingEnterMs = 0L
+            }
             pendingText = null
             main.removeCallbacksAndMessages(null)
             // The haptic tick is the confirmation. A toast on top of text visibly appearing in
@@ -367,8 +398,42 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             // may be scrolled, hidden behind the keyboard, or simply not where the user is
             // looking — and this is the only signal that tells a real insert apart from the
             // clipboard fallback below, which from the user's side looks identical.
-            inserted(pkg, text)
+            inserted(pkg, text, screenField)
         }
+    }
+
+    /**
+     * With the keyboard down and no field selected (the bubble always shown, [Settings.fieldOnScreen]):
+     * the text field on screen in the app in front, and whether Enter may follow
+     * ([AutoEnter.pickField]). Never on the lock screen, in system UI or the launcher, nor a
+     * password field.
+     */
+    private fun fieldOnScreen(): Pair<AccessibilityNodeInfo, AutoEnter.FieldPick>? {
+        if (!pendingOnScreen) return null
+        val now = SystemClock.uptimeMillis()
+        if (now - lastScanAt < 200) return null
+        lastScanAt = now
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        if (keyguard?.isKeyguardLocked == true) { lastAttempt = "locked: no field on screen"; return null }
+        val root = rootInActiveWindow ?: return null
+        val pkg = root.packageName?.toString() ?: return null
+        if (!isHostPackage(pkg, packageName)) return null
+        val fields = mutableListOf<AccessibilityNodeInfo>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
+        var seen = 0
+        while (queue.isNotEmpty() && seen < 3000) {
+            val n = queue.removeFirst()
+            seen++
+            if (n.isEditable && n.isVisibleToUser && n.isEnabled && !n.isPassword) { fields += n; continue }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+        }
+        val pick = AutoEnter.pickField(fields.size) { findSendButton(fields[it], root) != null }
+        Log.i(TAG, "fields on screen in $pkg: ${fields.size}, picked ${pick?.index} enter=${pick?.enter}")
+        if (pick == null) {
+            lastAttempt = if (fields.isEmpty()) "no field on screen in $pkg" else "${fields.size} fields on screen in $pkg, none clearly the one"
+            return null
+        }
+        return fields[pick.index] to pick
     }
 
     /**
@@ -440,12 +505,12 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     // ---------------- auto Enter ----------------
 
     /** The insert landed: confirm it on the bubble, which counts down to Enter when that is on. */
-    private fun inserted(pkg: String?, text: String) {
+    private fun inserted(pkg: String?, text: String, field: AccessibilityNodeInfo? = null) {
         val ms = pendingEnterMs
         pendingEnterMs = 0L
         val bubble = BubbleService.instance
         if (ms > 0 && pkg != null && bubble != null) {
-            enterTarget = EnterTarget(pkg, text, SystemClock.uptimeMillis())
+            enterTarget = EnterTarget(pkg, text, SystemClock.uptimeMillis(), field)
             Log.i(TAG, "auto Enter armed: ${ms}ms in $pkg")
             bubble.showInserted(ms)
         } else {
@@ -482,6 +547,24 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         enterCancelled = false
         try {
             val node = findHostFocusedEditable()
+            val field = t.field
+            if (node == null && field != null) {
+                // The text went into the field on screen with the keyboard down: press there.
+                if (!field.refresh() || !field.isVisibleToUser || field.packageName?.toString() != t.pkg) {
+                    Log.i(TAG, "auto Enter skipped: the field on screen is gone")
+                    return onDone(false)
+                }
+                @Suppress("DEPRECATION")
+                return enterOnNode(AccessibilityNodeInfo.obtain(field), t) { ok ->
+                    // Could not send: bring up the keyboard on the field so the user can finish.
+                    if (!ok && !enterCancelled) {
+                        Log.i(TAG, "auto Enter: could not send from the field on screen, raising the keyboard")
+                        field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                        field.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    }
+                    onDone(ok)
+                }
+            }
             if (node == null) {
                 // Editors without a focused editable node (Samsung Notes, terminals) took the text
                 // through the input connection; Enter goes the same way.
@@ -561,6 +644,20 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     /** Click the send button nearest [field] in its window. [restore]: field text to put back first. */
     private fun clickSendButton(field: AccessibilityNodeInfo, restore: String?): Boolean {
         val root = field.window?.root ?: rootInActiveWindow ?: return false
+        val (btn, label) = findSendButton(field, root) ?: run { Log.i(TAG, "auto Enter: no send button found"); return false }
+        if (restore != null) {
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore)
+            }
+            field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        }
+        val ok = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        Log.i(TAG, "auto Enter: send button \"$label\" clicked=$ok")
+        return ok
+    }
+
+    /** The send button nearest [field] under [root], with its label; null when there is none. */
+    private fun findSendButton(field: AccessibilityNodeInfo, root: AccessibilityNodeInfo): Pair<AccessibilityNodeInfo, String>? {
         val fb = android.graphics.Rect().also { field.getBoundsInScreen(it) }
         // A toolbar row under or over the field (Claude's composer) is within reach; the chat isn't.
         val reach = (72 * resources.displayMetrics.density).toInt()
@@ -586,16 +683,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             val d = dx * dx + dy * dy
             if (d < bestDist) { best = target; bestDist = d; bestLabel = label ?: n.viewIdResourceName.orEmpty() }
         }
-        val btn = best ?: run { Log.i(TAG, "auto Enter: no send button found"); return false }
-        if (restore != null) {
-            val args = Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore)
-            }
-            field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        }
-        val ok = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        Log.i(TAG, "auto Enter: send button \"$bestLabel\" clicked=$ok")
-        return ok
+        return best?.let { it to bestLabel }
     }
 
     /** [n] if clickable, else its nearest clickable ancestor (an icon inside a button), up to 3 up. */

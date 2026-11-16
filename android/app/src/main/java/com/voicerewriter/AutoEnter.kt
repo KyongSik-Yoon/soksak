@@ -74,6 +74,23 @@ object AutoEnter {
         return cy >= fieldTop - reach && cy <= fieldBottom + reach
     }
 
+    /** The field on screen to write into when none is selected, and whether Enter may follow. */
+    class FieldPick(val index: Int, val enter: Boolean)
+
+    /**
+     * With the bubble always shown and the keyboard down, a dictation goes into the text field on
+     * screen. One field: that one, and Auto Enter may send it. Several: the only one with a send
+     * button beside it (a chat composer under a search box), text only — the user did not pick it,
+     * and sending to the wrong field cannot be taken back. Still ambiguous: none (clipboard).
+     * [hasSend] is asked only when there are several.
+     */
+    fun pickField(count: Int, hasSend: (Int) -> Boolean): FieldPick? {
+        if (count <= 0) return null
+        if (count == 1) return FieldPick(0, enter = true)
+        val withSend = (0 until count).filter(hasSend)
+        return if (withSend.size == 1) FieldPick(withSend[0], enter = false) else null
+    }
+
     /**
      * The editor action to perform through the input connection for a field with [imeOptions],
      * or null to send an Enter key instead (terminals, multi-line editors, fields asking for no

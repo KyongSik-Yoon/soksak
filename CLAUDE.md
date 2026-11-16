@@ -122,6 +122,9 @@
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
 - **자동 엔터**(설정 "Auto Enter", 버블 메뉴 행, `autoEnterSeconds` 끔/1/2/3/5초, 기본 끔, 2026-11-16 사용자 아이디어): 폰 입력창에 넣은 뒤 버블이 초록 원 + ⏎ + 줄어드는 링(`BubbleView.State.ENTER_PENDING`)으로 세고, 끝나면 `OpenWisprAccessibilityService.pressEnter`가 같은 앱의 포커스된 입력창에 Enter를 누른다(`AutoEnter.kt`).
   순서: `ACTION_IME_ENTER`(API 30+) → 0.45초 뒤 입력창을 다시 읽어 글이 남아 있으면 창 안에서 가장 가까운 보내기 버튼(라벨·리소스 ID, 음성·첨부 제외) 클릭(IME 동작이 줄바꿈을 넣었으면 되돌린 뒤) → 없으면 접근성 입력 연결(API 33+)로 editor action 또는 Enter 키(터미널). 취소: 카운트다운 중 버블 터치(그 제스처는 삼킴), 그 앱에서 타이핑(삽입 직후 0.7초는 우리 이벤트라 무시), 다른 앱으로 전환, 새 받아쓰기. 위젯 받아쓰기·"PC only"의 폰 폴백에는 걸지 않는다(`Settings.autoEnterMs`). PC 쪽 자동 엔터는 아직 없다 — 넣는다면 데몬 설정에서만 켜지게(위 `allow_type`과 같은 이유). 사용자 폰 확인(build-136, 2026-11-16): "잘 된다". 앱별 결과는 로그 `auto Enter`로 본다.
+- **키보드 없이 화면 입력창에 넣기**(2026-11-17, 사용자 아이디어): 새 설정 없이 "Only on text fields"(`bubbleOnlyOnFields`)를 끄면(버블 항상 표시) 켜진다 — `Settings.fieldOnScreen()`, PC only(`pcSend` 값 자체, 위젯 받아쓰기 포함)에서는 끔.
+  포커스 입력창·입력 연결·`lastEditable`이 모두 없을 때 마지막 단계로 앞 창(`isHostPackage`만, 잠금 중·비밀번호 칸 제외)의 보이는 editable을 훑어(`fieldOnScreen`) 고른다(`AutoEnter.pickField`): 하나면 거기에 넣고 자동 엔터도 건다. 여럿이면 옆에 보내기 버튼이 있는 유일한 칸에 **넣기만**(엔터 안 함 — 고르지 않은 칸에 보내는 건 못 되돌림), 그래도 모호하면 클립보드.
+  키보드가 안 뜨게 FOCUS·CLICK 없이 SET_TEXT(끝에 붙임, 붙여넣기 안 씀). 자동 엔터는 `EnterTarget.field`(그 노드)에서 기존 순서(IME 동작 → 보내기 버튼)로 하고, 못 보내면 그 칸에 FOCUS+CLICK으로 키보드를 올린다. 로그 `fields on screen`, `inserted into the field on screen`. 폰 확인 전.
 - 듣는 중·변환 중에는 버블 창에 FLAG_KEEP_SCREEN_ON을 건다(`keepScreenOn`; 길게 말하면 화면 꺼짐 시간이 지나 화면이 잠겼다).
 - 변환 진행률(`TranscribeProgress.kt`, 2026-11-13): 멈춘 뒤 남은 오디오 × 모델의 실측 속도(조각마다 `record`, 기본값은 Run all 값)로 추정하고 조각이 끝날 때마다 실제 비율로 당긴다. 혼자서는 94%를 넘지 않고 글이 나와야 닫힌다. 버블은 PROCESSING 테두리, 잠금화면은 150dp 링으로 그린다(`DictationStatus.progress`, 헤드리스 경로만).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, CPU·NPU 공통, 헤드리스 경로만):

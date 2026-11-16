@@ -104,6 +104,14 @@ data class Settings(
      */
     fun autoEnterMs(): Long =
         if (PcLink.mode(this) == PcLink.PC_ONLY) 0L else (autoEnterSeconds * 1000).toLong().coerceAtLeast(0L)
+
+    /**
+     * Whether a phone insert with no field selected may go into the text field on screen. Only with
+     * the bubble always shown (the user taps it with the keyboard down), and not for "PC only",
+     * where the phone gets the text only because the PC failed (the widget on a locked phone).
+     * The setting, not [PcLink.mode]: a widget take with no PC address is "PC only" too.
+     */
+    fun fieldOnScreen(): Boolean = !bubbleOnlyOnFields && pcSend != PcLink.PC_ONLY
 }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
