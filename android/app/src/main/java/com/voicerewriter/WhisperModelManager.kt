@@ -116,8 +116,7 @@ object WhisperModelManager {
             // One bundle per chip, so the names carry this phone's.
             fileName = "sherpa-onnx-qnn-${NpuSupport.bundleSoc}-binary-whisper-turbo-acft",
             url = "",
-            sizeLabel = "~1.6GB · Snapdragon NPU" +
-                if (NpuSupport.soc == NpuSupport.SM8750) " · not yet tried on this chip" else "",
+            sizeLabel = "~1.6GB · Snapdragon NPU",
             releaseTag = "model-qnn-whisper-turbo-acft-${NpuSupport.bundleSoc.lowercase()}",
             engine = SpeechEngine.QNN_WHISPER,
             badge = "TN",
