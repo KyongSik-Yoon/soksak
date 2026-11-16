@@ -336,7 +336,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         }
         var onScreen: AutoEnter.FieldPick? = null
         val node = focused
-            ?: rememberedEditable()?.also { refocus = true }
+            ?: rememberedEditable()?.also {
+                // The bubble always shown: the app let the field go with the keyboard. Refocusing
+                // would click the keyboard back up; write the way the field on screen is written.
+                if (pendingOnScreen) onScreen = AutoEnter.FieldPick(-1, enter = true) else refocus = true
+            }
             ?: fieldOnScreen()?.let { (n, pick) -> onScreen = pick; n }
             ?: run { if (!pendingOnScreen) lastAttempt = "no editable field found"; return } // else fieldOnScreen said why
         val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
@@ -557,7 +561,8 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                 @Suppress("DEPRECATION")
                 return enterOnNode(AccessibilityNodeInfo.obtain(field), t) { ok ->
                     // Could not send: bring up the keyboard on the field so the user can finish.
-                    if (!ok && !enterCancelled) {
+                    // Only while the text is still there: gone means it was sent some other way.
+                    if (!ok && !enterCancelled && field.refresh() && AutoEnter.stillThere(currentText(field), t.text)) {
                         Log.i(TAG, "auto Enter: could not send from the field on screen, raising the keyboard")
                         field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
                         field.performAction(AccessibilityNodeInfo.ACTION_CLICK)
