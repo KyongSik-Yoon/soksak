@@ -3,7 +3,7 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
-## 2026-11-16 — Turbo (NPU)의 SM8750(Snapdragon 8 Elite) 번들 실기기 확인
+## 2026-11-16 — Turbo (NPU)의 SM8750(Snapdragon 8 Elite) 번들 실기기 확인 (aea48c8, build-137)
 - 사용자가 SM8750 실기기에서 동작을 확인했다. 그 칩에서 모델 설명에 붙던 "not yet tried on this chip"을 떼고, README·홈페이지 모델 표에 지원 칩으로 적었다.
 
 ## 2026-11-16 — 자동 엔터 (Auto Enter) (200274f, 55e770f, build-136)
