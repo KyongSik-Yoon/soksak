@@ -123,6 +123,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var sttLanguage by remember { mutableStateOf(DictationLanguage.DEFAULT) }
     var vadAutoStop by remember { mutableStateOf(true) }
     var autoStopSeconds by remember { mutableStateOf(AUTO_STOP_CHOICES.first()) }
+    var autoEnterSeconds by remember { mutableStateOf(0.0) }
     var headlessRecording by remember { mutableStateOf(true) }
     var promptExample by remember { mutableStateOf(DEFAULT_PROMPT_EXAMPLE) }
     var pipelinedWhisper by remember { mutableStateOf(true) }
@@ -196,7 +197,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             if (WhisperModelManager.isReady(context, running)) sttModel = running
         }
         sttLanguage = DictationLanguage.normalize(s.sttLanguage)
-        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; bubbleOnlyOnFields = s.bubbleOnlyOnFields
+        vadAutoStop = s.vadAutoStop; autoStopSeconds = s.autoStopSeconds; autoEnterSeconds = s.autoEnterSeconds; headlessRecording = s.headlessRecording; promptExample = s.promptExample; pipelinedWhisper = s.pipelinedWhisper; quietMode = s.quietMode; quietModel = s.quietModel; npuDiagnostics = s.npuDiagnostics; bubbleOnlyOnFields = s.bubbleOnlyOnFields
         speakerGate = s.speakerGate; voiceIsolation = s.voiceIsolation
         pcSend = s.pcSend; pcHost = s.pcHost; pcCode = s.pcCode; pcType = s.pcType
         reviewBeforeInsert = s.reviewBeforeInsert
@@ -284,7 +285,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
 
     fun snapshot() = Settings(
         sttModel = sttModel.trim(), sttLanguage = sttLanguage,
-        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, bubbleOnlyOnFields = bubbleOnlyOnFields,
+        vadAutoStop = vadAutoStop, autoStopSeconds = autoStopSeconds, autoEnterSeconds = autoEnterSeconds, headlessRecording = headlessRecording, promptExample = promptExample, pipelinedWhisper = pipelinedWhisper, quietMode = quietMode, quietModel = quietModel, npuDiagnostics = npuDiagnostics, uiLanguage = uiLanguage, bubbleOnlyOnFields = bubbleOnlyOnFields,
         pcSend = pcSend, pcHost = pcHost.trim(), pcCode = pcCode.trim(), pcType = pcType,
         reviewBeforeInsert = reviewBeforeInsert,
         hasCompletedOnboarding = true,
@@ -571,6 +572,16 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                             autoStopSeconds = AUTO_STOP_CHOICES[(i + 1).mod(AUTO_STOP_CHOICES.size)]
                             persist()
                         }
+                    }
+                    Divider()
+                    // Tap cycles off → 1s → 2s → 3s → 5s.
+                    NavRow(
+                        tr("Auto Enter"),
+                        if (autoEnterSeconds <= 0.0) tr("Off · tap to change")
+                        else trf("Presses Enter %ss after inserting; tap the bubble to stop it · tap to change", "%.1f".format(autoEnterSeconds).removeSuffix(".0")),
+                    ) {
+                        autoEnterSeconds = nextAutoEnter(autoEnterSeconds)
+                        persist()
                     }
                     Divider()
                     ToggleRow(

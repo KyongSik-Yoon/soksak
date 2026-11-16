@@ -63,6 +63,10 @@ object I18n {
         "End recording when you stop talking" to "말을 멈추면 녹음을 끝내요",
         "Auto-stop wait" to "자동 중지 대기",
         "Stops after %ss of silence · tap to change" to "%s초 동안 조용하면 멈춰요 · 탭해서 변경",
+        "Auto Enter" to "자동 엔터",
+        "Off · tap to change" to "꺼짐 · 탭해서 변경",
+        "Presses Enter %ss after inserting; tap the bubble to stop it · tap to change" to "입력하고 %s초 뒤 엔터를 눌러요. 그사이 버블을 누르면 취소 · 탭해서 변경",
+        "%ss" to "%s초",
         "Record without the sheet" to "시트 없이 녹음",
         "Keep the app you're typing in focused. On-device only; open Soksak once after a reboot" to
             "입력 중인 앱의 포커스를 유지해요. 기기 내 엔진 전용, 재부팅 후 속삭을 한 번 열어 주세요",

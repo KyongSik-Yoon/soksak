@@ -75,6 +75,12 @@ class BubbleView(context: Context) : View(context) {
 
         /** No field to write into, so the text went to the clipboard. Pill, says so in words. */
         COPIED,
+
+        /**
+         * Inserted, and Auto Enter is counting down: green like [INSERTED], a return arrow, and a
+         * ring that runs out when Enter is pressed. A tap stops it ([BubbleService]).
+         */
+        ENTER_PENDING,
     }
 
     companion object {
@@ -268,9 +274,10 @@ class BubbleView(context: Context) : View(context) {
             State.PROCESSING -> drawProcessing(canvas, t)
             State.INSERTED -> drawInserted(canvas, t)
             State.COPIED -> drawCopied(canvas, t)
+            State.ENTER_PENDING -> drawEnterPending(canvas, t)
         }
 
-        if (state == State.LISTENING || state == State.PROCESSING ||
+        if (state == State.LISTENING || state == State.PROCESSING || state == State.ENTER_PENDING ||
             (state == State.INSERTED && t < 0.6f) || (state == State.COPIED && t < 0.4f)
         ) postInvalidateOnAnimation()
     }
@@ -553,6 +560,55 @@ class BubbleView(context: Context) : View(context) {
         x += iconSize + gap
         val fm = labelPaint.fontMetrics
         canvas.drawText(text, x, content.centerY() - (fm.ascent + fm.descent) / 2f, labelPaint)
+        canvas.restoreToCount(save)
+    }
+
+    /** When the Auto Enter countdown ends ([SystemClock.uptimeMillis]) and how long it is. */
+    private var enterEndsAt = 0L
+    private var enterTotalMs = 1L
+
+    fun setEnterCountdown(endsAt: Long, totalMs: Long) {
+        enterEndsAt = endsAt
+        enterTotalMs = totalMs.coerceAtLeast(1L)
+        invalidate()
+    }
+
+    /** Auto Enter counting down: the inserted disc with a return arrow and a draining ring. */
+    private fun drawEnterPending(canvas: Canvas, t: Float) {
+        val save = canvas.save()
+        canvas.scale(pop(t), pop(t), content.centerX(), content.centerY())
+        fillPaint.shader = null
+        fillPaint.color = GREEN
+        shadow(10f, 5f, 0x8C2E6B3E.toInt())
+        roundRect(canvas, content, fillPaint)
+        fillPaint.clearShadowLayer()
+
+        // Return arrow (⏎) from a 24-unit viewBox at 22dp: down the right, along to the left, head.
+        val size = dp(22f)
+        val ox = content.centerX() - size / 2f
+        val oy = content.centerY() - size / 2f
+        val u = size / 24f
+        checkPath.reset()
+        checkPath.moveTo(ox + 18.5f * u, oy + 6f * u)
+        checkPath.lineTo(ox + 18.5f * u, oy + 11.5f * u)
+        checkPath.quadTo(ox + 18.5f * u, oy + 14.5f * u, ox + 15.5f * u, oy + 14.5f * u)
+        checkPath.lineTo(ox + 6f * u, oy + 14.5f * u)
+        checkPath.moveTo(ox + 9.5f * u, oy + 11f * u)
+        checkPath.lineTo(ox + 6f * u, oy + 14.5f * u)
+        checkPath.lineTo(ox + 9.5f * u, oy + 18f * u)
+        checkPaint.color = CREAM
+        canvas.drawPath(checkPath, checkPaint)
+
+        // What is left of the wait, from twelve o'clock, shrinking clockwise.
+        val left = ((enterEndsAt - SystemClock.uptimeMillis()).toFloat() / enterTotalMs).coerceIn(0f, 1f)
+        val inset = dp(2.5f)
+        scratch.set(content.left + inset, content.top + inset, content.right - inset, content.bottom - inset)
+        ringPaint.strokeWidth = dp(2.5f)
+        ringPaint.color = CREAM
+        ringPaint.alpha = 60
+        canvas.drawArc(scratch, 0f, 360f, false, ringPaint)
+        ringPaint.alpha = 255
+        if (left > 0.005f) canvas.drawArc(scratch, -90f + 360f * (1f - left), 360f * left, false, ringPaint)
         canvas.restoreToCount(save)
     }
 

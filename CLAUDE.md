@@ -120,6 +120,8 @@
   말로 봄, 마이크 시작 0.3초는 무시 — 전체 음량으로는 실제 폰에서 한 번도 발동 안 했다: 첫 조각이 0이라 바닥이 -90dB로 잡히고, 500Hz 아래 방 소음이 속삭임보다 15~20dB 큼. 2026-11-11, 속삭임 녹음 20개로 확인)로 자동 중지하며 녹음을 자르지 않는다(속삭임을 Silero가 못 잡아서). 켜져 있으면 배지가 장밋빛(#B4608E, 어두운 테마 #E8A3C6 — 보라 마크와 어울리되 구분됨; 처음엔 청록이었는데 보라와 안 어울려 2026-11-11 변경), 메뉴에서 고른 모델은 quietModel에 저장.
 - 버블 축소: 8초 무활동이면 작아지고(`scheduleShrink`, `IDLE_SHRINK_MS`; 2026-11-13 3.5초에서 늘림 — 말할 내용을 생각하는 동안 작아졌다), 다른 앱에서 타이핑(text changed/selection/focus 접근성 이벤트,
   `noteTyping`)하거나 입력창에 다시 들어오면 커진다. WINDOW_CONTENT_CHANGED는 활동으로 치지 않는다(스트리밍 응답이 계속 발생시킴).
+- **자동 엔터**(설정 "Auto Enter", 버블 메뉴 행, `autoEnterSeconds` 끔/1/2/3/5초, 기본 끔, 2026-11-16 사용자 아이디어): 폰 입력창에 넣은 뒤 버블이 초록 원 + ⏎ + 줄어드는 링(`BubbleView.State.ENTER_PENDING`)으로 세고, 끝나면 `OpenWisprAccessibilityService.pressEnter`가 같은 앱의 포커스된 입력창에 Enter를 누른다(`AutoEnter.kt`).
+  순서: `ACTION_IME_ENTER`(API 30+) → 0.45초 뒤 입력창을 다시 읽어 글이 남아 있으면 창 안에서 가장 가까운 보내기 버튼(라벨·리소스 ID, 음성·첨부 제외) 클릭(IME 동작이 줄바꿈을 넣었으면 되돌린 뒤) → 없으면 접근성 입력 연결(API 33+)로 editor action 또는 Enter 키(터미널). 취소: 카운트다운 중 버블 터치(그 제스처는 삼킴), 그 앱에서 타이핑(삽입 직후 0.7초는 우리 이벤트라 무시), 다른 앱으로 전환, 새 받아쓰기. 위젯 받아쓰기·"PC only"의 폰 폴백에는 걸지 않는다(`Settings.autoEnterMs`). PC 쪽 자동 엔터는 아직 없다 — 넣는다면 데몬 설정에서만 켜지게(위 `allow_type`과 같은 이유). 앱별로 실제 전송되는지는 폰에서 아직 확인 전(로그 `auto Enter`).
 - 듣는 중·변환 중에는 버블 창에 FLAG_KEEP_SCREEN_ON을 건다(`keepScreenOn`; 길게 말하면 화면 꺼짐 시간이 지나 화면이 잠겼다).
 - 변환 진행률(`TranscribeProgress.kt`, 2026-11-13): 멈춘 뒤 남은 오디오 × 모델의 실측 속도(조각마다 `record`, 기본값은 Run all 값)로 추정하고 조각이 끝날 때마다 실제 비율로 당긴다. 혼자서는 94%를 넘지 않고 글이 나와야 닫힌다. 버블은 PROCESSING 테두리, 잠금화면은 150dp 링으로 그린다(`DictationStatus.progress`, 헤드리스 경로만).
 - **말하는 동안 변환**(`StreamingWhisper.kt`, 설정 "Transcribe while you talk", 기본 켬, CPU·NPU 공통, 헤드리스 경로만):

@@ -9,10 +9,13 @@ import com.voicerewriter.textproc.InsertSplice
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -75,10 +78,25 @@ class OpenWisprAccessibilityService : AccessibilityService() {
          * is running (so the caller knows auto-insert will be attempted).
          * Call from the main thread.
          */
-        fun enqueueInsert(text: String): Boolean {
+        fun enqueueInsert(text: String, enterAfterMs: Long = 0L): Boolean {
             val svc = instance ?: return false
-            svc.startInsert(text)
+            svc.startInsert(text, enterAfterMs)
             return true
+        }
+
+        /**
+         * The bubble's Auto Enter countdown ran out: press Enter in the field the last dictation
+         * went into, if it still has focus in the same app. [onDone] gets whether Enter was
+         * pressed (on the main thread, possibly after a short check). See [AutoEnter].
+         */
+        fun pressEnter(onDone: (Boolean) -> Unit) {
+            val svc = instance ?: return onDone(false)
+            svc.enterHandler.post { svc.doPressEnter(onDone) }
+        }
+
+        /** Forget the armed Enter (the bubble was tapped or a new take started). */
+        fun cancelEnter() {
+            instance?.enterTarget = null
         }
 
         /** Re-check focus now (e.g. when the bubble (re)starts) so it shows if a field is already focused. */
@@ -90,6 +108,14 @@ class OpenWisprAccessibilityService : AccessibilityService() {
 
     private val main = Handler(Looper.getMainLooper())
     private val clipHandler = Handler(Looper.getMainLooper())
+    /** Auto Enter's own queue: `main` is wiped on every insert. */
+    private val enterHandler = Handler(Looper.getMainLooper())
+
+    /** Where an armed Auto Enter will go; null when none is armed. */
+    private class EnterTarget(val pkg: String, val text: String, val armedAt: Long)
+    @Volatile private var enterTarget: EnterTarget? = null
+    /** Auto Enter delay for the insert in flight, handed over by [enqueueInsert]. */
+    @Volatile private var pendingEnterMs = 0L
     @Volatile private var pendingText: String? = null
     private val retryDelays = longArrayOf(250, 500, 900, 1400, 2000)
 
@@ -210,6 +236,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                 if (pkg != null && pkg != packageName) BubbleService.instance?.noteTyping()
             }
         }
+        enterTarget?.let { t -> watchArmedEnter(event, t) }
         if (pendingText == null) return
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_FOCUSED,
@@ -234,12 +261,17 @@ class OpenWisprAccessibilityService : AccessibilityService() {
 
     // ---------------- insertion ----------------
 
-    private fun startInsert(text: String) {
+    private fun startInsert(text: String, enterAfterMs: Long) {
         // Note: we deliberately do NOT stage the clipboard here. The common insert path
         // writes the text straight into the field (ACTION_SET_TEXT) without touching the
         // clipboard, so a successful dictation no longer clobbers what the user had copied.
         // The clipboard is only used as a fallback (see attemptInsert / the give-up branch).
         pendingText = text
+        pendingEnterMs = enterAfterMs
+        if (enterTarget != null) {
+            enterTarget = null
+            BubbleService.instance?.cancelEnter()
+        }
         lastAttempt = null
         main.removeCallbacksAndMessages(null)
         // Backstop retries in case the focus event doesn't arrive.
@@ -284,13 +316,14 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             pendingText = null
             main.removeCallbacksAndMessages(null)
             vibrateTick()
-            BubbleService.instance?.showInserted()
+            inserted(inputConnectionPackage(), text)
             return
         }
         val node = focused
             ?: rememberedEditable()?.also { refocus = true }
             ?: run { lastAttempt = "no editable field found"; return }
         val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
+        val pkg = node.packageName?.toString()
         var viaPaste = false
         val ok = try {
             if (refocus) {
@@ -330,7 +363,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             // may be scrolled, hidden behind the keyboard, or simply not where the user is
             // looking — and this is the only signal that tells a real insert apart from the
             // clipboard fallback below, which from the user's side looks identical.
-            BubbleService.instance?.showInserted()
+            inserted(pkg, text)
         }
     }
 
@@ -398,6 +431,191 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         }
         node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, sel)
         return true
+    }
+
+    // ---------------- auto Enter ----------------
+
+    /** The insert landed: confirm it on the bubble, which counts down to Enter when that is on. */
+    private fun inserted(pkg: String?, text: String) {
+        val ms = pendingEnterMs
+        pendingEnterMs = 0L
+        val bubble = BubbleService.instance
+        if (ms > 0 && pkg != null && bubble != null) {
+            enterTarget = EnterTarget(pkg, text, SystemClock.uptimeMillis())
+            Log.i(TAG, "auto Enter armed: ${ms}ms in $pkg")
+            bubble.showInserted(ms)
+        } else {
+            bubble?.showInserted()
+        }
+    }
+
+    /** The app taking input through the input connection (Android 13+), for [inserted]. */
+    private fun inputConnectionPackage(): String? =
+        if (Build.VERSION.SDK_INT >= 33) inputMethod?.currentInputEditorInfo?.packageName ?: lastHostPackage
+        else lastHostPackage
+
+    /**
+     * Cancel an armed Enter when the user types in that app (they are editing what was said) or
+     * another app comes to the front. Our own insert raises text events too, hence the grace.
+     */
+    private fun watchArmedEnter(event: AccessibilityEvent, t: EnterTarget) {
+        val pkg = event.packageName?.toString() ?: return
+        val reason = when (event.eventType) {
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ->
+                if (pkg == t.pkg && SystemClock.uptimeMillis() - t.armedAt > AutoEnter.TYPING_GRACE_MS) "typing" else null
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ->
+                if (isHostPackage(pkg, packageName) && pkg != t.pkg) "switched to $pkg" else null
+            else -> null
+        } ?: return
+        Log.i(TAG, "auto Enter cancelled: $reason")
+        enterTarget = null
+        BubbleService.instance?.cancelEnter()
+    }
+
+    private fun doPressEnter(onDone: (Boolean) -> Unit) {
+        val t = enterTarget ?: return onDone(false)
+        enterTarget = null
+        try {
+            val node = findHostFocusedEditable()
+            if (node == null) {
+                // Editors without a focused editable node (Samsung Notes, terminals) took the text
+                // through the input connection; Enter goes the same way.
+                val ok = enterThroughInputConnection(t.pkg)
+                if (!ok) Log.i(TAG, "auto Enter skipped: no focused field in ${t.pkg}")
+                return onDone(ok)
+            }
+            val pkg = node.packageName?.toString()
+            if (pkg != t.pkg) {
+                Log.i(TAG, "auto Enter skipped: focus is now in $pkg, not ${t.pkg}")
+                @Suppress("DEPRECATION") node.recycle()
+                return onDone(false)
+            }
+            enterOnNode(node, t, onDone)
+        } catch (e: Exception) {
+            Log.w(TAG, "auto Enter failed", e)
+            onDone(false)
+        }
+    }
+
+    /**
+     * IME action on the field; if the text is still there afterwards, the send button beside it.
+     * A newline the app added for the IME action is taken back before clicking send, so the
+     * message does not end in a blank line. No send button and a newline: that was Enter.
+     */
+    private fun enterOnNode(node: AccessibilityNodeInfo, t: EnterTarget, onDone: (Boolean) -> Unit) {
+        val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
+        val before = currentText(node)
+        val imeEnter = Build.VERSION.SDK_INT >= 30 &&
+            node.actionList.any { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id }
+        if (imeEnter && node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)) {
+            Log.i(TAG, "auto Enter: IME action on $where")
+            enterHandler.postDelayed({
+                val result = try {
+                    val after = if (node.refresh()) currentText(node) else ""
+                    when (val outcome = AutoEnter.judge(before, after, t.text)) {
+                        AutoEnter.Outcome.SENT -> { Log.i(TAG, "auto Enter: sent by the IME action"); true }
+                        AutoEnter.Outcome.NEWLINE -> {
+                            Log.i(TAG, "auto Enter: IME action added a newline")
+                            clickSendButton(node, restore = before)
+                            true
+                        }
+                        AutoEnter.Outcome.NOTHING -> {
+                            Log.i(TAG, "auto Enter: IME action left the text ($outcome)")
+                            clickSendButton(node, restore = null) || enterThroughInputConnection(t.pkg)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "auto Enter check failed", e); false
+                } finally {
+                    @Suppress("DEPRECATION") node.recycle()
+                }
+                onDone(result)
+            }, AutoEnter.VERIFY_MS)
+            return
+        }
+        Log.i(TAG, "auto Enter: no IME action on $where")
+        val ok = try {
+            clickSendButton(node, restore = null) || enterThroughInputConnection(t.pkg)
+        } finally {
+            @Suppress("DEPRECATION") node.recycle()
+        }
+        onDone(ok)
+    }
+
+    /** Click the send button nearest [field] in its window. [restore]: field text to put back first. */
+    private fun clickSendButton(field: AccessibilityNodeInfo, restore: String?): Boolean {
+        val root = field.window?.root ?: rootInActiveWindow ?: return false
+        val fb = android.graphics.Rect().also { field.getBoundsInScreen(it) }
+        var best: AccessibilityNodeInfo? = null
+        var bestLabel = ""
+        var bestDist = Long.MAX_VALUE
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
+        var seen = 0
+        while (queue.isNotEmpty() && seen < 3000) {
+            val n = queue.removeFirst()
+            seen++
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+            if (n.isEditable || !n.isVisibleToUser || !n.isEnabled) continue
+            val label = (n.contentDescription ?: n.text)?.toString()
+            if (!AutoEnter.isSendButton(label, n.viewIdResourceName)) continue
+            val target = clickableSelfOrParent(n) ?: continue
+            val b = android.graphics.Rect().also { target.getBoundsInScreen(it) }
+            val dx = (b.centerX() - fb.centerX()).toLong()
+            val dy = (b.centerY() - fb.centerY()).toLong()
+            val d = dx * dx + dy * dy
+            if (d < bestDist) { best = target; bestDist = d; bestLabel = label ?: n.viewIdResourceName.orEmpty() }
+        }
+        val btn = best ?: run { Log.i(TAG, "auto Enter: no send button found"); return false }
+        if (restore != null) {
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore)
+            }
+            field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        }
+        val ok = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        Log.i(TAG, "auto Enter: send button \"$bestLabel\" clicked=$ok")
+        return ok
+    }
+
+    /** [n] if clickable, else its nearest clickable ancestor (an icon inside a button), up to 3 up. */
+    private fun clickableSelfOrParent(n: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var cur: AccessibilityNodeInfo? = n
+        repeat(4) {
+            val c = cur ?: return null
+            if (c.isClickable) return c
+            cur = c.parent
+        }
+        return null
+    }
+
+    /**
+     * Enter through the input connection (Android 13+): the field's editor action when it names
+     * one (send, search, go, done), otherwise an Enter key, which is what terminals want.
+     */
+    private fun enterThroughInputConnection(pkg: String): Boolean {
+        if (Build.VERSION.SDK_INT < 33) return false
+        return try {
+            val im = inputMethod ?: return false
+            if (!im.currentInputStarted) return false
+            val info = im.currentInputEditorInfo
+            if (info?.packageName != null && info.packageName != pkg) return false
+            val ic = im.currentInputConnection ?: return false
+            val action = AutoEnter.editorActionFor(info?.imeOptions ?: 0)
+            if (action != null) {
+                ic.performEditorAction(action)
+                Log.i(TAG, "auto Enter: editor action $action through the input connection")
+            } else {
+                val now = SystemClock.uptimeMillis()
+                val flags = KeyEvent.FLAG_SOFT_KEYBOARD or KeyEvent.FLAG_KEEP_TOUCH_MODE
+                ic.sendKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, flags))
+                ic.sendKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, flags))
+                Log.i(TAG, "auto Enter: Enter key through the input connection")
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "auto Enter through the input connection failed", e)
+            false
+        }
     }
 
     /** Remember why the last dictation ended on the clipboard, for Settings → Reliability. */

@@ -24,6 +24,7 @@ object Backup {
             .put("sttLanguage", s.sttLanguage)
             .put("vadAutoStop", s.vadAutoStop)
             .put("autoStopSeconds", s.autoStopSeconds)
+            .put("autoEnterSeconds", s.autoEnterSeconds)
             .put("headlessRecording", s.headlessRecording)
             .put("promptExample", s.promptExample)
             .put("pipelinedWhisper", s.pipelinedWhisper)
@@ -63,6 +64,7 @@ object Backup {
             sttLanguage = str("sttLanguage", current.sttLanguage),
             vadAutoStop = bool("vadAutoStop", current.vadAutoStop),
             autoStopSeconds = dbl("autoStopSeconds", current.autoStopSeconds),
+            autoEnterSeconds = dbl("autoEnterSeconds", current.autoEnterSeconds),
             headlessRecording = bool("headlessRecording", current.headlessRecording),
             promptExample = str("promptExample", current.promptExample),
             pipelinedWhisper = bool("pipelinedWhisper", current.pipelinedWhisper),

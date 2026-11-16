@@ -268,6 +268,8 @@ class BubbleService : Service() {
                 onPcSend = { cyclePcSend() },
                 pcType = settings.pcType,
                 onPcType = { togglePcType() },
+                autoEnter = settings.autoEnterSeconds,
+                onAutoEnter = { cycleAutoEnter() },
             )
         }
     }
@@ -375,6 +377,8 @@ class BubbleService : Service() {
      * Settings are read off the main thread; the gesture's haptic has already fired.
      */
     private fun beginDictation(pushToTalk: Boolean, fromWidget: Boolean = false) {
+        // A new take means the last one is not to be sent. Before the take's own state posts.
+        mainHandler.post { cancelEnterNow() }
         CoroutineScope(Dispatchers.Main).launch {
             val s = runCatching {
                 SettingsRepository(applicationContext).get().let { if (fromWidget) widgetTake(it) else it }.forDictation()
@@ -565,6 +569,18 @@ class BubbleService : Service() {
         }
 
         view.setOnTouchListener { _, e ->
+            // A touch during the Auto Enter countdown stops it and does nothing else: no take,
+            // no drag, no menu. The rest of that gesture is swallowed.
+            if (e.action == MotionEvent.ACTION_DOWN && view.state == BubbleView.State.ENTER_PENDING) {
+                swallowGesture = true
+                hapticEnd()
+                cancelEnterNow()
+                return@setOnTouchListener true
+            }
+            if (swallowGesture) {
+                if (e.action == MotionEvent.ACTION_UP || e.action == MotionEvent.ACTION_CANCEL) swallowGesture = false
+                return@setOnTouchListener true
+            }
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
                     picker?.dismiss() // touching the bubble again closes the menu
@@ -972,14 +988,75 @@ class BubbleService : Service() {
      * It is also the only positive signal that distinguishes a successful dictation from the
      * clipboard fallback below, which is otherwise indistinguishable from the user's side.
      */
-    fun showInserted() {
+    fun showInserted(enterAfterMs: Long = 0L) {
         DictationStatus.phase.value = DictationStatus.Phase.INSERTED
         mainHandler.post {
             recording = true
             ensureVisible()
-            setState(BubbleView.State.INSERTED)
-            hold(INSERTED_HOLD_MS)
+            val v = bubble
+            if (enterAfterMs > 0 && v != null) {
+                mainHandler.removeCallbacks(enterRunnable)
+                enterEndsAt = SystemClock.uptimeMillis() + enterAfterMs
+                v.setEnterCountdown(enterEndsAt, enterAfterMs)
+                setState(BubbleView.State.ENTER_PENDING)
+                // Held until Enter is pressed or cancelled, which release it.
+                holdUntil = Long.MAX_VALUE
+                mainHandler.postDelayed(enterRunnable, enterAfterMs)
+            } else {
+                if (enterAfterMs > 0) OpenWisprAccessibilityService.cancelEnter() // nowhere to show it
+                setState(BubbleView.State.INSERTED)
+                hold(INSERTED_HOLD_MS)
+            }
         }
+    }
+
+    // ---- Auto Enter ([AutoEnter]): the countdown lives here, the key press in the a11y service ----
+
+    /** When the running Auto Enter countdown ends; 0 when none is running. */
+    private var enterEndsAt = 0L
+    private val enterRunnable = Runnable { fireEnter() }
+    /** A PC result that arrived during the countdown ("both"), shown once it is over. */
+    private var deferredPc: PcLink.Outcome? = null
+    /** The rest of a touch that cancelled the countdown. */
+    private var swallowGesture = false
+
+    private fun fireEnter() {
+        if (enterEndsAt == 0L) return
+        enterEndsAt = 0L
+        OpenWisprAccessibilityService.pressEnter { ok ->
+            mainHandler.post {
+                if (ok) {
+                    // The check again: the prompt went.
+                    setState(BubbleView.State.INSERTED)
+                    hold(INSERTED_HOLD_MS)
+                } else {
+                    holdUntil = 0L
+                    showIdle()
+                }
+                flushDeferredPc(if (ok) INSERTED_HOLD_MS else 0L)
+            }
+        }
+    }
+
+    /** Stop a running countdown (from any thread): the user typed, left the app, or re-dictated. */
+    fun cancelEnter() {
+        mainHandler.post { cancelEnterNow() }
+    }
+
+    private fun cancelEnterNow() {
+        if (enterEndsAt == 0L) return
+        enterEndsAt = 0L
+        mainHandler.removeCallbacks(enterRunnable)
+        OpenWisprAccessibilityService.cancelEnter()
+        holdUntil = 0L
+        showIdle()
+        flushDeferredPc(0L)
+    }
+
+    private fun flushDeferredPc(afterMs: Long) {
+        val pc = deferredPc ?: return
+        deferredPc = null
+        mainHandler.postDelayed({ showPcResult(pc) }, afterMs)
     }
 
     /**
@@ -1013,6 +1090,8 @@ class BubbleService : Service() {
         mainHandler.post {
             // The answer can arrive seconds later; a take that has started since owns the bubble.
             if (HeadlessDictation.active) return@post
+            // Mid-countdown the bubble is the user's only way to stop the Enter; keep it.
+            if (enterEndsAt != 0L) { deferredPc = sent; return@post }
             DictationStatus.phase.value = when {
                 !sent.ok -> DictationStatus.Phase.NO_PC
                 sent.clipboardOnly -> DictationStatus.Phase.PC_CLIP
@@ -1039,6 +1118,17 @@ class BubbleService : Service() {
             val s = repo.get()
             repo.save(s.copy(pcSend = PcLink.next(PcLink.mode(s))))
             refreshGating()
+        }
+        mainHandler.postDelayed({ showModelPicker() }, 120)
+    }
+
+    /** Next Auto Enter delay from the bubble menu; the menu reopens to show it. */
+    private fun cycleAutoEnter() {
+        hapticStart()
+        serviceScope.launch {
+            val repo = SettingsRepository(applicationContext)
+            val s = repo.get()
+            repo.save(s.copy(autoEnterSeconds = nextAutoEnter(s.autoEnterSeconds)))
         }
         mainHandler.postDelayed({ showModelPicker() }, 120)
     }

@@ -193,7 +193,7 @@ class RewriteActivity : ComponentActivity() {
         // it, which is after this activity has finished, hence the application context.
         val app = applicationContext
         PcLink.deliver(s ?: Settings(), result) {
-            if (!OpenWisprAccessibilityService.enqueueInsert(result)) {
+            if (!OpenWisprAccessibilityService.enqueueInsert(result, s?.autoEnterMs() ?: 0L)) {
                 (app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                     .setPrimaryClip(ClipData.newPlainText("rewrite", result))
             }

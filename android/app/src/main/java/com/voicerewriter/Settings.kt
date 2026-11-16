@@ -23,6 +23,11 @@ data class Settings(
     /** Silence before auto-stop ends the take: one of [AUTO_STOP_CHOICES]. */
     val autoStopSeconds: Double = AUTO_STOP_CHOICES.first(),
     /**
+     * Press Enter this many seconds after a dictation is inserted on the phone, so a prompt is
+     * sent without touching the screen. 0 is off; one of [AUTO_ENTER_CHOICES]. See [AutoEnter].
+     */
+    val autoEnterSeconds: Double = 0.0,
+    /**
      * Record from the bubble's foreground service instead of opening the dictation sheet, so
      * the app being typed into keeps focus and its keyboard. Needs on-device STT and
      * accessibility; falls back to the sheet whenever it can't run. See [HeadlessDictation].
@@ -88,7 +93,17 @@ data class Settings(
         quietMode = true,
         quietModel = forDictation().sttModel,
         autoStopSeconds = autoStop,
+        // The phone is locked and the text is not shown: nothing on screen to check or cancel.
+        autoEnterSeconds = 0.0,
     )
+
+    /**
+     * Milliseconds to wait before pressing Enter after a phone insert, 0 for never. Never when
+     * the phone only gets the text because the PC could not take it ("PC only"): the user was
+     * not looking at a phone field and did not ask for anything to be sent from it.
+     */
+    fun autoEnterMs(): Long =
+        if (PcLink.mode(this) == PcLink.PC_ONLY) 0L else (autoEnterSeconds * 1000).toLong().coerceAtLeast(0L)
 }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -100,6 +115,7 @@ class SettingsRepository(private val context: Context) {
         val STT_LANGUAGE = stringPreferencesKey("sttLanguage")
         val VAD_AUTO_STOP = booleanPreferencesKey("vadAutoStop")
         val AUTO_STOP_SECONDS = doublePreferencesKey("autoStopSeconds")
+        val AUTO_ENTER_SECONDS = doublePreferencesKey("autoEnterSeconds")
         val HEADLESS_RECORDING = booleanPreferencesKey("headlessRecording")
         val PROMPT_EXAMPLE = stringPreferencesKey("promptExample")
         val PIPELINED_WHISPER = booleanPreferencesKey("pipelinedWhisper")
@@ -138,6 +154,7 @@ class SettingsRepository(private val context: Context) {
             sttLanguage = DictationLanguage.normalize(p[Keys.STT_LANGUAGE] ?: defaults.sttLanguage),
             vadAutoStop = p[Keys.VAD_AUTO_STOP] ?: defaults.vadAutoStop,
             autoStopSeconds = p[Keys.AUTO_STOP_SECONDS] ?: defaults.autoStopSeconds,
+            autoEnterSeconds = p[Keys.AUTO_ENTER_SECONDS] ?: defaults.autoEnterSeconds,
             headlessRecording = p[Keys.HEADLESS_RECORDING] ?: defaults.headlessRecording,
             promptExample = p[Keys.PROMPT_EXAMPLE] ?: defaults.promptExample,
             pipelinedWhisper = p[Keys.PIPELINED_WHISPER] ?: defaults.pipelinedWhisper,
@@ -165,6 +182,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.STT_LANGUAGE] = DictationLanguage.normalize(s.sttLanguage)
             p[Keys.VAD_AUTO_STOP] = s.vadAutoStop
             p[Keys.AUTO_STOP_SECONDS] = s.autoStopSeconds
+            p[Keys.AUTO_ENTER_SECONDS] = s.autoEnterSeconds
             p[Keys.HEADLESS_RECORDING] = s.headlessRecording
             p[Keys.PROMPT_EXAMPLE] = s.promptExample
             p[Keys.PIPELINED_WHISPER] = s.pipelinedWhisper
@@ -199,5 +217,17 @@ class SettingsRepository(private val context: Context) {
  * thought mid-dictation; longer waits suit long, considered prompts.
  */
 val AUTO_STOP_CHOICES = listOf(1.6, 2.2, 3.0, 5.0)
+
+/**
+ * Auto Enter delays, off first. The wait is the user's chance to read the text and tap the
+ * bubble to stop it; how long that takes depends on how much was said and how much it matters.
+ */
+val AUTO_ENTER_CHOICES = listOf(0.0, 1.0, 2.0, 3.0, 5.0)
+
+/** The choice after [current] in [AUTO_ENTER_CHOICES], wrapping round to off. */
+fun nextAutoEnter(current: Double): Double {
+    val i = AUTO_ENTER_CHOICES.indexOf(current)
+    return AUTO_ENTER_CHOICES[(i + 1).mod(AUTO_ENTER_CHOICES.size)]
+}
 
 const val DEFAULT_PROMPT_EXAMPLE = "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘."

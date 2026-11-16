@@ -68,6 +68,9 @@ class ModelPicker(
         /** What the PC does with the text ([Settings.pcType]); its row shows while sending. */
         pcType: Boolean = false,
         onPcType: () -> Unit = {},
+        /** Auto Enter delay in seconds ([Settings.autoEnterSeconds]); null hides the row. */
+        autoEnter: Double? = null,
+        onAutoEnter: () -> Unit = {},
     ) {
         dismiss()
         val ink = if (dark) CREAM else INK
@@ -122,6 +125,15 @@ class ModelPicker(
                     onPcType()
                 })
             }
+        }
+        if (autoEnter != null) {
+            switches = true
+            val on = autoEnter > 0.0
+            val value = if (on) trf("%ss", "%.1f".format(autoEnter).removeSuffix(".0")) else tr("Off")
+            card.addView(switchRow(R.drawable.ic_menu_enter, tr("Auto Enter"), value, if (on) accent else sub, on, ink, sub, font) {
+                dismiss()
+                onAutoEnter()
+            })
         }
         if (switches) card.addView(divider(dark))
         card.addView(TextView(context).apply {

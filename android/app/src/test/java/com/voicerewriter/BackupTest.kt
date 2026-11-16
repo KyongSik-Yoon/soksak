@@ -13,7 +13,7 @@ class BackupTest {
         """{"canonical":"worktree","aliases":["워크트리"],"source":"learned","learnedAliases":["워크트리"]}]"""
 
     private val mine = Settings(
-        sttModel = "medium-npu", quietMode = true, autoStopSeconds = 3.0, promptExample = "예시 문장",
+        sttModel = "medium-npu", quietMode = true, autoStopSeconds = 3.0, autoEnterSeconds = 2.0, promptExample = "예시 문장",
         uiLanguage = "ko",
         speakerGate = false, voiceIsolation = true,
         pcSend = PcLink.BOTH, pcHost = "100.68.1.2", pcType = true, pcCode = "SECRETCODE",
@@ -25,6 +25,7 @@ class BackupTest {
         assertEquals("medium-npu", r.settings.sttModel)
         assertEquals(true, r.settings.quietMode)
         assertEquals(3.0, r.settings.autoStopSeconds, 0.0)
+        assertEquals(2.0, r.settings.autoEnterSeconds, 0.0)
         assertEquals("예시 문장", r.settings.promptExample)
         assertEquals("ko", r.settings.uiLanguage)
         assertEquals(false, r.settings.speakerGate)
