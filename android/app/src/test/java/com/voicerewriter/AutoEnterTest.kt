@@ -34,6 +34,11 @@ class AutoEnterTest {
     @Test fun `judging what Enter did`() {
         val said = "테스트 돌려줘."
         assertEquals(Outcome.SENT, AutoEnter.judge(said, "", said))
+        // Never there in the first place is not a send.
+        assertEquals(Outcome.NOTHING, AutoEnter.judge("다른 글", "", said))
+        assertFalse(AutoEnter.stillThere("다른 글", said))
+        assertTrue(AutoEnter.stillThere("앞 글 $said", " $said"))
+        assertFalse(AutoEnter.stillThere("", "  "))
         assertEquals(Outcome.SENT, AutoEnter.judge("앞 글 $said", "앞 글", said))
         assertEquals(Outcome.NEWLINE, AutoEnter.judge(said, "$said\n", said))
         assertEquals(Outcome.NOTHING, AutoEnter.judge(said, said, said))
@@ -61,6 +66,16 @@ class AutoEnterTest {
         assertFalse(AutoEnter.isSendButton(null, "com.example:id/sender_name"))
         assertFalse(AutoEnter.isSendButton("Microphone", null))
         assertFalse(AutoEnter.isSendButton(null, null))
+        // A chat message that happens to say send is prose, not a button name.
+        assertFalse(AutoEnter.isSendButton("파일 전송 끝나면 알려줘, 그다음에 배포하자", null))
+        assertFalse(AutoEnter.isSendButton("Can you send the logs to me after lunch?", null))
+    }
+
+    @Test fun `a send button must sit beside the field`() {
+        // Field at y 1800..1900, reach 200: its row and the toolbar under it, not the chat above.
+        assertTrue(AutoEnter.besideField(1820, 1880, 1800, 1900, 200))
+        assertTrue(AutoEnter.besideField(1950, 2050, 1800, 1900, 200))
+        assertFalse(AutoEnter.besideField(1400, 1500, 1800, 1900, 200))
     }
 
     @Test fun `editor actions through the input connection`() {

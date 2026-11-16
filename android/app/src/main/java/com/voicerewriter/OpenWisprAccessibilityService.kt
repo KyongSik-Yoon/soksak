@@ -94,9 +94,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             svc.enterHandler.post { svc.doPressEnter(onDone) }
         }
 
-        /** Forget the armed Enter (the bubble was tapped or a new take started). */
+        /** Forget the armed Enter, or stop one being pressed (the bubble was tapped, a new take). */
         fun cancelEnter() {
-            instance?.enterTarget = null
+            val svc = instance ?: return
+            svc.enterTarget = null
+            svc.enterCancelled = true
         }
 
         /** Re-check focus now (e.g. when the bubble (re)starts) so it shows if a field is already focused. */
@@ -114,6 +116,8 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     /** Where an armed Auto Enter will go; null when none is armed. */
     private class EnterTarget(val pkg: String, val text: String, val armedAt: Long)
     @Volatile private var enterTarget: EnterTarget? = null
+    /** Set by [cancelEnter] while a press is being checked, so the send-button fallback holds off. */
+    @Volatile private var enterCancelled = false
     /** Auto Enter delay for the insert in flight, handed over by [enqueueInsert]. */
     @Volatile private var pendingEnterMs = 0L
     @Volatile private var pendingText: String? = null
@@ -475,6 +479,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     private fun doPressEnter(onDone: (Boolean) -> Unit) {
         val t = enterTarget ?: return onDone(false)
         enterTarget = null
+        enterCancelled = false
         try {
             val node = findHostFocusedEditable()
             if (node == null) {
@@ -505,14 +510,25 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     private fun enterOnNode(node: AccessibilityNodeInfo, t: EnterTarget, onDone: (Boolean) -> Unit) {
         val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
         val before = currentText(node)
+        // Another field of the same app, or the text already gone: Enter would send something else.
+        if (!AutoEnter.stillThere(before, t.text)) {
+            Log.i(TAG, "auto Enter skipped: the dictated text is not in the focused field $where")
+            @Suppress("DEPRECATION") node.recycle()
+            return onDone(false)
+        }
         val imeEnter = Build.VERSION.SDK_INT >= 30 &&
             node.actionList.any { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id }
         if (imeEnter && node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)) {
             Log.i(TAG, "auto Enter: IME action on $where")
             enterHandler.postDelayed({
                 val result = try {
-                    val after = if (node.refresh()) currentText(node) else ""
-                    when (val outcome = AutoEnter.judge(before, after, t.text)) {
+                    val alive = node.refresh()
+                    val after = if (alive) currentText(node) else ""
+                    if (!alive) Log.i(TAG, "auto Enter: the field went away after the IME action")
+                    if (enterCancelled) {
+                        Log.i(TAG, "auto Enter: cancelled during the check, no fallback")
+                        false
+                    } else when (val outcome = AutoEnter.judge(before, after, t.text)) {
                         AutoEnter.Outcome.SENT -> { Log.i(TAG, "auto Enter: sent by the IME action"); true }
                         AutoEnter.Outcome.NEWLINE -> {
                             Log.i(TAG, "auto Enter: IME action added a newline")
@@ -546,6 +562,8 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     private fun clickSendButton(field: AccessibilityNodeInfo, restore: String?): Boolean {
         val root = field.window?.root ?: rootInActiveWindow ?: return false
         val fb = android.graphics.Rect().also { field.getBoundsInScreen(it) }
+        // A toolbar row under or over the field (Claude's composer) is within reach; the chat isn't.
+        val reach = (72 * resources.displayMetrics.density).toInt()
         var best: AccessibilityNodeInfo? = null
         var bestLabel = ""
         var bestDist = Long.MAX_VALUE
@@ -556,10 +574,13 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             seen++
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
             if (n.isEditable || !n.isVisibleToUser || !n.isEnabled) continue
-            val label = (n.contentDescription ?: n.text)?.toString()
+            // Text only counts on a button: a message bubble's text is not a label.
+            val isButton = n.className?.toString()?.endsWith("Button") == true
+            val label = (n.contentDescription ?: n.text?.takeIf { isButton })?.toString()
             if (!AutoEnter.isSendButton(label, n.viewIdResourceName)) continue
             val target = clickableSelfOrParent(n) ?: continue
             val b = android.graphics.Rect().also { target.getBoundsInScreen(it) }
+            if (!AutoEnter.besideField(b.top, b.bottom, fb.top, fb.bottom, reach)) continue
             val dx = (b.centerX() - fb.centerX()).toLong()
             val dy = (b.centerY() - fb.centerY()).toLong()
             val d = dx * dx + dy * dy

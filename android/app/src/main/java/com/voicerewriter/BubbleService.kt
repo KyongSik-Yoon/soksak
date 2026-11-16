@@ -1025,6 +1025,8 @@ class BubbleService : Service() {
         enterEndsAt = 0L
         OpenWisprAccessibilityService.pressEnter { ok ->
             mainHandler.post {
+                // Cancelled while it was being pressed: the cancel already put the bubble back.
+                if (bubble?.state != BubbleView.State.ENTER_PENDING) return@post
                 if (ok) {
                     // The check again: the prompt went.
                     setState(BubbleView.State.INSERTED)
@@ -1044,7 +1046,9 @@ class BubbleService : Service() {
     }
 
     private fun cancelEnterNow() {
-        if (enterEndsAt == 0L) return
+        // Also after the ring ran out, while the press is still being checked (state unchanged).
+        val pressing = enterEndsAt == 0L && bubble?.state == BubbleView.State.ENTER_PENDING
+        if (enterEndsAt == 0L && !pressing) return
         enterEndsAt = 0L
         mainHandler.removeCallbacks(enterRunnable)
         OpenWisprAccessibilityService.cancelEnter()
