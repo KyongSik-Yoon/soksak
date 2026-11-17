@@ -667,9 +667,52 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             }
             field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         }
+        if (inWebContent(btn) && tapCenter(btn)) {
+            Log.i(TAG, "auto Enter: send button \"$label\" tapped")
+            return true
+        }
         val ok = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         Log.i(TAG, "auto Enter: send button \"$label\" clicked=$ok")
         return ok
+    }
+
+    /**
+     * Whether [n] is part of a web page (Chrome, a WebView). There a send button gets a real tap: in
+     * Collie (a PWA in Chrome) the accessibility click was accepted (clicked=true) yet nothing was
+     * sent, and it took focus off the field and closed the keyboard, while a finger on the same
+     * button sends (2026-11-17, user). A tap is what the page is written for.
+     */
+    private fun inWebContent(n: AccessibilityNodeInfo): Boolean {
+        var cur: AccessibilityNodeInfo? = n.parent
+        repeat(40) {
+            val c = cur ?: return false
+            if (c.className?.toString() == "android.webkit.WebView") return true
+            cur = c.parent
+        }
+        return false
+    }
+
+    /**
+     * A short tap at the middle of [n]'s on-screen bounds. False (so the caller clicks instead) when
+     * it cannot be sent, or when one of our own windows (the bubble) covers that point and would
+     * take the tap itself.
+     */
+    private fun tapCenter(n: AccessibilityNodeInfo): Boolean {
+        val b = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+        if (b.isEmpty) return false
+        val x = b.exactCenterX()
+        val y = b.exactCenterY()
+        val ours = try { windows } catch (_: Exception) { null }.orEmpty().any { w ->
+            val r = w.root
+            val mine = r?.packageName == packageName
+            mine && android.graphics.Rect().also { w.getBoundsInScreen(it) }.contains(x.toInt(), y.toInt())
+        }
+        if (ours) { Log.i(TAG, "auto Enter: the bubble covers the send button, clicking instead"); return false }
+        val path = android.graphics.Path().apply { moveTo(x, y) }
+        val gesture = android.accessibilityservice.GestureDescription.Builder()
+            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60))
+            .build()
+        return try { dispatchGesture(gesture, null, null) } catch (e: Exception) { Log.w(TAG, "tap failed", e); false }
     }
 
     /** The send button nearest [field] under [root], with its label; null when there is none. */
