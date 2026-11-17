@@ -104,10 +104,15 @@ class BubbleView(context: Context) : View(context) {
         const val PAD_DP = 10f
 
         /**
-         * The whole window of [State.TUCKED], tab included. Apps keep about 16dp clear at the
-         * screen edge, so a tab narrower than that sits in the margin rather than over buttons.
+         * The whole window of [State.TUCKED]: what takes the touch. Wider than the drawn tab
+         * ([TUCKED_TAB_DP]) because a thumb coming from the edge lands its touch point further
+         * in than 12dp, and missed the 12dp window it had at first (2026-11-18, user). Apps keep
+         * about 16dp clear at the edge, so this reaches a little past that margin.
          */
-        const val TUCKED_W_DP = 12f
+        const val TUCKED_W_DP = 24f
+
+        /** The drawn tab, flush with the screen edge; the rest of the window is transparent. */
+        const val TUCKED_TAB_DP = 14f
 
         /** Which states are pills rather than circles. Drives the window width. */
         fun widthDpFor(state: State): Float =
@@ -280,7 +285,7 @@ class BubbleView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val pad = dp(PAD_DP)
-        if (state == State.TUCKED) { drawTucked(canvas, pad); return } // narrower than the padding
+        if (state == State.TUCKED) { drawTucked(canvas); return } // narrower than the padding
         content.set(pad, pad, width - pad, height - pad)
         if (content.isEmpty) return
         val t = (SystemClock.uptimeMillis() - enteredAt) / 1000f
@@ -335,11 +340,15 @@ class BubbleView(context: Context) : View(context) {
      * inside, in the model tab's colour (so Quiet mode and voice isolation still show), with a
      * short grip line. A solid fill rather than the pale disc, so it can be found on any screen.
      */
-    private fun drawTucked(canvas: Canvas, pad: Float) {
-        val r = dp(6f).toFloat()
-        // Run the shape past the docked edge so only the inner corners are rounded.
-        if (dockedLeft) scratch.set(-r, pad, width.toFloat(), height - pad)
-        else scratch.set(0f, pad, width + r, height - pad)
+    private fun drawTucked(canvas: Canvas) {
+        val r = dp(7f)
+        val tab = dp(TUCKED_TAB_DP)
+        // Nearly the window's full height (taller than the disc, an easier target), and run past
+        // the docked edge so only the inner corners are rounded.
+        val top = dp(2f)
+        val bottom = height - dp(2f)
+        if (dockedLeft) scratch.set(-r, top, tab, bottom)
+        else scratch.set(width - tab, top, width + r, bottom)
         fillPaint.shader = null
         fillPaint.clearShadowLayer()
         fillPaint.color = when {
@@ -350,9 +359,9 @@ class BubbleView(context: Context) : View(context) {
         fillPaint.alpha = 235
         canvas.drawRoundRect(scratch, r, r, fillPaint)
         fillPaint.alpha = 255
-        // The grip sits in the visible part, nudged off the screen edge.
-        val cx = if (dockedLeft) width * 0.45f else width * 0.55f
-        val half = dp(8f)
+        // The grip sits in the tab, nudged off the screen edge.
+        val cx = if (dockedLeft) tab * 0.45f else width - tab * 0.45f
+        val half = dp(10f)
         fillPaint.color = surface()
         scratch.set(cx - dp(1f), height / 2f - half, cx + dp(1f), height / 2f + half)
         canvas.drawRoundRect(scratch, dp(1f).toFloat(), dp(1f).toFloat(), fillPaint)
