@@ -164,19 +164,26 @@ class ModelPicker(
         // Room around the card for its shadow.
         val frame = LinearLayout(context).apply {
             setPadding(dp(8), dp(8), dp(8), dp(8))
-            addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             setOnTouchListener { _, e ->
                 if (e.action == MotionEvent.ACTION_OUTSIDE) dismiss()
                 false
             }
         }
+        // Natural size, narrowed to the screen when that is too wide (long names end in "…").
         frame.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        if (frame.measuredWidth > screenW) {
+            frame.measure(View.MeasureSpec.makeMeasureSpec(screenW, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+        }
         val w = frame.measuredWidth
         val h = frame.measuredHeight
 
+        // The window gets exactly the size placed below. With WRAP_CONTENT the system measured it
+        // again its own way, wider than this, and with NO_LIMITS the extra ran off the right edge
+        // of the screen (more rows, 2026-11-17).
         val p = WindowManager.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
+            w,
+            h,
             overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
@@ -288,6 +295,7 @@ class ModelPicker(
             setTextColor(ink)
             typeface = face
             maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
 
     private fun divider(dark: Boolean): View =
