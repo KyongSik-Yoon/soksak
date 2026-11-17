@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-17 — 자동 엔터: 이름 없는 보내기 버튼도 누름 (6565ee5, build-143)
+- 원인 확정(사용자 debug log, build-142): Collie의 보내기는 `ToggleButton desc=null text=""` — Chrome이 `aria-pressed` 버튼의 aria-label을 노출하지 않는다. build-141(탐색 상한)·142(빈 설명) 추정은 원인이 아니었다.
+- 이름에 send/전송이 있는 버튼이 없으면, 입력창 줄 끝(입력창 뒤, 높이 안)의 이름 없는 버튼 중 마지막 것을 누른다. hint·tooltip도 이름으로 본다. 폰 확인 전.
+
 ## 2026-11-17 — 자동 엔터: 빈 설명이 버튼 이름을 가리지 않게, 못 누르면 이유를 로그에 (a09ecac, build-142)
 - build-141 뒤에도 Collie 보내기 버튼이 안 눌렸다. Collie 소스(최신 origin) 확인: 버튼은 `aria-label="전송"` + `aria-pressed`, 클릭하면 바로 보낸다 → 우리 쪽이 못 찾거나 못 누른 것. 다음 용의자는 contentDescription이 빈 문자열이라 text의 "전송"을 못 본 것(추정, 미확인) → 빈 설명은 건너뛴다(`AutoEnter.buttonLabel`).
 - 원인 확정용: 보내기 버튼을 못 찾으면 입력창 주변의 보이는 노드 전부(클래스·설명·텍스트 20자·id·bounds)를, IME 동작 뒤에는 입력창 길이·줄바꿈 수(글 내용은 안 남김)를 로그에 남긴다. 사용자는 설정 → Reliability → "Copy debug log"로 보내면 된다.
