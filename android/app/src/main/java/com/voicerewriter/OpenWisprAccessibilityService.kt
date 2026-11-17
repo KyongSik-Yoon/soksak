@@ -39,6 +39,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         private const val DIAG_PREFS = "insert_diag"
         private const val KEY_LAST_FALLBACK = "last_fallback"
 
+        /** Send button search: ancestors of the field to try, nodes under each, nodes in the window. */
+        private const val SEND_SEARCH_LEVELS = 8
+        private const val SEND_SEARCH_NEAR = 600
+        private const val SEND_SEARCH_WINDOW = 3000
+
         /** "MM-dd HH:mm · why" for the last dictation that ended on the clipboard, or null. */
         fun lastFallback(context: Context): String? =
             context.getSharedPreferences(DIAG_PREFS, Context.MODE_PRIVATE).getString(KEY_LAST_FALLBACK, null)
@@ -666,12 +671,33 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         val fb = android.graphics.Rect().also { field.getBoundsInScreen(it) }
         // A toolbar row under or over the field (Claude's composer) is within reach; the chat isn't.
         val reach = (72 * resources.displayMetrics.density).toInt()
+        // The composer around the field first, nearest ancestor out. A whole-window scan alone ran
+        // out of its node budget in a web app with a long conversation above the composer (Collie,
+        // 2026-11-17): Enter left a newline and the send button beside it was never reached.
+        var anc = field.parent
+        var levels = 0
+        while (levels++ < SEND_SEARCH_LEVELS) {
+            val a = anc ?: break
+            val (found, full) = sendButtonUnder(a, fb, reach, SEND_SEARCH_NEAR)
+            if (found != null) return found
+            if (full) break // as big as the window gets; the scan below will not do better nearby
+            anc = a.parent
+        }
+        val (found, full) = sendButtonUnder(root, fb, reach, SEND_SEARCH_WINDOW)
+        if (found == null && full) Log.i(TAG, "auto Enter: send button scan hit its node limit")
+        return found
+    }
+
+    /** The send button under [top] nearest the field [fb]; and whether [limit] nodes ran out first. */
+    private fun sendButtonUnder(
+        top: AccessibilityNodeInfo, fb: android.graphics.Rect, reach: Int, limit: Int,
+    ): Pair<Pair<AccessibilityNodeInfo, String>?, Boolean> {
         var best: AccessibilityNodeInfo? = null
         var bestLabel = ""
         var bestDist = Long.MAX_VALUE
-        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(top) }
         var seen = 0
-        while (queue.isNotEmpty() && seen < 3000) {
+        while (queue.isNotEmpty() && seen < limit) {
             val n = queue.removeFirst()
             seen++
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
@@ -688,7 +714,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             val d = dx * dx + dy * dy
             if (d < bestDist) { best = target; bestDist = d; bestLabel = label ?: n.viewIdResourceName.orEmpty() }
         }
-        return best?.let { it to bestLabel }
+        return best?.let { it to bestLabel } to queue.isNotEmpty()
     }
 
     /** [n] if clickable, else its nearest clickable ancestor (an icon inside a button), up to 3 up. */
