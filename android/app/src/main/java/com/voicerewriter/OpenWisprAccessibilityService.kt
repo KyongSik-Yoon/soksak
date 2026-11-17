@@ -822,10 +822,15 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
             if (!n.isVisibleToUser) continue
             val cls = n.className?.toString()?.substringAfterLast('.').orEmpty()
-            out += "$cls desc=${n.contentDescription?.let { "\"${it.take(20)}\"" }} " +
-                "text=${if (n.isEditable) "(field)" else n.text?.let { "\"${it.take(20)}\"" }} " +
+            // Words only for what can be pressed (a button's name is what the search reads). Anything
+            // else near the field may be the conversation: its length only, so a pasted log does not
+            // carry what was on screen.
+            val pressable = !n.isEditable && (n.isClickable || cls.endsWith("Button"))
+            fun shown(v: CharSequence?): String? = v?.let { if (pressable) "\"${it.take(20)}\"" else "(${it.length} chars)" }
+            out += "$cls desc=${shown(n.contentDescription)} " +
+                "text=${if (n.isEditable) "(field)" else shown(n.text)} " +
                 "id=${n.viewIdResourceName} click=${n.isClickable} on=${n.isEnabled} ${boundsOf(n)}" +
-                (if (Build.VERSION.SDK_INT >= 30) " hint=${n.hintText?.take(20)} tip=${n.tooltipText?.take(20)} state=${n.stateDescription?.take(20)}" else "")
+                (if (Build.VERSION.SDK_INT >= 30) " hint=${shown(n.hintText)} tip=${shown(n.tooltipText)} state=${n.stateDescription?.take(20)}" else "")
         }
         return if (out.isEmpty()) "nothing" else out.joinToString(" | ")
     }
