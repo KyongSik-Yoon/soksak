@@ -525,6 +525,10 @@ class BubbleService : Service() {
         var moved = false
         var longFired = false
         var fromTab = false
+        // A touch that began on the tucked tab: up/down moves the tab, letting go without
+        // moving brings the bubble out.
+        var onTab = false
+        var tabMoved = false
         val touchSlop = 12 * density
 
         // Long press opens the bubble menu. It was hold-to-talk (talk while held, release to
@@ -537,10 +541,11 @@ class BubbleService : Service() {
         // Dragging starts on movement rather than after a hold, so a hold never lifts the
         // bubble out of its dock; [BubbleView.State.LIFTED] is triggered by the drag.
         //
-        // Any touch on the tucked tab only brings the bubble out, to be tapped, held or dragged
+        // A touch on the tucked tab only brings the bubble out, to be tapped, held or dragged
         // from there: the tab lies inside the edge zone of Samsung's One Hand Operation+, which
-        // takes drags and makes holds hard, and that zone is wider than the tab however it is
-        // set (2026-11-18, user). A tap on the tab dictating straight away went with it.
+        // takes inward swipes and makes holds hard, and that zone is wider than the tab however
+        // it is set (2026-11-18, user). A tap on the tab dictating straight away went with it.
+        // Dragging the tab up or down along the edge moves it without bringing it out.
         val longPress = Runnable {
             if (!moved && recordingStopper == null) {
                 longFired = true
@@ -581,12 +586,19 @@ class BubbleService : Service() {
                 MotionEvent.ACTION_DOWN -> {
                     picker?.dismiss() // touching the bubble again closes the menu
                     wake(animate = false) // full size under the finger before anything else
-                    // A tucked tab slides the bubble back out, and that is all the gesture does
-                    // (see longPress).
-                    val popped = untuck()
-                    fromTab = popped
                     downRawX = e.rawX
                     downRawY = e.rawY
+                    onTab = view.state == BubbleView.State.TUCKED
+                    if (onTab) {
+                        // Stays tucked until the release: it may be a drag along the edge.
+                        startY = params.y
+                        tabMoved = false
+                        return@setOnTouchListener true
+                    }
+                    // Caught sliding off toward the tab: back out, and that is all this gesture
+                    // does (see longPress).
+                    val popped = untuck()
+                    fromTab = popped
                     startX = if (popped) restingX(BubbleView.State.IDLE) else params.x
                     startY = params.y
                     moved = false
@@ -595,6 +607,20 @@ class BubbleService : Service() {
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    if (onTab) {
+                        val dx = e.rawX - downRawX
+                        val dy = e.rawY - downRawY
+                        // Only along the edge: an inward swipe is One Hand Operation+'s.
+                        if (!tabMoved && abs(dy) > touchSlop && abs(dy) > abs(dx)) {
+                            tabMoved = true
+                            hapticThreshold()
+                        }
+                        if (tabMoved) {
+                            params.y = clampY(startY + dy.toInt())
+                            bubble?.let { wm.updateViewLayout(it, params) }
+                        }
+                        return@setOnTouchListener true
+                    }
                     // The hold already opened the menu beside the bubble; dragging now would
                     // leave the menu pointing at nothing.
                     if (longFired) return@setOnTouchListener true
@@ -638,6 +664,18 @@ class BubbleService : Service() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     mainHandler.removeCallbacks(longPress)
+                    if (onTab) {
+                        onTab = false
+                        if (tabMoved) {
+                            // Saved as the docked bubble's spot, so the side reads back the same.
+                            BubblePrefs.setPosition(this@BubbleService,
+                                dockedX(dockedLeft, contentW(BubbleView.State.IDLE)), params.y)
+                        } else if (e.action == MotionEvent.ACTION_UP) {
+                            untuck()
+                            scheduleShrink()
+                        }
+                        return@setOnTouchListener true
+                    }
                     scheduleShrink()
                     // The hold did its work while the finger was down; letting go is not a tap.
                     if (longFired) return@setOnTouchListener true
