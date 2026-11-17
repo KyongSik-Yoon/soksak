@@ -707,15 +707,20 @@ class BubbleService : Service() {
 
     private val shrinkRunnable = Runnable { shrink() }
 
-    /** (Re)start the idle countdown; only an idle bubble ever shrinks. */
+    /**
+     * (Re)start the idle countdown; only an idle bubble ever shrinks, and never one that is always
+     * shown: with no keyboard to bring it back, a small faint bubble was hard to find and to hit
+     * (2026-11-17, user). Turning the gate off grows a shrunk one back through [applyGating].
+     */
     private fun scheduleShrink() {
         mainHandler.removeCallbacks(shrinkRunnable)
+        if (!gateActive()) return
         if (bubble?.state == BubbleView.State.IDLE) mainHandler.postDelayed(shrinkRunnable, IDLE_SHRINK_MS)
     }
 
     private fun shrink() {
         val v = bubble ?: return
-        if (v.state != BubbleView.State.IDLE) return
+        if (v.state != BubbleView.State.IDLE || !gateActive()) return
         // Shrink toward the docked edge so it tucks in rather than floating off the edge.
         v.pivotX = if (dockedLeft) pad().toFloat() else (v.width - pad()).toFloat()
         v.pivotY = v.height / 2f
