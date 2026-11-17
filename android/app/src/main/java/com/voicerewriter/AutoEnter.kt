@@ -58,6 +58,23 @@ object AutoEnter {
         description?.toString()?.takeIf { it.isNotBlank() }
             ?: text?.toString()?.takeIf { isButton && it.isNotBlank() }
 
+    /**
+     * When no button says "send": among unnamed buttons, the one ending the field's row — its centre
+     * within the field's height, starting at or after the field's end ([slack] px of overlap) — and the
+     * last of them. Chrome gives a toggle button (`aria-pressed`) neither description nor text, so
+     * Collie's Send, `aria-label="전송"`, reached us nameless at the end of the composer row
+     * (debug log, 2026-11-17). [boxes] are left, top, right, bottom; returns an index or null.
+     */
+    fun trailingButton(fieldTop: Int, fieldRight: Int, fieldBottom: Int, boxes: List<IntArray>, slack: Int): Int? {
+        var best: Int? = null
+        boxes.forEachIndexed { i, b ->
+            val cy = (b[1] + b[3]) / 2
+            if (cy < fieldTop || cy > fieldBottom || b[0] < fieldRight - slack) return@forEachIndexed
+            if (best == null || b[2] > boxes[best!!][2]) best = i
+        }
+        return best
+    }
+
     /** Longer than this is a sentence (a chat message saying "전송"), not a button's name. */
     const val MAX_LABEL = 20
 

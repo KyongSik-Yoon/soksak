@@ -678,9 +678,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         // A toolbar row under or over the field (Claude's composer) is within reach; the chat isn't.
         val reach = (72 * resources.displayMetrics.density).toInt()
         // The composer around the field first, nearest ancestor out: a whole-window scan has a node
-        // budget, and a web app with a long conversation above the composer (Collie) may spend it
-        // before reaching the button. Suspected for Collie on 2026-11-17, not confirmed: it still
-        // missed after this, see buttonsNear in the log.
+        // budget, and a long conversation above the composer may spend it before the button.
         var anc = field.parent
         var levels = 0
         while (levels++ < SEND_SEARCH_LEVELS) {
@@ -691,8 +689,47 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             anc = a.parent
         }
         val (found, full) = sendButtonUnder(root, fb, reach, SEND_SEARCH_WINDOW)
-        if (found == null && full) Log.i(TAG, "auto Enter: send button scan hit its node limit")
-        return found
+        if (found != null) return found
+        if (full) Log.i(TAG, "auto Enter: send button scan hit its node limit")
+        return trailingUnnamedButton(field, fb)
+    }
+
+    /**
+     * No button says "send": the unnamed one ending the field's row ([AutoEnter.trailingButton]).
+     * Reached only once the IME action has not sent, so the text is still waiting in the field.
+     */
+    private fun trailingUnnamedButton(field: AccessibilityNodeInfo, fb: android.graphics.Rect): Pair<AccessibilityNodeInfo, String>? {
+        var top: AccessibilityNodeInfo = field
+        repeat(4) { top = top.parent ?: return@repeat }
+        val nodes = mutableListOf<AccessibilityNodeInfo>()
+        val boxes = mutableListOf<IntArray>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(top) }
+        var seen = 0
+        while (queue.isNotEmpty() && seen < SEND_SEARCH_NEAR) {
+            val n = queue.removeFirst()
+            seen++
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+            if (n.isEditable || !n.isVisibleToUser || !n.isEnabled) continue
+            if (n.className?.toString()?.endsWith("Button") != true || nameOf(n, true) != null) continue
+            val b = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            nodes += n
+            boxes += intArrayOf(b.left, b.top, b.right, b.bottom)
+        }
+        val i = AutoEnter.trailingButton(fb.top, fb.right, fb.bottom, boxes, (8 * resources.displayMetrics.density).toInt())
+            ?: return null
+        Log.i(TAG, "auto Enter: no button says send; taking the unnamed one ending the field's row ${boundsOf(nodes[i])}")
+        return nodes[i] to "(unnamed, end of the field's row)"
+    }
+
+    /**
+     * A node's name for the send search: description or button text ([AutoEnter.buttonLabel]), else
+     * its hint or tooltip, in case a web button keeps its label there.
+     */
+    private fun nameOf(n: AccessibilityNodeInfo, isButton: Boolean): String? {
+        AutoEnter.buttonLabel(n.contentDescription, n.text, isButton)?.let { return it }
+        if (Build.VERSION.SDK_INT >= 26) n.hintText?.toString()?.takeIf { isButton && it.isNotBlank() }?.let { return it }
+        if (Build.VERSION.SDK_INT >= 28) n.tooltipText?.toString()?.takeIf { it.isNotBlank() }?.let { return it }
+        return null
     }
 
     /** The send button under [top] nearest the field [fb]; and whether [limit] nodes ran out first. */
@@ -710,7 +747,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
             if (n.isEditable || !n.isVisibleToUser || !n.isEnabled) continue
             val isButton = n.className?.toString()?.endsWith("Button") == true
-            val label = AutoEnter.buttonLabel(n.contentDescription, n.text, isButton)
+            val label = nameOf(n, isButton)
             if (!AutoEnter.isSendButton(label, n.viewIdResourceName)) continue
             // A web button need not say it is clickable to take a click (Chrome decides that itself).
             val target = clickableSelfOrParent(n) ?: n.takeIf { isButton } ?: continue
@@ -744,7 +781,8 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             val cls = n.className?.toString()?.substringAfterLast('.').orEmpty()
             out += "$cls desc=${n.contentDescription?.let { "\"${it.take(20)}\"" }} " +
                 "text=${if (n.isEditable) "(field)" else n.text?.let { "\"${it.take(20)}\"" }} " +
-                "id=${n.viewIdResourceName} click=${n.isClickable} on=${n.isEnabled} ${boundsOf(n)}"
+                "id=${n.viewIdResourceName} click=${n.isClickable} on=${n.isEnabled} ${boundsOf(n)}" +
+                (if (Build.VERSION.SDK_INT >= 30) " hint=${n.hintText?.take(20)} tip=${n.tooltipText?.take(20)} state=${n.stateDescription?.take(20)}" else "")
         }
         return if (out.isEmpty()) "nothing" else out.joinToString(" | ")
     }

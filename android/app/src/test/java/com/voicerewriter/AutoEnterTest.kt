@@ -82,6 +82,19 @@ class AutoEnterTest {
         assertNull(AutoEnter.buttonLabel("", "", isButton = true))
     }
 
+    @Test fun `an unnamed button ending the field's row stands in for send`() {
+        // Collie's composer from the debug log: the field, then two unnamed buttons only if any.
+        val fieldTop = 1777; val fieldRight = 1052; val fieldBottom = 1925
+        val send = intArrayOf(1228, 1777, 1372, 1925)
+        val toolbar = intArrayOf(900, 1513, 1048, 1665) // the row above
+        val left = intArrayOf(0, 1777, 60, 1925) // before the field
+        assertEquals(1, AutoEnter.trailingButton(fieldTop, fieldRight, fieldBottom, listOf(toolbar, send, left), 16))
+        // Two on the row after the field: the last one.
+        val mic = intArrayOf(1068, 1777, 1212, 1925)
+        assertEquals(1, AutoEnter.trailingButton(fieldTop, fieldRight, fieldBottom, listOf(mic, send), 16))
+        assertNull(AutoEnter.trailingButton(fieldTop, fieldRight, fieldBottom, listOf(toolbar, left), 16))
+    }
+
     @Test fun `a send button must sit beside the field`() {
         // Field at y 1800..1900, reach 200: its row and the toolbar under it, not the chat above.
         assertTrue(AutoEnter.besideField(1820, 1880, 1800, 1900, 200))
