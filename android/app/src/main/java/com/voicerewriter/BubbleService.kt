@@ -537,9 +537,10 @@ class BubbleService : Service() {
         // Dragging starts on movement rather than after a hold, so a hold never lifts the
         // bubble out of its dock; [BubbleView.State.LIFTED] is triggered by the drag.
         //
-        // A hold on the tucked tab only brings the bubble out, to be dragged or held from there:
-        // a drag that starts on the tab begins at the screen edge, where Samsung's One Hand
-        // Operation+ takes the swipe (2026-11-18, user).
+        // Any touch on the tucked tab only brings the bubble out, to be tapped, held or dragged
+        // from there: the tab lies inside the edge zone of Samsung's One Hand Operation+, which
+        // takes drags and makes holds hard, and that zone is wider than the tab however it is
+        // set (2026-11-18, user). A tap on the tab dictating straight away went with it.
         val longPress = Runnable {
             if (!moved && recordingStopper == null) {
                 longFired = true
@@ -580,8 +581,8 @@ class BubbleService : Service() {
                 MotionEvent.ACTION_DOWN -> {
                     picker?.dismiss() // touching the bubble again closes the menu
                     wake(animate = false) // full size under the finger before anything else
-                    // A tucked tab slides the bubble back out; a tap then dictates and a hold
-                    // just leaves it out (see longPress).
+                    // A tucked tab slides the bubble back out, and that is all the gesture does
+                    // (see longPress).
                     val popped = untuck()
                     fromTab = popped
                     downRawX = e.rawX
@@ -687,7 +688,7 @@ class BubbleService : Service() {
                     }
                     // The model tab is a label, not a button: a tap on it is a tap on the bubble.
                     // It opened the menu (2026-11-13) and got pressed by accident (2026-11-17).
-                    if (!moved && !cancelled) onTap()
+                    if (!moved && !cancelled && !fromTab) onTap()
                     true
                 }
                 else -> false
