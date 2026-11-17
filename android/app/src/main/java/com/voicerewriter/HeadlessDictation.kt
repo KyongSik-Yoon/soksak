@@ -68,16 +68,15 @@ object HeadlessDictation {
      * Start a take. Returns false (having done nothing) if the recorder could not start, so
      * the caller can open the sheet instead. Main thread.
      */
-    fun start(ctx: Context, s: Settings, pushToTalk: Boolean, onSilentMic: () -> Unit): Boolean {
+    fun start(ctx: Context, s: Settings, onSilentMic: () -> Unit): Boolean {
         if (active) return true
         val app = ctx.applicationContext
         val rec = AudioRecorder(app)
         hostPkg = OpenWisprAccessibilityService.lastHostPackage.orEmpty()
         startMs = System.currentTimeMillis()
         try {
-            // Same rule as the sheet: hold-to-talk never auto-stops, the release ends it.
             rec.start(
-                vadAutoStop = s.vadAutoStop && !pushToTalk,
+                vadAutoStop = s.vadAutoStop,
                 hangoverSeconds = s.autoStopSeconds,
                 quiet = s.quietMode,
                 speakerGate = s.speakerGate,
@@ -122,8 +121,6 @@ object HeadlessDictation {
                 delay(55)
             }
         }
-        // Hold-to-talk released before the recorder existed: end the take now.
-        if (pushToTalk && !BubbleService.holdingToTalk) stop(app, s)
         return true
     }
 

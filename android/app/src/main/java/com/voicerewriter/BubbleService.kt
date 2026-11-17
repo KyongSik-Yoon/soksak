@@ -43,10 +43,9 @@ import kotlin.math.roundToInt
  * Foreground service that paints a draggable bubble. Gestures:
  *  - single tap  → start a hands-free dictation (tap again to stop). Long-form: your hands are
  *                  free, and auto-stop ends it if enabled.
- *  - hold        → talk while held, release to send. Short-form, and no VAD has to guess where
- *                  you finished. This is the split Wispr Flow and the desktop tools converged
- *                  on; see research/07-recommendations.md.
- *  - drag        → reposition (disabled once a hold-to-talk take is live)
+ *  - long press  → the bubble menu (models and settings). It used to be hold-to-talk, but a
+ *                  press held a little too long started a take by accident (2026-11-17).
+ *  - drag        → reposition
  *
  * Recording itself runs in RewriteActivity (a visible activity legitimately holds
  * the mic on Android 14; a background overlay cannot start a mic service). While
@@ -112,14 +111,6 @@ class BubbleService : Service() {
          */
         @Volatile
         var recordingStopper: (() -> Unit)? = null
-
-        /**
-         * True while a finger is held on the bubble for hold-to-talk. Read by RewriteActivity
-         * the moment its recorder is up, to catch the release that arrived while the activity
-         * was still starting.
-         */
-        @Volatile
-        var holdingToTalk = false
 
         /**
          * True when this service is in the foreground with the microphone type, which it can
@@ -376,7 +367,7 @@ class BubbleService : Service() {
      * Start a dictation: headless when possible ([HeadlessDictation]), otherwise the sheet.
      * Settings are read off the main thread; the gesture's haptic has already fired.
      */
-    private fun beginDictation(pushToTalk: Boolean, fromWidget: Boolean = false) {
+    private fun beginDictation(fromWidget: Boolean = false) {
         // A new take means the last one is not to be sent. Before the take's own state posts.
         mainHandler.post { cancelEnterNow() }
         CoroutineScope(Dispatchers.Main).launch {
@@ -384,13 +375,13 @@ class BubbleService : Service() {
                 SettingsRepository(applicationContext).get().let { if (fromWidget) widgetTake(it) else it }.forDictation()
             }.getOrNull()
             val headless = s != null && HeadlessDictation.canRun(applicationContext, s) &&
-                HeadlessDictation.start(applicationContext, s, pushToTalk) {
+                HeadlessDictation.start(applicationContext, s) {
                     // Silenced microphone: say nothing, just let the sheet take this take.
-                    launchRewrite(autoRecord = true, pushToTalk = pushToTalk && holdingToTalk)
+                    launchRewrite(autoRecord = true)
                 }
             // A widget take that could not get the microphone is retried by its screen once
             // that is visible (widgetTakeFromScreen); the sheet cannot show over the lock screen.
-            if (!headless && !(fromWidget && !micReady)) launchRewrite(autoRecord = true, pushToTalk = pushToTalk)
+            if (!headless && !(fromWidget && !micReady)) launchRewrite(autoRecord = true)
         }
     }
 
@@ -402,7 +393,7 @@ class BubbleService : Service() {
         // With the microphone already held, the take either started or failed for another reason.
         if (micReady || recordingStopper != null || HeadlessDictation.active) return
         enterForeground()
-        if (micReady) beginDictation(pushToTalk = false, fromWidget = true)
+        if (micReady) beginDictation(fromWidget = true)
     }
 
     /**
@@ -438,7 +429,7 @@ class BubbleService : Service() {
         return builder
             .setSmallIcon(R.drawable.ic_mark)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText("Tap to dictate · hold to talk, release to send")
+            .setContentText("Tap to dictate · hold for the menu")
             .setOngoing(true)
             .build()
     }
@@ -527,22 +518,22 @@ class BubbleService : Service() {
         var onBadge = false
         val touchSlop = 12 * density
 
-        // Hold-to-talk. Deliberately the *short* gesture: your finger is pinned for the whole
-        // recording, so it can't run long, and releasing is an unambiguous end - no VAD has to
-        // guess. Tap is the long-form one. Wispr Flow, Handy, Amical, FreeFlow and Muesli all
-        // landed on this same split (see research/07-recommendations.md).
+        // Long press opens the bubble menu. It was hold-to-talk (talk while held, release to
+        // send), but a press held a moment too long started a take nobody meant (2026-11-17).
+        // The menu fires while the finger is still down, so the hold is felt as done; the
+        // release then does nothing. During a take there is no menu: the release stays a tap,
+        // which stops it. While a take is still transcribing (or a result is showing) the hold
+        // opens nothing, and its release is swallowed rather than starting a new take.
         //
-        // Note this is why dragging starts on movement rather than after a 300ms hold, which is
-        // what the design's "press & hold to pick up" frame describes: the hold is already
-        // taken, and taking it twice would mean every hold-to-talk take began by lifting the
-        // bubble out of its dock. The *look* of that frame — the lift and the coral outline —
-        // is what [BubbleView.State.LIFTED] shows, just triggered by the drag instead.
+        // Dragging starts on movement rather than after a hold, so a hold never lifts the
+        // bubble out of its dock; [BubbleView.State.LIFTED] is triggered by the drag.
         val longPress = Runnable {
             if (!moved && recordingStopper == null) {
                 longFired = true
-                holdingToTalk = true
-                hapticHeld() // a heavier beat than a tap: you are holding, and release will send
-                beginDictation(pushToTalk = true)
+                if (!HeadlessDictation.active && view.state == BubbleView.State.IDLE) {
+                    hapticThreshold()
+                    showModelPicker()
+                }
             }
         }
 
@@ -555,17 +546,6 @@ class BubbleService : Service() {
             val dy = e.rawY - downRawY
             return e.eventTime - e.downTime <= FLICK_MAX_MS &&
                 dy <= -dp(FLICK_MIN_DP) && abs(dy) >= 1.5f * abs(dx)
-        }
-
-        /**
-         * End of a hold-to-talk. The recording lives in RewriteActivity, which is still
-         * launching when a quick release lands, so [recordingStopper] may not exist yet.
-         * Clearing [holdingToTalk] covers that: the activity checks it once the recorder is
-         * up and stops itself immediately if the finger is already gone.
-         */
-        fun endHold() {
-            holdingToTalk = false
-            recordingStopper?.let { mainHandler.post(it) }
         }
 
         view.setOnTouchListener { _, e ->
@@ -592,13 +572,12 @@ class BubbleService : Service() {
                     moved = false
                     longFired = false
                     onBadge = recordingStopper == null && view.state == BubbleView.State.IDLE && view.badgeHit(e.x, e.y)
-                    if (!onBadge) mainHandler.postDelayed(longPress, 450)
+                    mainHandler.postDelayed(longPress, LONG_PRESS_MS)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    // Once hold-to-talk is live the bubble is a mic button, not a draggable
-                    // thing. Letting it drag here would both move it mid-sentence and risk
-                    // dropping it on the dismiss target while recording.
+                    // The hold already opened the menu beside the bubble; dragging now would
+                    // leave the menu pointing at nothing.
                     if (longFired) return@setOnTouchListener true
                     val dx = e.rawX - downRawX
                     val dy = e.rawY - downRawY
@@ -638,14 +617,8 @@ class BubbleService : Service() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     mainHandler.removeCallbacks(longPress)
                     scheduleShrink()
-                    if (longFired) {
-                        // Release ends the take. ACTION_CANCEL lands here too, deliberately:
-                        // if the window system takes the gesture away mid-hold we must not
-                        // leave a recording running with nothing able to stop it.
-                        hapticEnd()
-                        endHold()
-                        return@setOnTouchListener true
-                    }
+                    // The hold did its work while the finger was down; letting go is not a tap.
+                    if (longFired) return@setOnTouchListener true
                     if (moved && !overDismiss && recordingStopper == null && isFlickUp(e)) {
                         // A quick upward flick isn't a move: put the bubble back where it was
                         // and open the model menu instead.
@@ -929,19 +902,18 @@ class BubbleService : Service() {
             mainHandler.post(stop) // stop the in-progress recording
         } else {
             hapticStart()
-            beginDictation(pushToTalk = false, fromWidget = fromWidget)
+            beginDictation(fromWidget = fromWidget)
         }
     }
 
     /** A widget take's settings ([Settings.forWidgetTake]); the saved settings stay as they are. */
     private fun widgetTake(s: Settings): Settings = s.forWidgetTake(WIDGET_AUTO_STOP_S)
 
-    private fun launchRewrite(autoRecord: Boolean = true, pushToTalk: Boolean = false) {
+    private fun launchRewrite(autoRecord: Boolean = true) {
         startActivity(
             Intent(this, RewriteActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(RewriteActivity.EXTRA_AUTO_RECORD, autoRecord)
-                .putExtra(RewriteActivity.EXTRA_PUSH_TO_TALK, pushToTalk)
         )
     }
 
@@ -1287,10 +1259,6 @@ class BubbleService : Service() {
     private fun hapticStart() =
         predefined(VibrationEffect.EFFECT_CLICK, longArrayOf(0, 28))
 
-    /** One weighty beat: hold-to-talk is engaged, and releasing will send. */
-    private fun hapticHeld() =
-        predefined(VibrationEffect.EFFECT_HEAVY_CLICK, longArrayOf(0, 45))
-
     /** Two beats: recording ended and we have taken it from here. */
     private fun hapticEnd() =
         predefined(VibrationEffect.EFFECT_DOUBLE_CLICK, longArrayOf(0, 22, 45, 22))
@@ -1359,13 +1327,12 @@ class BubbleService : Service() {
         railLeft = null
         railRight = null
         isRunning = false
-        // The bubble going away mid-hold means no ACTION_UP is ever delivered, so clear the flag
-        // here too. A stale `true` would tell the next hold-to-talk take that a finger is still
-        // down, and nothing would be left to stop it.
-        holdingToTalk = false
         if (instance === this) instance = null
     }
 }
+
+/** Held this long without moving, the bubble opens its menu. */
+private const val LONG_PRESS_MS = 450L
 
 /** Flick-up to open the model menu: at most this long, at least this far. */
 private const val FLICK_MAX_MS = 250L

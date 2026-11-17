@@ -106,8 +106,6 @@ class RewriteActivity : ComponentActivity() {
         private const val MODEL_WAIT_TIMEOUT_MS = 25_000L
 
         const val EXTRA_AUTO_RECORD = "com.voicerewriter.AUTO_RECORD"
-        /** Hold-to-talk: the bubble is holding the gesture and its release ends the take. */
-        const val EXTRA_PUSH_TO_TALK = "com.voicerewriter.PUSH_TO_TALK"
 
         /** Re-transcribe a saved recording instead of opening the mic (see [PendingAudio]). */
         const val EXTRA_RETRY_ID = "com.voicerewriter.RETRY_ID"
@@ -130,7 +128,6 @@ class RewriteActivity : ComponentActivity() {
     private lateinit var repo: SettingsRepository
     private lateinit var audioRecorder: AudioRecorder
     private var autoRecord: Boolean = false        // start recording on open (dictation)
-    private var pushToTalk: Boolean = false        // hold-to-talk: bubble release ends the take
     private var retryId: String? = null            // re-transcribe this saved recording instead
 
     /**
@@ -154,7 +151,6 @@ class RewriteActivity : ComponentActivity() {
         audioRecorder = AudioRecorder(applicationContext)
 
         autoRecord = intent.getBooleanExtra(EXTRA_AUTO_RECORD, false)
-        pushToTalk = intent.getBooleanExtra(EXTRA_PUSH_TO_TALK, false)
         retryId = intent.getStringExtra(EXTRA_RETRY_ID)
 
         // A retry from Home keeps its sheet: there is no focused field behind it, so with no
@@ -454,13 +450,9 @@ class RewriteActivity : ComponentActivity() {
             // system window can steal it (otherwise the entry gets mislabelled, e.g. "System UI").
             dictationHostPkg = OpenWisprAccessibilityService.lastHostPackage
             recStartMs = System.currentTimeMillis()
-            // Hold-to-talk never uses VAD: the finger lifting is the end of the take, and an
-            // auto-stop firing on a mid-sentence pause would cut the user off while they are
-            // still visibly holding the button down.
-            val useVad = s.vadAutoStop && !pushToTalk
             try {
                 audioRecorder.start(
-                    vadAutoStop = useVad,
+                    vadAutoStop = s.vadAutoStop,
                     hangoverSeconds = s.autoStopSeconds,
                     quiet = s.quietMode,
                     speakerGate = s.speakerGate,
@@ -472,10 +464,6 @@ class RewriteActivity : ComponentActivity() {
             stage = Stage.RECORDING
             BubbleService.instance?.showRecording()
             BubbleService.recordingStopper = { stopRecording(s) }
-            // The release can beat us here: launching this activity takes long enough that a
-            // quick press-and-let-go finishes before the recorder exists. BubbleService clears
-            // the flag on release, so an already-lifted finger means stop now, not never.
-            if (pushToTalk && !BubbleService.holdingToTalk) { stopRecording(s); return }
             ampJob?.cancel()
             ampJob = scope.launch {
                 while (isActive && audioRecorder.isRecording) {
@@ -650,7 +638,6 @@ class RewriteActivity : ComponentActivity() {
                     // ran on and looked broken.
                     Text(
                         when {
-                            pushToTalk -> "Keep holding and speak. Release to send."
                             audioRecorder.vadActive -> "Speak now. I'll stop when you pause."
                             else -> "Speak now. Tap Done when you're finished."
                         },
