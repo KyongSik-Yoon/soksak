@@ -227,6 +227,7 @@ object I18n {
         "Sent to PC" to "PC로 보냈어요",
         "On the PC clipboard" to "PC 클립보드에 넣었어요",
         "PC not reached" to "PC에 못 보냈어요",
+        "Didn't sound like your voice" to "내 목소리로 들리지 않았어요",
         "Typed on the phone" to "폰에 입력했어요",
         "Copied on the phone" to "폰 클립보드에 넣었어요",
         "Couldn't start dictation" to "받아쓰기를 시작하지 못했어요",

@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * exactly what the bubble shows.
  */
 object DictationStatus {
-    enum class Phase { IDLE, LISTENING, WORKING, INSERTED, COPIED, TO_PC, PC_CLIP, NO_PC }
+    /** NOT_YOU: the speaker gate matched none of the speech to the enrolled voice; nothing was typed. */
+    enum class Phase { IDLE, LISTENING, WORKING, INSERTED, COPIED, TO_PC, PC_CLIP, NO_PC, NOT_YOU }
 
     val phase = MutableStateFlow(Phase.IDLE)
 

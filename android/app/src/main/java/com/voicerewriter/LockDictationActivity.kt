@@ -201,6 +201,7 @@ class LockDictationActivity : ComponentActivity() {
         phase == Phase.TO_PC -> tr("Sent to PC")
         phase == Phase.PC_CLIP -> tr("On the PC clipboard")
         phase == Phase.NO_PC -> tr("PC not reached")
+        phase == Phase.NOT_YOU -> tr("Didn't sound like your voice")
         phase == Phase.INSERTED -> tr("Typed on the phone")
         phase == Phase.COPIED -> tr("Copied on the phone")
         seen -> tr("Nothing was recognized.")

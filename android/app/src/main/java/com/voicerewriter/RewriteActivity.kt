@@ -418,6 +418,20 @@ class RewriteActivity : ComponentActivity() {
             ampJob?.cancel()
             BubbleService.instance?.showIdle()
             val samples = audioRecorder.stop()
+            val host = (dictationHostPkg ?: OpenWisprAccessibilityService.lastHostPackage).orEmpty()
+            val rejected = audioRecorder.gateRejection
+            if (samples == null && rejected != null) {
+                // The speaker gate matched none of it to the enrolled voice. Keep the speech so
+                // Retry (here or from Home) can transcribe it without the gate.
+                pendingId = PendingAudio.begin(
+                    this@RewriteActivity, rejected.samples, durationSec,
+                    appPackage = host, appLabel = appLabel(host),
+                    sttModel = s.sttModel,
+                )?.id
+                error = "Didn't sound like your registered voice, so nothing was typed. Retry to transcribe it anyway."
+                stage = Stage.ERROR
+                return
+            }
             if (samples == null) {
                 error = "Didn't catch any audio. Tap and speak a little longer."
                 stage = Stage.ERROR
@@ -425,7 +439,6 @@ class RewriteActivity : ComponentActivity() {
             }
             // Write-ahead: the take is on durable storage before the first transcription
             // attempt, so a failure or process death doesn't take the recording with it.
-            val host = (dictationHostPkg ?: OpenWisprAccessibilityService.lastHostPackage).orEmpty()
             val rec = PendingAudio.begin(
                 this@RewriteActivity, samples, durationSec,
                 appPackage = host, appLabel = appLabel(host),

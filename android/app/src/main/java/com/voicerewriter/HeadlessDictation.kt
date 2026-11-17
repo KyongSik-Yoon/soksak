@@ -144,15 +144,32 @@ object HeadlessDictation {
         val samples = rec.stop()
         val stream = streaming
         streaming = null
+        val durationSec = ((System.currentTimeMillis() - startMs) / 1000L).toInt().coerceAtLeast(1)
+        val host = hostPkg
         if (samples == null) {
             stream?.cancel()
-            active = false
-            BubbleService.instance?.showIdle()
+            val rejected = rec.gateRejection
+            if (rejected == null) {
+                active = false
+                BubbleService.instance?.showIdle()
+                return
+            }
+            // The speaker gate heard speech but none of it as the enrolled voice. Typing it could be
+            // the TV; dropping it silently lost the user's own words. Keep it retryable from Home.
+            BubbleService.instance?.showNotYourVoice()
+            scope.launch {
+                try {
+                    val label = appLabel(ctx, host)
+                    withContext(Dispatchers.IO) {
+                        PendingAudio.begin(ctx, rejected.samples, durationSec, host, label, s.sttModel)
+                    }?.let { PendingAudio.release(it.id) }
+                } finally {
+                    active = false
+                }
+            }
             return
         }
         BubbleService.instance?.showWorking()
-        val durationSec = ((System.currentTimeMillis() - startMs) / 1000L).toInt().coerceAtLeast(1)
-        val host = hostPkg
         scope.launch {
             var pendingId: String? = null
             try {

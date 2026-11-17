@@ -87,6 +87,33 @@ class SpeakerGateTest {
         assertEquals(1800.toShort(), res.samples[(1.0 * sr).toInt()])
     }
 
+    @Test fun `take with no target window keeps its speech as rejected with the best score`() {
+        val total = 4 * sr
+        val pcm = makeConstantPcm(total, amp = 2200)
+        val speech = (1.0 * sr).toInt() to (2.5 * sr).toInt()
+        val probs = probsForIntervals(total, speech)
+        val segs = SpeakerGate.activeSegments(probs, total)
+        val scored = SpeakerGate.scoreSegment(segs[0].start, segs[0].end) { start, _ ->
+            if (start < (1.2 * sr).toInt()) 0.12f else 0.21f
+        }
+
+        val res = SpeakerGate.applyGateMask(pcm, probs, scored)
+        assertTrue("nothing is transcribed", res.samples.isEmpty())
+        val rejected = res.rejected!!
+        // the speech segment (with its pads) is kept, the silence around it is not
+        assertTrue(rejected.size >= speech.second - speech.first)
+        assertTrue(rejected.size < total)
+        assertEquals(0.21f, res.bestSimilarity, 1e-6f)
+        assertEquals(scored.size, res.windows)
+    }
+
+    @Test fun `silent take has nothing to reject`() {
+        val total = 2 * sr
+        val res = SpeakerGate.applyGateMask(makeConstantPcm(total), FloatArray(total / chunk) { 0.05f }, emptyList())
+        assertTrue(res.samples.isEmpty())
+        assertEquals(null, res.rejected)
+    }
+
     @Test fun `session ignores TV voice for auto-stop and masks settled non-target streaming chunk`() {
         val hangover = 2 * sr // 2초 무음 시 Auto-stop
         val session = SpeakerGateSession(

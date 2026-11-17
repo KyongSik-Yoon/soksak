@@ -43,6 +43,14 @@ object SpeakerGate {
         val keepRanges: List<Segment>,
         val trimStart: Int,
         val trimEnd: Int,
+        /**
+         * 말소리는 있었는데 어느 창도 등록 목소리로 판정되지 않아 [samples]가 비었을 때, 그 말소리 구간의
+         * 원본(앞뒤 여유 포함). 받아쓰기를 조용히 버리지 않고 Unfinished에 남기는 데 쓴다.
+         */
+        val rejected: ShortArray? = null,
+        /** 채점한 창 중 가장 높은 유사도(창이 없으면 -2). 거른 이유를 로그로 남기는 용도. */
+        val bestSimilarity: Float = -2f,
+        val windows: Int = 0,
     )
 
     /**
@@ -195,8 +203,18 @@ object SpeakerGate {
         val segments = activeSegments(probs, pcm.size)
         val keepRanges = computeKeepRanges(segments, scored, threshold = threshold)
         if (keepRanges.isEmpty()) {
-            // 타겟 화자가 한 마디도 안 잡혔으면 빈 무음 처리 (오탐지 전사 방지)
-            return GateResult(ShortArray(0), emptyList(), 0, 0)
+            // 타겟 화자가 한 마디도 안 잡혔으면 전사하지 않는다(오탐지 전사 방지). 말소리 구간은 따로 돌려줘
+            // 호출부가 알리고 보관할 수 있게 한다 — 등록 목소리와 점수가 낮게 나온 내 말일 수도 있다.
+            val rejected = if (segments.isEmpty()) null else pcm.copyOfRange(
+                max(0, segments.first().start - PRE_PAD_SAMPLES),
+                min(pcm.size, segments.last().end + POST_PAD_SAMPLES),
+            )
+            return GateResult(
+                ShortArray(0), emptyList(), 0, 0,
+                rejected = rejected,
+                bestSimilarity = scored.maxOfOrNull { it.similarity } ?: -2f,
+                windows = scored.size,
+            )
         }
 
         val masked = ShortArray(pcm.size)

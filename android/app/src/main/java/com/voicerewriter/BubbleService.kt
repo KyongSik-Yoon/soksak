@@ -1082,6 +1082,21 @@ class BubbleService : Service() {
         }
     }
 
+    /**
+     * The speaker gate refused the whole take, so nothing was typed; the audio is under Unfinished
+     * on Home. On the bubble for the same reason as the clipboard fallback: a toast would not show.
+     */
+    fun showNotYourVoice() {
+        DictationStatus.phase.value = DictationStatus.Phase.NOT_YOU
+        mainHandler.post {
+            recording = true
+            ensureVisible()
+            bubble?.pillLabel = "Not you"
+            setState(BubbleView.State.COPIED)
+            hold(FALLBACK_HOLD_MS)
+        }
+    }
+
     /** "PC only" has no field on the phone to wait for, so the bubble is not gated on one. */
     private fun gateFor(s: Settings): Boolean =
         s.bubbleOnlyOnFields && PcLink.mode(s) != PcLink.PC_ONLY

@@ -109,6 +109,17 @@ class AudioRecorder(private val context: Context) {
 
     val isRecording: Boolean get() = recording
 
+    /** The speech of a take the speaker gate refused as a whole, and how close it came. */
+    class GateRejection(val samples: ShortArray, val bestSimilarity: Float, val windows: Int)
+
+    /**
+     * Set by [stop] when it returned null because the speaker gate matched none of the speech to
+     * the enrolled voice. Callers must say so and keep the audio: a silent return to idle looked
+     * like the app had simply failed, and the words were gone.
+     */
+    @Volatile var gateRejection: GateRejection? = null
+        private set
+
     /**
      * How close auto-stop is to ending the take, 0..1: the share of the silence wait already
      * spent since the last speech. 0 while talking, before any speech, or with auto-stop off.
@@ -181,6 +192,7 @@ class AudioRecorder(private val context: Context) {
         speechSamples = 0
         vadTailLen = 0
         rawCaptureOnlyMode = rawCaptureOnly
+        gateRejection = null
 
         val useVad = vadAutoStop && !quiet && !rawCaptureOnly
         vad = if (useVad || (speakerGate && !quiet && !rawCaptureOnly)) {
@@ -443,7 +455,16 @@ class AudioRecorder(private val context: Context) {
 
         if (gate != null) {
             val res = gate.finishAndApply(full)
-            return if (res.samples.size >= SAMPLE_RATE / 4) res.samples else null
+            if (res.samples.size >= SAMPLE_RATE / 4) return res.samples
+            res.rejected?.takeIf { it.size >= SAMPLE_RATE / 4 }?.let { speech ->
+                gateRejection = GateRejection(speech, res.bestSimilarity, res.windows)
+                Log.i(
+                    "SpeakerGate",
+                    "no speech matched the enrolled voice: best similarity %.2f (keep >= %.2f, or %.2f alone) over %d windows, %.1fs of speech"
+                        .format(res.bestSimilarity, SpeakerGate.SIM_THRESHOLD, SpeakerGate.FALLBACK_SIM, res.windows, speech.size / SAMPLE_RATE.toFloat()),
+                )
+            }
+            return null
         }
 
         // VAD trim: keep just the speech region (with a little padding) — avoids
