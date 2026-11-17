@@ -81,6 +81,13 @@ class BubbleView(context: Context) : View(context) {
          * ring that runs out when Enter is pressed. A tap stops it ([BubbleService]).
          */
         ENTER_PENDING,
+
+        /**
+         * Idle a while with the bubble always shown: slid off the screen, leaving a slim tab on
+         * the docked edge. The window shrinks to the tab, so the app beneath is touchable right
+         * up to the edge margin. [BubbleService] sizes it [TUCKED_W_DP] wide, with no padding.
+         */
+        TUCKED,
     }
 
     companion object {
@@ -95,6 +102,12 @@ class BubbleView(context: Context) : View(context) {
 
         /** Transparent room around the content, for the shadow and the halo. */
         const val PAD_DP = 10f
+
+        /**
+         * The whole window of [State.TUCKED], tab included. Apps keep about 16dp clear at the
+         * screen edge, so a tab narrower than that sits in the margin rather than over buttons.
+         */
+        const val TUCKED_W_DP = 12f
 
         /** Which states are pills rather than circles. Drives the window width. */
         fun widthDpFor(state: State): Float =
@@ -219,6 +232,10 @@ class BubbleView(context: Context) : View(context) {
     var badgeVoiceLock: Boolean = false
         set(value) { if (field != value) { field = value; invalidate() } }
 
+    /** Which screen edge the bubble is docked to; the [State.TUCKED] tab hugs that side. */
+    var dockedLeft: Boolean = false
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     private val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = dp(9f)
         textAlign = Paint.Align.CENTER
@@ -263,6 +280,7 @@ class BubbleView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val pad = dp(PAD_DP)
+        if (state == State.TUCKED) { drawTucked(canvas, pad); return } // narrower than the padding
         content.set(pad, pad, width - pad, height - pad)
         if (content.isEmpty) return
         val t = (SystemClock.uptimeMillis() - enteredAt) / 1000f
@@ -275,6 +293,7 @@ class BubbleView(context: Context) : View(context) {
             State.INSERTED -> drawInserted(canvas, t)
             State.COPIED -> drawCopied(canvas, t)
             State.ENTER_PENDING -> drawEnterPending(canvas, t)
+            State.TUCKED -> Unit // drawn above
         }
 
         if (state == State.LISTENING || state == State.PROCESSING || state == State.ENTER_PENDING ||
@@ -309,6 +328,34 @@ class BubbleView(context: Context) : View(context) {
         drawMark(canvas, markColor())
         drawBadge(canvas)
         canvas.restoreToCount(layer)
+    }
+
+    /**
+     * The tucked tab: the whole (narrow) view, square on the screen edge and rounded on the
+     * inside, in the model tab's colour (so Quiet mode and voice isolation still show), with a
+     * short grip line. A solid fill rather than the pale disc, so it can be found on any screen.
+     */
+    private fun drawTucked(canvas: Canvas, pad: Float) {
+        val r = dp(6f).toFloat()
+        // Run the shape past the docked edge so only the inner corners are rounded.
+        if (dockedLeft) scratch.set(-r, pad, width.toFloat(), height - pad)
+        else scratch.set(0f, pad, width + r, height - pad)
+        fillPaint.shader = null
+        fillPaint.clearShadowLayer()
+        fillPaint.color = when {
+            badgeQuiet -> if (dark) QUIET_BADGE_DK else QUIET_BADGE
+            badgeVoiceLock -> if (dark) VOICE_LOCK_BADGE_DK else VOICE_LOCK_BADGE
+            else -> markColor()
+        }
+        fillPaint.alpha = 235
+        canvas.drawRoundRect(scratch, r, r, fillPaint)
+        fillPaint.alpha = 255
+        // The grip sits in the visible part, nudged off the screen edge.
+        val cx = if (dockedLeft) width * 0.45f else width * 0.55f
+        val half = dp(8f)
+        fillPaint.color = surface()
+        scratch.set(cx - dp(1f), height / 2f - half, cx + dp(1f), height / 2f + half)
+        canvas.drawRoundRect(scratch, dp(1f).toFloat(), dp(1f).toFloat(), fillPaint)
     }
 
     /** The model tab: a small coral pill straddling the bottom edge of the disc. */

@@ -66,7 +66,8 @@ import kotlin.math.roundToInt
  *    the side of the screen rather than jumping.
  *
  * The window is deliberately larger than the bubble by [BubbleView.PAD_DP] on every side; see
- * [BubbleView] for why.
+ * [BubbleView] for why. The exception is [BubbleView.State.TUCKED] (an always-shown bubble left
+ * idle): the window is then just the slim tab on the edge; see [tuck].
  */
 class BubbleService : Service() {
 
@@ -447,12 +448,22 @@ class BubbleService : Service() {
     private fun contentH(): Int = dp(BubbleView.HEIGHT_DP)
     private fun pad(): Int = dp(BubbleView.PAD_DP)
 
-    private fun windowW(state: BubbleView.State): Int = contentW(state) + 2 * pad()
+    private fun windowW(state: BubbleView.State): Int =
+        if (state == BubbleView.State.TUCKED) dp(BubbleView.TUCKED_W_DP) else contentW(state) + 2 * pad()
     private fun windowH(): Int = contentH() + 2 * pad()
 
     /** Window x that puts the content [EDGE_INSET_DP] from the given edge. */
     private fun dockedX(left: Boolean, cw: Int): Int =
         if (left) dp(EDGE_INSET_DP) - pad() else screenW() - dp(EDGE_INSET_DP) - cw - pad()
+
+    /** Window x for a state at rest on the docked edge; the tucked tab sits flush with it. */
+    private fun restingX(state: BubbleView.State): Int =
+        if (state != BubbleView.State.TUCKED) dockedX(dockedLeft, contentW(state))
+        else if (dockedLeft) 0 else screenW() - windowW(state)
+
+    /** Window x of the idle disc just past the docked edge: where tucking slides it to and from. */
+    private fun offscreenX(): Int =
+        if (dockedLeft) -(contentW(BubbleView.State.IDLE) + pad()) else screenW() - pad()
 
     /** Screen-space centre of the drawn bubble (not the padded window). */
     private fun contentCenter(): Pair<Float, Float> {
@@ -562,9 +573,12 @@ class BubbleService : Service() {
                 MotionEvent.ACTION_DOWN -> {
                     picker?.dismiss() // touching the bubble again closes the menu
                     wake(animate = false) // full size under the finger before anything else
+                    // A tucked tab slides the bubble back out; the gesture then carries on as
+                    // if made on it (tap dictates, hold opens the menu, drag moves it).
+                    val popped = untuck()
                     downRawX = e.rawX
                     downRawY = e.rawY
-                    startX = params.x
+                    startX = if (popped) restingX(BubbleView.State.IDLE) else params.x
                     startY = params.y
                     moved = false
                     longFired = false
@@ -588,6 +602,9 @@ class BubbleService : Service() {
                             }
                         }
                     }
+                    // Below the slop it is still a tap or a hold: leave the window alone, which also
+                    // lets the slide-out from a tucked tab finish under the finger.
+                    if (!moved) return@setOnTouchListener true
                     params.x = startX + dx.toInt()
                     params.y = startY + dy.toInt()
                     if (moved) {
@@ -624,6 +641,7 @@ class BubbleService : Service() {
                         params.y = startY
                         bubble?.let { wm.updateViewLayout(it, params) }
                         if (view.state == BubbleView.State.LIFTED) view.state = BubbleView.State.IDLE
+                        scheduleShrink() // the release above ran it while still LIFTED, which posts nothing
                         hapticThreshold()
                         showModelPicker()
                         return@setOnTouchListener true
@@ -643,6 +661,7 @@ class BubbleService : Service() {
                     overDismiss = false
                     if (moved) {
                         if (view.state == BubbleView.State.LIFTED) view.state = BubbleView.State.IDLE
+                        scheduleShrink()
                         // Snap to the nearer edge, keeping the height the user chose.
                         dockedLeft = contentCenter().first < screenW() / 2f
                         params.y = clampY(params.y)
@@ -675,25 +694,79 @@ class BubbleService : Service() {
 
     private val shrinkRunnable = Runnable { shrink() }
 
-    /**
-     * (Re)start the idle countdown; only an idle bubble ever shrinks, and never one that is always
-     * shown: with no keyboard to bring it back, a small faint bubble was hard to find and to hit
-     * (2026-11-17, user). Turning the gate off grows a shrunk one back through [applyGating].
-     */
+    /** (Re)start the idle countdown; only an idle bubble ever shrinks or tucks. */
     private fun scheduleShrink() {
         mainHandler.removeCallbacks(shrinkRunnable)
-        if (!gateActive()) return
         if (bubble?.state == BubbleView.State.IDLE) mainHandler.postDelayed(shrinkRunnable, IDLE_SHRINK_MS)
     }
 
+    /**
+     * Idle long enough: a field-gated bubble shrinks (typing grows it back), an always-shown one
+     * tucks into the edge instead. Shrinking that one made it small and faint with no keyboard
+     * to bring it back — hard to find and to hit (2026-11-17) — while at full size it sat over
+     * the buttons apps put at the right edge (2026-11-18, user). See [tuck].
+     */
     private fun shrink() {
         val v = bubble ?: return
-        if (v.state != BubbleView.State.IDLE || !gateActive()) return
+        if (v.state != BubbleView.State.IDLE) return
+        // The menu is anchored on the bubble: not while it is open.
+        if (picker?.isShowing == true) { scheduleShrink(); return }
+        if (!gateActive()) { tuck(); return }
         // Shrink toward the docked edge so it tucks in rather than floating off the edge.
         v.pivotX = if (dockedLeft) pad().toFloat() else (v.width - pad()).toFloat()
         v.pivotY = v.height / 2f
         v.animate().scaleX(SHRUNK_SCALE).scaleY(SHRUNK_SCALE).alpha(SHRUNK_ALPHA)
             .setDuration(420L).start()
+    }
+
+    /** The idle disc is sliding off toward [BubbleView.State.TUCKED]; cleared to call it off. */
+    private var tucking = false
+
+    /**
+     * Slide the idle disc off the docked edge, then swap it for the tucked tab, whose window is
+     * only the tab: the app beneath stays touchable up to the edge margin. Field-gated bubbles
+     * never tuck (they shrink); a take, a touch or turning the gate on brings it out ([untuck]).
+     */
+    private fun tuck() {
+        val v = bubble ?: return
+        if (v.state != BubbleView.State.IDLE || tucking) return
+        v.dockedLeft = dockedLeft
+        tucking = true
+        animateGeometry(
+            targetW = params.width,
+            targetX = offscreenX(),
+            onEnd = {
+                // Also runs when cancelled: a touch, a take or a redock got in first.
+                if (tucking && v.state == BubbleView.State.IDLE) {
+                    v.state = BubbleView.State.TUCKED
+                    redock(animate = false)
+                }
+                tucking = false
+            },
+        )
+    }
+
+    /**
+     * Bring a tucked (or tucking) bubble back to the idle disc, sliding in from the edge.
+     * True if there was anything to undo. Any other state change undoes it by itself, since
+     * [redock] sizes the window for the new state.
+     */
+    private fun untuck(): Boolean {
+        val v = bubble ?: return false
+        val tucked = v.state == BubbleView.State.TUCKED
+        if (!tucked && !tucking) return false
+        tucking = false
+        morph?.cancel()
+        if (tucked) {
+            v.state = BubbleView.State.IDLE
+            params.width = windowW(BubbleView.State.IDLE)
+            params.x = offscreenX()
+            runCatching { wm.updateViewLayout(v, params) }
+        }
+        // No countdown here: the touch that popped it restarts one on release, and so does
+        // [applyGating] when the gate turned on.
+        redock(animate = true)
+        return true
     }
 
     /** Back to full size and opacity; cancels a pending shrink. */
@@ -740,8 +813,13 @@ class BubbleService : Service() {
     /** Re-apply the dock for the current state (after a state change, rotation or fold). */
     private fun redock(animate: Boolean) {
         val v = bubble ?: return
+        // A slide-out in flight is called off first: cancelling its animator below would
+        // otherwise finish the tuck under this redock's idle geometry (rotation mid-slide).
+        val tuckCalledOff = tucking
+        tucking = false
+        if (tuckCalledOff && v.state == BubbleView.State.IDLE) scheduleShrink()
         val targetW = windowW(v.state)
-        val targetX = dockedX(dockedLeft, contentW(v.state))
+        val targetX = restingX(v.state)
         params.y = clampY(params.y)
         if (animate) {
             animateGeometry(targetW, targetX)
@@ -758,6 +836,8 @@ class BubbleService : Service() {
     private fun setState(state: BubbleView.State) {
         val v = bubble ?: return
         if (v.state == state) return
+        // Tucked is idle already: the end-of-take resets (showIdle) must not pop it back out.
+        if (state == BubbleView.State.IDLE && v.state == BubbleView.State.TUCKED) return
         v.state = state
         keepScreenOn(state == BubbleView.State.LISTENING || state == BubbleView.State.PROCESSING)
         // Anything happening (listening, working, a confirmation) is shown at full size; back
@@ -1208,7 +1288,10 @@ class BubbleService : Service() {
         gateSetting = try {
             runBlocking { gateFor(SettingsRepository(applicationContext).get()) }
         } catch (_: Exception) { gateSetting }
-        mainHandler.post { applyGating(animate = true) }
+        mainHandler.post {
+            if (gateActive()) untuck() // gated bubbles shrink instead of tucking
+            applyGating(animate = true)
+        }
     }
 
     private fun ensureVisible() {
