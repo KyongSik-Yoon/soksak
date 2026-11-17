@@ -5,7 +5,8 @@
 
 ## 2026-11-17 — 자동 엔터: 웹 페이지의 보내기 버튼은 실제 탭으로 (28a01ee, build-144)
 - build-143 확인(사용자 로그): Collie의 이름 없는 보내기 버튼을 찾아 접근성 클릭(clicked=true)했지만 전송되지 않고 키보드만 닫혔다. 손가락 탭은 전송된다. Collie 소스에서 접근성 클릭을 막는 코드는 찾지 못함(원인 미확정).
-- 웹 콘텐츠(조상에 `android.webkit.WebView`) 안의 보내기 버튼은 가운데에 실제 탭(`dispatchGesture`)을 보낸다. 서비스 설정에 `canPerformGestures` 추가. 버블 창이 그 점을 덮으면 예전처럼 클릭. 로그 `tapped`/`clicked=`. 폰 확인 전.
+- 웹 콘텐츠(조상에 `android.webkit.WebView`) 안의 보내기 버튼은 가운데에 실제 탭(`dispatchGesture`)을 보낸다. 서비스 설정에 `canPerformGestures` 추가. 버블 창이 그 점을 덮으면 예전처럼 클릭. 로그 `tapped`/`clicked=`.
+- 사용자 폰 확인(build-144, 2026-11-17): Collie에서 자동 엔터로 전송된다.
 
 ## 2026-11-17 — 자동 엔터: 이름 없는 보내기 버튼도 누름 (6565ee5, build-143)
 - 원인 확정(사용자 debug log, build-142): Collie의 보내기는 `ToggleButton desc=null text=""` — Chrome이 `aria-pressed` 버튼의 aria-label을 노출하지 않는다. build-141(탐색 상한)·142(빈 설명) 추정은 원인이 아니었다.
