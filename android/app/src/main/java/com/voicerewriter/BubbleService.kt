@@ -513,9 +513,6 @@ class BubbleService : Service() {
         var startY = 0
         var moved = false
         var longFired = false
-        // Down on the model tab: a tap there opens the menu instead of dictating. The flick-up
-        // stays, but people new to the bubble didn't find it (2026-11-13); the tab is visible.
-        var onBadge = false
         val touchSlop = 12 * density
 
         // Long press opens the bubble menu. It was hold-to-talk (talk while held, release to
@@ -571,7 +568,6 @@ class BubbleService : Service() {
                     startY = params.y
                     moved = false
                     longFired = false
-                    onBadge = recordingStopper == null && view.state == BubbleView.State.IDLE && view.badgeHit(e.x, e.y)
                     mainHandler.postDelayed(longPress, LONG_PRESS_MS)
                     true
                 }
@@ -658,10 +654,9 @@ class BubbleService : Service() {
                             },
                         )
                     }
-                    if (!moved && onBadge) {
-                        hapticThreshold()
-                        showModelPicker()
-                    } else if (!moved) onTap()
+                    // The model tab is a label, not a button: a tap on it is a tap on the bubble.
+                    // It opened the menu (2026-11-13) and got pressed by accident (2026-11-17).
+                    if (!moved) onTap()
                     true
                 }
                 else -> false
