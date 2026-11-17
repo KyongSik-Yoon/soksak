@@ -49,6 +49,15 @@ object AutoEnter {
     private val SEND_ID = Regex("(?i)(^|[/_.:])(send|submit)([_.]|button|btn|$)")
     private val NOT_SEND = Regex("(?i)(voice|audio|\\bmic|record|attach|sticker|emoji|camera|gif|음성|녹음|마이크|첨부|이모티콘|사진|카메라)")
 
+    /**
+     * A node's name for [isSendButton]: its content description, or on a button its text. A blank
+     * description does not count, so an empty one cannot hide a name in the text (suspected for
+     * Collie's "전송" on 2026-11-17, not confirmed). Text only on a button: a message's text is not a label.
+     */
+    fun buttonLabel(description: CharSequence?, text: CharSequence?, isButton: Boolean): String? =
+        description?.toString()?.takeIf { it.isNotBlank() }
+            ?: text?.toString()?.takeIf { isButton && it.isNotBlank() }
+
     /** Longer than this is a sentence (a chat message saying "전송"), not a button's name. */
     const val MAX_LABEL = 20
 

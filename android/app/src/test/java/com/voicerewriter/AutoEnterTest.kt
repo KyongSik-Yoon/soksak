@@ -71,6 +71,17 @@ class AutoEnterTest {
         assertFalse(AutoEnter.isSendButton("Can you send the logs to me after lunch?", null))
     }
 
+    @Test fun `a button's name is its description, else its text`() {
+        assertEquals("Send", AutoEnter.buttonLabel("Send", "ignored", isButton = true))
+        // An empty description must not hide the name in the text (as a web button may have).
+        assertEquals("전송", AutoEnter.buttonLabel("", "전송", isButton = true))
+        assertEquals("전송", AutoEnter.buttonLabel(" ", "전송", isButton = true))
+        assertTrue(AutoEnter.isSendButton(AutoEnter.buttonLabel("", "전송", isButton = true), null))
+        // A message's text is not a label.
+        assertNull(AutoEnter.buttonLabel(null, "전송", isButton = false))
+        assertNull(AutoEnter.buttonLabel("", "", isButton = true))
+    }
+
     @Test fun `a send button must sit beside the field`() {
         // Field at y 1800..1900, reach 200: its row and the toolbar under it, not the chat above.
         assertTrue(AutoEnter.besideField(1820, 1880, 1800, 1900, 200))

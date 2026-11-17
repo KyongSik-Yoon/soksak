@@ -612,11 +612,14 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         val imeEnter = Build.VERSION.SDK_INT >= 30 &&
             node.actionList.any { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id }
         if (imeEnter && node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)) {
-            Log.i(TAG, "auto Enter: IME action on $where")
+            Log.i(TAG, "auto Enter: IME action on $where ${boundsOf(node)}")
             enterHandler.postDelayed({
                 val result = try {
                     val alive = node.refresh()
                     val after = if (alive) currentText(node) else ""
+                    // Lengths and line counts only, never the text: enough to see how it was judged.
+                    Log.i(TAG, "auto Enter: field before ${before.length} chars/${before.count { it == '\n' }} breaks, " +
+                        "after alive=$alive ${after.length} chars/${after.count { it == '\n' }} breaks")
                     if (!alive) Log.i(TAG, "auto Enter: the field went away after the IME action")
                     if (enterCancelled) {
                         Log.i(TAG, "auto Enter: cancelled during the check, no fallback")
@@ -642,7 +645,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             }, AutoEnter.VERIFY_MS)
             return
         }
-        Log.i(TAG, "auto Enter: no IME action on $where")
+        Log.i(TAG, "auto Enter: no IME action on $where ${boundsOf(node)}")
         val ok = try {
             clickSendButton(node, restore = null) || enterThroughInputConnection(t.pkg)
         } finally {
@@ -654,7 +657,10 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     /** Click the send button nearest [field] in its window. [restore]: field text to put back first. */
     private fun clickSendButton(field: AccessibilityNodeInfo, restore: String?): Boolean {
         val root = field.window?.root ?: rootInActiveWindow ?: return false
-        val (btn, label) = findSendButton(field, root) ?: run { Log.i(TAG, "auto Enter: no send button found"); return false }
+        val (btn, label) = findSendButton(field, root) ?: run {
+            Log.i(TAG, "auto Enter: no send button found; beside the field: ${buttonsNear(field)}")
+            return false
+        }
         if (restore != null) {
             val args = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore)
@@ -671,9 +677,10 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         val fb = android.graphics.Rect().also { field.getBoundsInScreen(it) }
         // A toolbar row under or over the field (Claude's composer) is within reach; the chat isn't.
         val reach = (72 * resources.displayMetrics.density).toInt()
-        // The composer around the field first, nearest ancestor out. A whole-window scan alone ran
-        // out of its node budget in a web app with a long conversation above the composer (Collie,
-        // 2026-11-17): Enter left a newline and the send button beside it was never reached.
+        // The composer around the field first, nearest ancestor out: a whole-window scan has a node
+        // budget, and a web app with a long conversation above the composer (Collie) may spend it
+        // before reaching the button. Suspected for Collie on 2026-11-17, not confirmed: it still
+        // missed after this, see buttonsNear in the log.
         var anc = field.parent
         var levels = 0
         while (levels++ < SEND_SEARCH_LEVELS) {
@@ -702,11 +709,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             seen++
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
             if (n.isEditable || !n.isVisibleToUser || !n.isEnabled) continue
-            // Text only counts on a button: a message bubble's text is not a label.
             val isButton = n.className?.toString()?.endsWith("Button") == true
-            val label = (n.contentDescription ?: n.text?.takeIf { isButton })?.toString()
+            val label = AutoEnter.buttonLabel(n.contentDescription, n.text, isButton)
             if (!AutoEnter.isSendButton(label, n.viewIdResourceName)) continue
-            val target = clickableSelfOrParent(n) ?: continue
+            // A web button need not say it is clickable to take a click (Chrome decides that itself).
+            val target = clickableSelfOrParent(n) ?: n.takeIf { isButton } ?: continue
             val b = android.graphics.Rect().also { target.getBoundsInScreen(it) }
             if (!AutoEnter.besideField(b.top, b.bottom, fb.top, fb.bottom, reach)) continue
             val dx = (b.centerX() - fb.centerX()).toLong()
@@ -716,6 +723,34 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         }
         return best?.let { it to bestLabel } to queue.isNotEmpty()
     }
+
+    /**
+     * For the log when no send button was found: what does sit around the field (class, description,
+     * text, id, clickable/enabled, bounds), so the next miss says why without a device to hand.
+     */
+    private fun buttonsNear(field: AccessibilityNodeInfo): String {
+        // Everything visible around the field, unfiltered: a filter that shares the search's
+        // assumptions would hide the very node it got wrong.
+        var top: AccessibilityNodeInfo = field
+        repeat(4) { top = top.parent ?: return@repeat }
+        val out = mutableListOf<String>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(top) }
+        var seen = 0
+        while (queue.isNotEmpty() && seen < SEND_SEARCH_NEAR && out.size < 30) {
+            val n = queue.removeFirst()
+            seen++
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+            if (!n.isVisibleToUser) continue
+            val cls = n.className?.toString()?.substringAfterLast('.').orEmpty()
+            out += "$cls desc=${n.contentDescription?.let { "\"${it.take(20)}\"" }} " +
+                "text=${if (n.isEditable) "(field)" else n.text?.let { "\"${it.take(20)}\"" }} " +
+                "id=${n.viewIdResourceName} click=${n.isClickable} on=${n.isEnabled} ${boundsOf(n)}"
+        }
+        return if (out.isEmpty()) "nothing" else out.joinToString(" | ")
+    }
+
+    private fun boundsOf(n: AccessibilityNodeInfo): String =
+        android.graphics.Rect().also { n.getBoundsInScreen(it) }.toShortString()
 
     /** [n] if clickable, else its nearest clickable ancestor (an icon inside a button), up to 3 up. */
     private fun clickableSelfOrParent(n: AccessibilityNodeInfo): AccessibilityNodeInfo? {
