@@ -524,6 +524,7 @@ class BubbleService : Service() {
         var startY = 0
         var moved = false
         var longFired = false
+        var fromTab = false
         val touchSlop = 12 * density
 
         // Long press opens the bubble menu. It was hold-to-talk (talk while held, release to
@@ -535,10 +536,16 @@ class BubbleService : Service() {
         //
         // Dragging starts on movement rather than after a hold, so a hold never lifts the
         // bubble out of its dock; [BubbleView.State.LIFTED] is triggered by the drag.
+        //
+        // A hold on the tucked tab only brings the bubble out, to be dragged or held from there:
+        // a drag that starts on the tab begins at the screen edge, where Samsung's One Hand
+        // Operation+ takes the swipe (2026-11-18, user).
         val longPress = Runnable {
             if (!moved && recordingStopper == null) {
                 longFired = true
-                if (!HeadlessDictation.active && view.state == BubbleView.State.IDLE) {
+                if (fromTab) {
+                    hapticThreshold()
+                } else if (!HeadlessDictation.active && view.state == BubbleView.State.IDLE) {
                     hapticThreshold()
                     showModelPicker()
                 }
@@ -573,9 +580,10 @@ class BubbleService : Service() {
                 MotionEvent.ACTION_DOWN -> {
                     picker?.dismiss() // touching the bubble again closes the menu
                     wake(animate = false) // full size under the finger before anything else
-                    // A tucked tab slides the bubble back out; the gesture then carries on as
-                    // if made on it (tap dictates, hold opens the menu, drag moves it).
+                    // A tucked tab slides the bubble back out; a tap then dictates and a hold
+                    // just leaves it out (see longPress).
                     val popped = untuck()
+                    fromTab = popped
                     downRawX = e.rawX
                     downRawY = e.rawY
                     startX = if (popped) restingX(BubbleView.State.IDLE) else params.x
@@ -632,7 +640,11 @@ class BubbleService : Service() {
                     scheduleShrink()
                     // The hold did its work while the finger was down; letting go is not a tap.
                     if (longFired) return@setOnTouchListener true
-                    if (moved && !overDismiss && recordingStopper == null && isFlickUp(e)) {
+                    // Cancelled: the system took the gesture (a back swipe, One Hand Operation+).
+                    // Nothing the user meant: no tap, no flick, no dismiss — just re-dock.
+                    val cancelled = e.action == MotionEvent.ACTION_CANCEL
+                    if (cancelled) overDismiss = false
+                    if (!cancelled && moved && !overDismiss && recordingStopper == null && isFlickUp(e)) {
                         // A quick upward flick isn't a move: put the bubble back where it was
                         // and open the model menu instead.
                         hideDismiss()
@@ -675,7 +687,7 @@ class BubbleService : Service() {
                     }
                     // The model tab is a label, not a button: a tap on it is a tap on the bubble.
                     // It opened the menu (2026-11-13) and got pressed by accident (2026-11-17).
-                    if (!moved) onTap()
+                    if (!moved && !cancelled) onTap()
                     true
                 }
                 else -> false
