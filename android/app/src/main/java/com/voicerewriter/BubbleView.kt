@@ -114,6 +114,9 @@ class BubbleView(context: Context) : View(context) {
         /** The drawn tab, flush with the screen edge; the rest of the window is transparent. */
         const val TUCKED_TAB_DP = 14f
 
+        /** Opacity of the whole tucked tab: about 75%, a little see-through. */
+        private const val TUCKED_ALPHA = 190
+
         /** Which states are pills rather than circles. Drives the window width. */
         fun widthDpFor(state: State): Float =
             if (state == State.LISTENING || state == State.COPIED) WIDTH_PILL_DP else WIDTH_SMALL_DP
@@ -347,6 +350,8 @@ class BubbleView(context: Context) : View(context) {
         // the docked edge so only the inner corners are rounded.
         val top = dp(2f)
         val bottom = height - dp(2f)
+        // Slightly see-through as a whole, grip included (2026-11-18, user): it rests over apps.
+        val layer = canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), TUCKED_ALPHA)
         if (dockedLeft) scratch.set(-r, top, tab, bottom)
         else scratch.set(width - tab, top, width + r, bottom)
         fillPaint.shader = null
@@ -356,15 +361,14 @@ class BubbleView(context: Context) : View(context) {
             badgeVoiceLock -> if (dark) VOICE_LOCK_BADGE_DK else VOICE_LOCK_BADGE
             else -> markColor()
         }
-        fillPaint.alpha = 235
         canvas.drawRoundRect(scratch, r, r, fillPaint)
-        fillPaint.alpha = 255
         // The grip sits in the tab, nudged off the screen edge.
         val cx = if (dockedLeft) tab * 0.45f else width - tab * 0.45f
         val half = dp(10f)
         fillPaint.color = surface()
         scratch.set(cx - dp(1f), height / 2f - half, cx + dp(1f), height / 2f + half)
         canvas.drawRoundRect(scratch, dp(1f).toFloat(), dp(1f).toFloat(), fillPaint)
+        canvas.restoreToCount(layer)
     }
 
     /** The model tab: a small coral pill straddling the bottom edge of the disc. */
