@@ -340,7 +340,7 @@ class BubbleView(context: Context) : View(context) {
 
     /**
      * The tucked tab: the whole (narrow) view, square on the screen edge and rounded on the
-     * inside, in the model tab's colour (so Quiet mode and voice isolation still show), with a
+     * inside, in the Soksak mark colour whatever the mode, with a
      * short grip line. A solid fill rather than the pale disc, so it can be found on any screen.
      */
     private fun drawTucked(canvas: Canvas) {
@@ -356,11 +356,9 @@ class BubbleView(context: Context) : View(context) {
         else scratch.set(width - tab, top, width + r, bottom)
         fillPaint.shader = null
         fillPaint.clearShadowLayer()
-        fillPaint.color = when {
-            badgeQuiet -> if (dark) QUIET_BADGE_DK else QUIET_BADGE
-            badgeVoiceLock -> if (dark) VOICE_LOCK_BADGE_DK else VOICE_LOCK_BADGE
-            else -> markColor()
-        }
+        // Always the Soksak mark colour (2026-11-19, user): the rose Quiet badge read as a
+        // different brand colour at the screen edge. The mode still shows on the bubble itself.
+        fillPaint.color = markColor()
         canvas.drawRoundRect(scratch, r, r, fillPaint)
         // The grip sits in the tab, nudged off the screen edge.
         val cx = if (dockedLeft) tab * 0.45f else width - tab * 0.45f
