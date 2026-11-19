@@ -555,13 +555,22 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         enterTarget = null
         enterCancelled = false
         try {
-            val node = findHostFocusedEditable()
             val field = t.field
-            if (node == null && field != null) {
-                // The text went into the field on screen with the keyboard down: press there.
+            if (field != null) {
+                // The text went into the field on screen with the keyboard down: press there, in
+                // the field it went into, whatever has focus now. Going by focus skipped Enter in
+                // Collie (build-154): another EditText of the page held focus by the time the
+                // countdown ran out, and the dictated text was not in that one.
                 if (!field.refresh() || !field.isVisibleToUser || field.packageName?.toString() != t.pkg) {
                     Log.i(TAG, "auto Enter skipped: the field on screen is gone")
                     return onDone(false)
+                }
+                findHostFocusedEditable()?.let { f ->
+                    if (f != field) {
+                        Log.i(TAG, "auto Enter: focus is on ${f.packageName}/${f.className?.toString()?.substringAfterLast('.')} " +
+                            "visible=${f.isVisibleToUser}; pressing in the field the text went into")
+                    }
+                    @Suppress("DEPRECATION") f.recycle()
                 }
                 @Suppress("DEPRECATION")
                 return enterOnNode(AccessibilityNodeInfo.obtain(field), t) { ok ->
@@ -575,6 +584,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                     onDone(ok)
                 }
             }
+            val node = findHostFocusedEditable()
             if (node == null) {
                 // Editors without a focused editable node (Samsung Notes, terminals) took the text
                 // through the input connection; Enter goes the same way.
