@@ -190,10 +190,20 @@ object VoiceLockManager {
         check(isModelsReady(context)) { "Voice lock models are not downloaded yet." }
         require(clips.isNotEmpty()) { "No recordings." }
         val embs = clips.map { it.embedding }
+        // Per-clip numbers so one enrollment shows how much room the 0.8 s floor and the
+        // consistency cut-off leave for this voice.
+        val sims = VoiceEnrollment.similarityToOthers(embs)
+        Log.i(
+            TAG,
+            "enrollment consistency (keep >= %.2f): ".format(VoiceEnrollment.CONSISTENCY_MIN) +
+                clips.indices.joinToString(", ") { i ->
+                    "clip ${i + 1} %.1fs speech".format(clips[i].voiced.size / VoxLockEngine.SR.toFloat()) +
+                        (sims.getOrNull(i)?.let { " sim %.2f".format(it) } ?: "")
+                },
+        )
         val worst = VoiceEnrollment.leastConsistent(embs)
-        if (worst != null) {
-            Log.i(TAG, "enrollment consistency: least similar clip ${worst.index + 1} at %.2f".format(worst.similarity))
-            if (worst.similarity < VoiceEnrollment.CONSISTENCY_MIN) throw InconsistentClipException(worst.index, worst.similarity)
+        if (worst != null && worst.similarity < VoiceEnrollment.CONSISTENCY_MIN) {
+            throw InconsistentClipException(worst.index, worst.similarity)
         }
         val mean = VoiceEnrollment.mean(embs)
 

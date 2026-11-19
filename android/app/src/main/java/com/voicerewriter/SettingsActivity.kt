@@ -787,7 +787,8 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                                 Text(
                                     when {
                                         vlEnrollActive && vlStep >= 0 -> trf("Phrase %s of %s — read it at your normal pace:", vlStep + 1, phraseCount)
-                                        vlEnrollActive -> tr("Saving voice signature…")
+                                        vlEnrollActive && vlEnrolling -> tr("Saving voice signature…")
+                                        vlEnrollActive -> tr("Failed to save voice profile.")
                                         vlProfileReady -> tr("Your voice is registered.")
                                         else -> trf("In a quiet spot, read %s short phrases one at a time. Each recording stops by itself when you pause.", phraseCount)
                                     },

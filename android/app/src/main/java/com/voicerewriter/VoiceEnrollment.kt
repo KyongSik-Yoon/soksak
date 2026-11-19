@@ -60,16 +60,18 @@ object VoiceEnrollment {
 
     data class Consistency(val index: Int, val similarity: Float)
 
+    /** 녹음마다 나머지 녹음 평균과의 유사도. 녹음이 둘 미만이면 빈 목록. */
+    fun similarityToOthers(embs: List<FloatArray>): List<Float> {
+        if (embs.size < 2) return emptyList()
+        return embs.indices.map { i -> cosine(embs[i], mean(embs.filterIndexed { j, _ -> j != i })) }
+    }
+
     /** 각 녹음을 나머지의 평균과 비교해 가장 덜 닮은 녹음과 그 유사도. 녹음이 둘 미만이면 null. */
     fun leastConsistent(embs: List<FloatArray>): Consistency? {
-        if (embs.size < 2) return null
-        var worst: Consistency? = null
-        for (i in embs.indices) {
-            val others = embs.filterIndexed { j, _ -> j != i }
-            val sim = cosine(embs[i], mean(others))
-            if (worst == null || sim < worst.similarity) worst = Consistency(i, sim)
-        }
-        return worst
+        val sims = similarityToOthers(embs)
+        if (sims.isEmpty()) return null
+        val i = sims.indices.minBy { sims[it] }
+        return Consistency(i, sims[i])
     }
 
     /**
