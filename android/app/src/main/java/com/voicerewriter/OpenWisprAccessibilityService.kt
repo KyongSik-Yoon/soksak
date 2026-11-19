@@ -559,7 +559,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             if (field != null) {
                 // The text went into the field on screen with the keyboard down: press there, in
                 // the field it went into, whatever has focus now. Going by focus skipped Enter in
-                // Collie (build-154): another EditText of the page held focus by the time the
+                // agent world, a PWA in Chrome (build-154): another EditText of the page held focus by the time the
                 // countdown ran out, and the dictated text was not in that one.
                 if (!field.refresh() || !field.isVisibleToUser || field.packageName?.toString() != t.pkg) {
                     Log.i(TAG, "auto Enter skipped: the field on screen is gone")

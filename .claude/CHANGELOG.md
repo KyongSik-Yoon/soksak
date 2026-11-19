@@ -4,7 +4,7 @@
 새 작업을 끝내면 맨 위에 추가한다.
 
 ## 2026-11-19 — 키보드 없이 넣은 칸에서 자동 엔터 (853e08a, build-156)
-- build-154(사용자, Collie): 화면의 칸에 글은 잘 들어갔는데 전송이 안 됨. 로그 `auto Enter skipped: the dictated text is not in the focused field` — 카운트다운이 끝날 때 페이지의 다른 EditText가 포커스를 쥐고 있었고, 코드는 포커스가 없을 때만 넣은 칸에서 눌렀다.
+- build-154(사용자, agent world — Chrome PWA, 로그엔 `org.chromium.webapk.a6e2bcab…`만 나옴): 화면의 칸에 글은 잘 들어갔는데 전송이 안 됨. 로그 `auto Enter skipped: the dictated text is not in the focused field` — 카운트다운이 끝날 때 페이지의 다른 EditText가 포커스를 쥐고 있었고, 코드는 포커스가 없을 때만 넣은 칸에서 눌렀다.
 - 넣은 칸을 기억한 경우 포커스와 상관없이 그 칸에서 엔터. 포커스가 다른 칸이면 로그 `auto Enter: focus is on …`(그 칸이 보이는지 포함). 폰 확인 전.
 - build-155 사용자: 등록 녹음이 무음에서 저절로 멈춤 확인.
 
