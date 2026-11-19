@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-19 — 폰 빌드를 release로 (ff50854, build-158)
+- CI가 debug 대신 release APK를 낸다: debuggable이 아니라 adb `run-as`로 연동 코드·녹음·목소리 등록 파일을 읽을 수 없다. 같은 키(`9b3d4b84…7fce`)·같은 앱 ID라 덮어 설치된다(build-158 APK의 서명·debuggable 없음은 확인, 폰 설치는 확인 전). Compose 기준 프로필도 들어간다.
+- 같은 날 조사: 업데이트마다 뜨는 경고 둘은 삼성 AASA 평판(앱 ID+인증서로 갤럭시 스토어 조회, resultCode 51)과 Play 프로텍트(APK 해시 서버 조회 response=9)다. 유니콘 프로도 설치 경로는 같다. 갤럭시 스토어는 Android 앱에 사업자 판매자가 필요해 보류, Play는 출시 안 함.
+
 ## 2026-11-19 — 키보드 없이 넣은 칸에서 자동 엔터 (853e08a, build-156)
 - build-154(사용자, agent world — Chrome PWA, 로그엔 `org.chromium.webapk.a6e2bcab…`만 나옴): 화면의 칸에 글은 잘 들어갔는데 전송이 안 됨. 로그 `auto Enter skipped: the dictated text is not in the focused field` — 카운트다운이 끝날 때 페이지의 다른 EditText가 포커스를 쥐고 있었고, 코드는 포커스가 없을 때만 넣은 칸에서 눌렀다.
 - 넣은 칸을 기억한 경우 포커스와 상관없이 그 칸에서 엔터. 포커스가 다른 칸이면 로그 `auto Enter: focus is on …`(그 칸이 보이는지 포함). 폰 확인 전.
