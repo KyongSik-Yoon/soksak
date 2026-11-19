@@ -4,7 +4,7 @@
 새 작업을 끝내면 맨 위에 추가한다.
 
 ## 2026-11-19 — 폰 빌드를 release로 (ff50854, build-158)
-- CI가 debug 대신 release APK를 낸다: debuggable이 아니라 adb `run-as`로 연동 코드·녹음·목소리 등록 파일을 읽을 수 없다. 같은 키(`9b3d4b84…7fce`)·같은 앱 ID라 덮어 설치된다(build-158 APK의 서명·debuggable 없음은 확인, 폰 설치는 확인 전). Compose 기준 프로필도 들어간다.
+- CI가 debug 대신 release APK를 낸다: debuggable이 아니라 adb `run-as`로 연동 코드·녹음·목소리 등록 파일을 읽을 수 없다. 같은 키(`9b3d4b84…7fce`)·같은 앱 ID라 덮어 설치된다(build-158 APK의 서명·debuggable 없음 확인; 사용자 폰: 덮어 설치되고 "별다른 차이 없이 동작"). Compose 기준 프로필도 들어간다.
 - 같은 날 조사: 업데이트마다 뜨는 경고 둘은 삼성 AASA 평판(앱 ID+인증서로 갤럭시 스토어 조회, resultCode 51)과 Play 프로텍트(APK 해시 서버 조회 response=9)다. 유니콘 프로도 설치 경로는 같다. 갤럭시 스토어는 Android 앱에 사업자 판매자가 필요해 보류, Play는 출시 안 함.
 
 ## 2026-11-19 — 키보드 없이 넣은 칸에서 자동 엔터 (853e08a, build-156)
