@@ -54,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -160,6 +161,9 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var vlEnrolling by remember { mutableStateOf(false) }
     var vlEnrollSec by remember { mutableFloatStateOf(0f) }
     var vlEnrollLevel by remember { mutableFloatStateOf(0f) }
+    // Enrollment takes one recording per VoiceEnrollment.PHRASES entry; a null slot is still to record.
+    var vlEnrollActive by remember { mutableStateOf(false) }
+    val vlClips = remember { mutableStateListOf<VoiceLockManager.EnrollClip?>(*arrayOfNulls(VoiceEnrollment.PHRASES.size)) }
     var vlErrorMsg by remember { mutableStateOf<String?>(null) }
     var pendingDeleteVl by remember { mutableStateOf(false) }
     val enrollRecorder = remember { AudioRecorder(context.applicationContext) }
@@ -620,22 +624,24 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- VOICE LOCK ----------------
-            fun finishVoiceEnroll() {
-                if (!vlEnrollRecording) return
-                vlEnrollRecording = false
+            // Enrollment is one recording per phrase (short, medium, long). The existing profile stays
+            // in use until all of them are in and saved.
+            fun clearVoiceClips() {
+                for (i in vlClips.indices) vlClips[i] = null
+            }
+
+            fun saveVoiceProfile() {
                 vlEnrolling = true
-                vlErrorMsg = null
                 launch {
-                    val samples = withContext(Dispatchers.IO) { enrollRecorder.stop() }
-                    if (samples == null) {
-                        vlEnrolling = false
-                        vlErrorMsg = tr("Recording is too short. Please speak for at least 4 seconds.")
-                        return@launch
-                    }
                     try {
-                        VoiceLockManager.enrollFromSamples(context, samples)
+                        VoiceLockManager.enrollFromClips(context, vlClips.filterNotNull())
                         vlProfileReady = true
+                        vlEnrollActive = false
+                        clearVoiceClips()
                         Toast.makeText(context, tr("Your voice profile is ready."), Toast.LENGTH_SHORT).show()
+                    } catch (e: VoiceLockManager.InconsistentClipException) {
+                        vlClips[e.index] = null
+                        vlErrorMsg = trf("Phrase %s didn't sound like the others. Please read it again.", e.index + 1)
                     } catch (e: Exception) {
                         vlErrorMsg = tr(e.message ?: "Failed to save voice profile.")
                     } finally {
@@ -644,7 +650,34 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 }
             }
 
-            fun startVoiceEnroll() {
+            fun finishVoiceEnroll() {
+                if (!vlEnrollRecording) return
+                vlEnrollRecording = false
+                vlEnrolling = true
+                vlErrorMsg = null
+                launch {
+                    val samples = withContext(Dispatchers.IO) { enrollRecorder.stop() }
+                    val step = vlClips.indexOfFirst { it == null }
+                    val clip = if (samples == null || step < 0) {
+                        vlErrorMsg = tr("Didn't catch enough of your voice. Please read the phrase again.")
+                        null
+                    } else {
+                        try {
+                            VoiceLockManager.prepareClip(context, samples)
+                        } catch (e: Exception) {
+                            vlErrorMsg = tr(e.message ?: "Failed to save voice profile.")
+                            null
+                        }
+                    }
+                    vlEnrolling = false
+                    if (clip != null) {
+                        vlClips[step] = clip
+                        if (vlClips.none { it == null }) saveVoiceProfile()
+                    }
+                }
+            }
+
+            fun recordVoiceClip() {
                 if (!micGranted) {
                     micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     return
@@ -654,7 +687,12 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 vlEnrollSec = 0f
                 vlEnrollLevel = 0f
                 try {
-                    enrollRecorder.start(rawCaptureOnly = true)
+                    enrollRecorder.start(
+                        vadAutoStop = true,
+                        hangoverSeconds = VoiceEnrollment.CLIP_AUTO_STOP_S,
+                        rawCaptureOnly = true,
+                        onAutoStop = { finishVoiceEnroll() },
+                    )
                     vlEnrollRecording = true
                     launch {
                         val startedAt = System.currentTimeMillis()
@@ -662,7 +700,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                             val sec = (System.currentTimeMillis() - startedAt) / 1000f
                             vlEnrollSec = sec
                             vlEnrollLevel = AudioRecorder.level(enrollRecorder.amplitude())
-                            if (sec >= 6.5f) {
+                            if (sec >= VoiceEnrollment.CLIP_MAX_S) {
                                 finishVoiceEnroll()
                                 break
                             }
@@ -673,6 +711,23 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                     vlEnrollRecording = false
                     vlErrorMsg = e.message ?: tr("Couldn't start the mic.")
                 }
+            }
+
+            fun startVoiceEnroll() {
+                if (vlEnrollRecording || vlEnrolling) return
+                clearVoiceClips()
+                vlEnrollActive = true
+                recordVoiceClip()
+            }
+
+            fun cancelVoiceEnroll() {
+                if (vlEnrollRecording) {
+                    vlEnrollRecording = false
+                    enrollRecorder.cancel()
+                }
+                vlEnrollActive = false
+                clearVoiceClips()
+                vlErrorMsg = null
             }
 
             Section(tr("Voice lock")) {
@@ -727,19 +782,28 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                                     .padding(13.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
+                                val vlStep = vlClips.indexOfFirst { it == null }
+                                val phraseCount = VoiceEnrollment.PHRASES.size
                                 Text(
-                                    if (vlProfileReady) tr("Your voice is registered.") else tr("Read this sample aloud for 5–6 seconds in a quiet spot:"),
+                                    when {
+                                        vlEnrollActive && vlStep >= 0 -> trf("Phrase %s of %s — read it at your normal pace:", vlStep + 1, phraseCount)
+                                        vlEnrollActive -> tr("Saving voice signature…")
+                                        vlProfileReady -> tr("Your voice is registered.")
+                                        else -> trf("In a quiet spot, read %s short phrases one at a time. Each recording stops by itself when you pause.", phraseCount)
+                                    },
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                Text(
-                                    "\"${tr("GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘. API 응답이 느려서 Redis 캐시도 같이 붙여야 해.")}\"",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                if (vlEnrollActive && vlStep >= 0) {
+                                    Text(
+                                        "\"${VoiceEnrollment.PHRASES[vlStep]}\"",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
                                 if (vlEnrollRecording) {
                                     LinearProgressIndicator(
-                                        progress = { (vlEnrollSec / 6.5f).coerceIn(0f, 1f) },
+                                        progress = { vlEnrollLevel.coerceIn(0f, 1f) },
                                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)),
                                     )
                                     Row(
@@ -748,16 +812,28 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
                                         Text(
-                                            trf("Listening… %ss / 6.5s", "%.1f".format(vlEnrollSec)),
+                                            trf("Listening… %ss", "%.1f".format(vlEnrollSec)),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
-                                        PillButton(tr("Finish now")) { finishVoiceEnroll() }
+                                        PillButton(tr("Done")) { finishVoiceEnroll() }
                                     }
                                 } else if (vlEnrolling) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                        Text(tr("Saving voice signature…"), style = MaterialTheme.typography.bodySmall)
+                                        Text(
+                                            if (vlStep >= 0) tr("Checking…") else tr("Saving voice signature…"),
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                } else if (vlEnrollActive) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        if (vlStep >= 0) {
+                                            PillButton(trf("Record phrase %s", vlStep + 1)) { recordVoiceClip() }
+                                        } else {
+                                            PillButton(tr("Start over")) { startVoiceEnroll() }
+                                        }
+                                        PillOutline(tr("Cancel")) { cancelVoiceEnroll() }
                                     }
                                 } else {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

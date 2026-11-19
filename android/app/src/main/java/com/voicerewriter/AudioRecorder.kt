@@ -194,7 +194,9 @@ class AudioRecorder(private val context: Context) {
         rawCaptureOnlyMode = rawCaptureOnly
         gateRejection = null
 
-        val useVad = vadAutoStop && !quiet && !rawCaptureOnly
+        // rawCaptureOnly (voice enrollment) may still ask for the silence auto-stop; the audio is
+        // returned untrimmed either way.
+        val useVad = vadAutoStop && !quiet
         vad = if (useVad || (speakerGate && !quiet && !rawCaptureOnly)) {
             SileroVad.shared(context)?.also { it.reset() }
         } else null

@@ -157,20 +157,82 @@ object VoiceLockManager {
         }
     }
 
-    /**
-     * 사용자가 읽은 내 목소리 PCM16 녹음으로 CAM++ 임베딩과 VoxLock 조건 텐서를 함께 등록한다.
-     * 유성 구간이 3.0초 미만이면 [IllegalArgumentException]을 던진다.
-     */
-    suspend fun enrollFromSamples(context: Context, samples: ShortArray) = withContext(Dispatchers.IO) {
-        check(isModelsReady(context)) { "Voice lock models are not downloaded yet." }
-        require(samples.size >= VoxLockEngine.SR * 3 + VoxLockEngine.SR / 5) {
-            "Recording is too short. Please speak for at least 4 seconds."
-        }
-        val floats = WavIo.toFloats(samples)
+    /** 등록 문구 녹음 하나: 원본, 말소리만 모은 것, 그 CAM++ 임베딩. */
+    class EnrollClip(val raw: ShortArray, val voiced: FloatArray, val embedding: FloatArray)
 
-        // Silero VAD 별도 인스턴스로 순수 말소리만 모아 3초 이상 발화했는지 확인한다.
-        val vad = SileroVad.create(context)
+    /** 녹음 [index]가 나머지 녹음과 덜 닮아 그것만 다시 받아야 한다. */
+    class InconsistentClipException(val index: Int, val similarity: Float) :
+        IllegalArgumentException("Clip ${index + 1} does not match the others (similarity %.2f)".format(similarity))
+
+    /**
+     * 등록 문구 녹음 하나를 바로 검사한다: 말소리가 [VoiceEnrollment.MIN_CLIP_VOICED_S] 이상이고 임베딩이 나와야 한다.
+     * 아니면 [IllegalArgumentException]/[IllegalStateException] — 화면이 그 문구만 다시 받는다.
+     */
+    suspend fun prepareClip(context: Context, samples: ShortArray): EnrollClip = withContext(Dispatchers.IO) {
+        check(isModelsReady(context)) { "Voice lock models are not downloaded yet." }
+        val voiced = voicedOf(context, WavIo.toFloats(samples))
+        require(voiced.size >= (VoiceEnrollment.MIN_CLIP_VOICED_S * VoxLockEngine.SR).toInt()) {
+            "Didn't catch enough of your voice. Please read the phrase again."
+        }
+        val embedder = acquireEmbedder(context)
+            ?: throw IllegalStateException("Could not initialize speaker embedding model.")
+        val emb = embedder.embed(voiced)
+            ?: throw IllegalStateException("Could not extract your voice signature. Please speak a little louder.")
+        EnrollClip(samples, voiced, emb)
+    }
+
+    /**
+     * 문구별 녹음([prepareClip] 결과)을 하나의 프로필로 등록한다. CAM++ 임베딩은 녹음별 임베딩의 평균이고,
+     * VoxLock 조건 텐서(입력이 3초 고정이라 평균을 낼 수 없음)는 그 평균에 가장 가까운 3초 말소리 구간으로 만든다.
+     * 한 녹음이 나머지와 덜 닮으면 [InconsistentClipException] — 기존 프로필은 그대로 둔다.
+     */
+    suspend fun enrollFromClips(context: Context, clips: List<EnrollClip>) = withContext(Dispatchers.IO) {
+        check(isModelsReady(context)) { "Voice lock models are not downloaded yet." }
+        require(clips.isNotEmpty()) { "No recordings." }
+        val embs = clips.map { it.embedding }
+        val worst = VoiceEnrollment.leastConsistent(embs)
+        if (worst != null) {
+            Log.i(TAG, "enrollment consistency: least similar clip ${worst.index + 1} at %.2f".format(worst.similarity))
+            if (worst.similarity < VoiceEnrollment.CONSISTENCY_MIN) throw InconsistentClipException(worst.index, worst.similarity)
+        }
+        val mean = VoiceEnrollment.mean(embs)
+
+        val voicedLen = clips.sumOf { it.voiced.size }
+        require(voicedLen >= VoxLockEngine.SAMPLE) {
+            "Not enough clear speech captured (need at least 3 seconds of your voice). Please try again in a quiet spot."
+        }
+        val voiced = FloatArray(voicedLen)
+        var off = 0
+        for (c in clips) { c.voiced.copyInto(voiced, off); off += c.voiced.size }
+
+        val embedder = acquireEmbedder(context)
+            ?: throw IllegalStateException("Could not initialize speaker embedding model.")
+        val start = VoiceEnrollment.bestWindowStart(voiced.size, VoxLockEngine.SAMPLE, VoxLockEngine.SR / 2, 40) { st ->
+            embedder.embed(voiced, st, VoxLockEngine.SAMPLE)?.let { VoiceEnrollment.cosine(it, mean) }
+        }
+        val fitted = if (start != null) voiced.copyOfRange(start, start + VoxLockEngine.SAMPLE) else VoxLockEngine.fitSample(voiced)
+        val voiceTensors = VoxLockEngine.computeEnrollment(modelFile(context, ENROLL_FILE), fitted)
+
+        val raw = ShortArray(clips.sumOf { it.raw.size })
+        off = 0
+        for (c in clips) { c.raw.copyInto(raw, off); off += c.raw.size }
+
+        val dir = profileDir(context)
+        writeEmbedding(File(dir, PROFILE_EMB_FILE), mean)
+        voiceTensors.writeTo(File(dir, PROFILE_VOX_FILE))
+        WavIo.write(File(dir, PROFILE_RAW_FILE), raw)
+
+        synchronized(modelLock) {
+            cachedEmbedding = mean
+            cachedVoice = voiceTensors
+        }
+        Log.i(TAG, "enrolled voice profile from ${clips.size} clips (${voicedLen / VoxLockEngine.SR.toFloat()}s speech)")
+    }
+
+    /** 말소리 프레임만 모은다(Silero 별도 인스턴스, 로드 실패 시 20ms 에너지 기준). */
+    private fun voicedOf(context: Context, floats: FloatArray): FloatArray {
         val voicedList = ArrayList<Float>(floats.size)
+        val vad = SileroVad.create(context)
         if (vad != null) {
             try {
                 var off = 0
@@ -186,7 +248,6 @@ object VoiceLockManager {
                 vad.close()
             }
         } else {
-            // VAD 로드 실패 폴백: 20ms 에너지 상위 구간만 남김
             var off = 0
             while (off + 320 <= floats.size) {
                 var s = 0.0
@@ -200,30 +261,7 @@ object VoiceLockManager {
                 off += 320
             }
         }
-
-        val voiced = voicedList.toFloatArray()
-        require(voiced.size >= VoxLockEngine.SAMPLE) {
-            "Not enough clear speech captured (need at least 3 seconds of your voice). Please try again in a quiet spot."
-        }
-
-        val embedder = acquireEmbedder(context)
-            ?: throw IllegalStateException("Could not initialize speaker embedding model.")
-        val emb = embedder.embed(voiced)
-            ?: throw IllegalStateException("Could not extract your voice signature. Please speak a little louder.")
-
-        val fitted = VoxLockEngine.fitSample(voiced)
-        val voiceTensors = VoxLockEngine.computeEnrollment(modelFile(context, ENROLL_FILE), fitted)
-
-        val dir = profileDir(context)
-        writeEmbedding(File(dir, PROFILE_EMB_FILE), emb)
-        voiceTensors.writeTo(File(dir, PROFILE_VOX_FILE))
-        WavIo.write(File(dir, PROFILE_RAW_FILE), samples)
-
-        synchronized(modelLock) {
-            cachedEmbedding = emb
-            cachedVoice = voiceTensors
-        }
-        Log.i(TAG, "enrolled voice profile (${voiced.size / VoxLockEngine.SR.toFloat()}s speech)")
+        return voicedList.toFloatArray()
     }
 
     fun getEnrolledEmbedding(context: Context): FloatArray? {

@@ -241,17 +241,24 @@ object I18n {
         "Voice lock models" to "목소리 인식·분리 모델",
         "%s · speaker gate + voice isolation" to "%s · 화자 게이트 + 음성 분리",
         "Your voice is registered." to "내 목소리가 등록됐어요.",
-        "Read this sample aloud for 5–6 seconds in a quiet spot:" to "조용한 곳에서 아래 예시 문장을 5~6초 동안 자연스럽게 읽어 주세요:",
-        "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘. API 응답이 느려서 Redis 캐시도 같이 붙여야 해." to
-            "GitLab에 MR 올리고, worktree 정리한 다음 Claude Code로 테스트 돌려줘. API 응답이 느려서 Redis 캐시도 같이 붙여야 해.",
-        "Listening… %ss / 6.5s" to "듣는 중… %s초 / 6.5초",
-        "Finish now" to "완료",
+        "In a quiet spot, read %s short phrases one at a time. Each recording stops by itself when you pause." to
+            "조용한 곳에서 짧은 문구 %s개를 하나씩 읽어 주세요. 말을 멈추면 녹음이 저절로 끝나요.",
+        "Phrase %s of %s — read it at your normal pace:" to "문구 %s / %s — 평소 말하는 속도로 읽어 주세요:",
+        "Listening… %ss" to "듣는 중… %s초",
+        "Record phrase %s" to "문구 %s 녹음",
+        "Start over" to "처음부터 다시",
+        "Cancel" to "취소",
+        "Phrase %s didn't sound like the others. Please read it again." to
+            "문구 %s의 목소리가 다른 녹음과 달라요. 그 문구만 다시 읽어 주세요.",
+        "Didn't catch enough of your voice. Please read the phrase again." to
+            "목소리가 충분히 잡히지 않았어요. 문구를 다시 읽어 주세요.",
+        "Could not initialize speaker embedding model." to "화자 인식 모델을 불러오지 못했어요.",
+        "Could not extract your voice signature. Please speak a little louder." to "목소리 특징을 뽑지 못했어요. 조금 더 크게 말해 주세요.",
         "Saving voice signature…" to "목소리 특징을 저장하는 중…",
         "Re-record" to "다시 녹음",
         "Record my voice" to "내 목소리 녹음",
         "Clear voice" to "등록 지우기",
         "Your voice profile is ready." to "내 목소리를 등록했어요.",
-        "Recording is too short. Please speak for at least 4 seconds." to "녹음이 너무 짧아요. 4초 이상 말해 주세요.",
         "Not enough clear speech captured (need at least 3 seconds of your voice). Please try again in a quiet spot." to
             "또렷한 목소리가 3초 미만으로 잡혔어요. 조용한 곳에서 다시 시도해 주세요.",
         "Failed to save voice profile." to "목소리 프로필을 저장하지 못했어요.",
