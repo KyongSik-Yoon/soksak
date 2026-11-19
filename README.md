@@ -36,7 +36,7 @@
 
 ```bash
 cd android
-./gradlew :app:assembleDebug :app:testDebugUnitTest
+./gradlew :app:assembleRelease :app:testReleaseUnitTest
 ```
 
 - Android SDK와 JDK 25가 필요합니다(컴파일 대상은 Java 17).

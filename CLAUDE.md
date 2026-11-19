@@ -38,9 +38,9 @@
     dusk 팔레트·마크를 그대로 쓰고, 숫자(CER 등)는 이 문서의 벤치 값과 맞춘다. 기능·모델이 바뀌면 함께 고친다. `docs/**`만 바뀐 커밋은 CI를 돌리지 않는다.
 
 ## 빌드·배포 흐름 (폰에 올리는 빌드는 CI가 만든다)
-로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest`.
+로컬 확인: SDK는 `~/Android/Sdk`(`android/local.properties`, gitignore), JDK 25(CI와 동일, 컴파일 대상은 Java 17) → `cd android && ./gradlew :app:assembleRelease :app:testReleaseUnitTest`.
 로컬 APK에는 sherpa JNI가 없어(CI `sherpa-qnn` 잡 산출물) NPU 모델은 동작하지 않는다.
-1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`, `docs/**`, `daemon/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleDebug :app:testDebugUnitTest` 실행 (~4.5분).
+1. `main`에 push(`*.md`, `.claude/**`, `scripts/**`, `docs/**`, `daemon/**`만 바뀐 경우 제외) → `.github/workflows/ci.yml`의 "Android build & unit tests"가 `:app:assembleRelease :app:testReleaseUnitTest` 실행 (~4.5분).
 2. 성공하면 Release `build-<run_number>`에 `soksak-dev-<run>.apk`를 올리고 최근 5개만 남긴다.
    versionCode = `1000 + run`, versionName = `1.6.0-dev.<run>` (`android/app/build.gradle.kts`).
   설정 화면에는 `1.6.0 · build N`으로 보인다. `1.6.0`은 원본 기반 버전 그대로 두기로 결정(2026-11-08) — 바꾸지 않는다.
@@ -50,7 +50,7 @@
 - 상태 확인: `scripts/ci-wait.sh` (커밋 SHA의 CI를 기다려 결과·APK 링크·실패 로그 출력).
 - 서명: 저장소 밖의 고정 키(사용자 PC `~/.config/soksak-signing/`, alias `soksak`, 비밀번호 파일 포함 — 잃으면 다시 재설치)로 서명 → 덮어 설치 가능.
   CI는 Secret `SOKSAK_KEYSTORE_BASE64`·`SOKSAK_KEYSTORE_PASSWORD`를 풀어 `SOKSAK_KEYSTORE_FILE`/`_PASSWORD`로 넘기고, main push에 Secret이 없으면 실패한다.
-  로컬 빌드는 PC 기본 디버그 키라 폰에 업데이트로 못 깐다. 예전 커밋 키(debug.keystore, pw android)는 공개 전 2026-11-10 교체·삭제했다.
+  로컬 빌드는 서명 없는 APK(`app-release-unsigned.apk`)라 폰에 업데이트로 못 깐다. 폰 빌드는 2026-11-19부터 release(debuggable 아님 — adb `run-as`로 연동 코드·녹음을 읽을 수 없게)이고, 단위 테스트도 release 변형에서 돈다(`testBuildType`). 예전 커밋 키(debug.keystore, pw android)는 공개 전 2026-11-10 교체·삭제했다.
 - 앱 ID: `io.github.kyongsikyoon.soksak` (2026-11-10, 이전 `com.voicerewriter.dev` — 바꿀 때 폰에서 새 앱으로 설치, 설정 → General 백업/복원으로 단어장·설정을 옮김).
 
 ## 모델

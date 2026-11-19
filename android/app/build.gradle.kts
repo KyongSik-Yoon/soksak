@@ -9,6 +9,9 @@ android {
     namespace = "com.voicerewriter"
     // Compose 1.12 refuses to build below 37. Compile-time only: targetSdk stays 36.
     compileSdk = 37
+    // Phone builds are release builds (not debuggable, so adb `run-as` can't read the app's files:
+    // PC link code, recordings, voiceprint). Unit tests run against the same variant, so CI compiles once.
+    testBuildType = "release"
 
     defaultConfig {
         // Was com.voicerewriter(.dev) under the upstream name; changed with the signing key on the
