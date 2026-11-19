@@ -40,6 +40,16 @@ val MonoEyebrow = TextStyle(
     letterSpacing = 0.18.em,
 )
 
+/**
+ * Wide tracking is for Latin caps; Korean (the settings screen is translated) falls back to the system
+ * font and the tracking pulls syllables apart ("화 자   게 이 트"). Drop it when the text has Hangul.
+ */
+fun TextStyle.trackedFor(text: String): TextStyle =
+    if (hasHangul(text)) copy(letterSpacing = 0.em) else this
+
+internal fun hasHangul(text: String): Boolean =
+    text.any { it in '가'..'힣' || it in 'ᄀ'..'ᇿ' || it in '㄰'..'㆏' }
+
 private val base = Typography()
 
 val SoksakTypography = Typography(

@@ -74,6 +74,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
 import com.voicerewriter.ui.MarkLight
 import com.voicerewriter.ui.MonoEyebrow
+import com.voicerewriter.ui.trackedFor
 import com.voicerewriter.ui.SoksakTheme
 import com.voicerewriter.ui.DuskBrush
 import com.voicerewriter.ui.Wordmark
@@ -792,7 +793,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                                         vlProfileReady -> tr("Your voice is registered.")
                                         else -> trf("In a quiet spot, read %s short phrases one at a time. Each recording stops by itself when you pause.", phraseCount)
                                     },
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 if (vlEnrollActive && vlStep >= 0) {
@@ -1314,7 +1315,7 @@ private fun HeroHeader() {
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Text(title.uppercase(), style = MonoEyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+        Text(title.uppercase(), style = MonoEyebrow.trackedFor(title), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
         content()
     }
 }
@@ -1425,7 +1426,7 @@ private fun ModelRow(
                     Badge(tr("Recommended"), Color(0xFF3E8E5A), Color(0xFFE7F3EA))
                     Spacer(Modifier.height(4.dp))
                 }
-                Text(meta, style = MonoEyebrow, fontSize = 11.sp, color = cs.onSurfaceVariant)
+                Text(meta, style = MonoEyebrow.trackedFor(meta), fontSize = 11.sp, color = cs.onSurfaceVariant)
             }
             when (state) {
                 "active" -> Badge(tr("Active"), Color(0xFF3E8E5A), Color(0xFFE7F3EA))
@@ -1458,7 +1459,7 @@ private fun ModelRow(
 @Composable
 private fun Badge(text: String, fg: Color, bg: Color) {
     Box(Modifier.clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 10.dp, vertical = 5.dp)) {
-        Text(text.uppercase(), style = MonoEyebrow, fontSize = 10.sp, color = fg, maxLines = 1, softWrap = false)
+        Text(text.uppercase(), style = MonoEyebrow.trackedFor(text), fontSize = 10.sp, color = fg, maxLines = 1, softWrap = false)
     }
 }
 
