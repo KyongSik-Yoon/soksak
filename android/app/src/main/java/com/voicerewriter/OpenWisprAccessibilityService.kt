@@ -233,6 +233,9 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         event ?: return
         // Track the foreground host app (cheap: window changes are infrequent) so the
         // dictation pipeline can adapt normalization to code/terminal fields.
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        ) lockHandle?.onWindowsChanged()
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val pkg = event.packageName?.toString()
             if (pkg != null && isHostPackage(pkg, packageName)) lastHostPackage = pkg

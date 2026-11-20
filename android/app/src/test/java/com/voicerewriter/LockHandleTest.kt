@@ -6,19 +6,26 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LockHandleTest {
+    private fun show(locked: Boolean = true, unlocked: Boolean = false, wanted: Boolean = true, phase: Phase = Phase.IDLE) =
+        LockHandle.shouldShow(locked, unlocked, wanted, phase)
+
     @Test fun showsOnTheLockScreenWhenWanted() {
-        assertTrue(LockHandle.shouldShow(locked = true, wanted = true, phase = Phase.IDLE))
+        assertTrue(show())
         // A result on screen is the end of a take: the tab comes back for the next one.
-        assertTrue(LockHandle.shouldShow(locked = true, wanted = true, phase = Phase.TO_PC))
+        assertTrue(show(phase = Phase.TO_PC))
     }
 
     @Test fun neverWhenUnlockedOrNotWanted() {
-        assertFalse(LockHandle.shouldShow(locked = false, wanted = true, phase = Phase.IDLE))
-        assertFalse(LockHandle.shouldShow(locked = true, wanted = false, phase = Phase.IDLE))
+        assertFalse(show(locked = false))
+        assertFalse(show(wanted = false))
+    }
+
+    @Test fun anUnlockWinsOverAKeyguardStillReadingLocked() {
+        assertFalse(show(locked = true, unlocked = true))
     }
 
     @Test fun hiddenDuringATake() {
-        assertFalse(LockHandle.shouldShow(locked = true, wanted = true, phase = Phase.LISTENING))
-        assertFalse(LockHandle.shouldShow(locked = true, wanted = true, phase = Phase.WORKING))
+        assertFalse(show(phase = Phase.LISTENING))
+        assertFalse(show(phase = Phase.WORKING))
     }
 }

@@ -41,9 +41,19 @@ class LockHandle(private val svc: AccessibilityService) {
     companion object {
         private const val TAG = "OpenWisprA11y"
 
-        /** Whether the tab belongs on screen now. Pure, for the unit test. */
-        fun shouldShow(locked: Boolean, wanted: Boolean, phase: DictationStatus.Phase): Boolean =
-            locked && wanted &&
+        /**
+         * Whether the tab belongs on screen now. Pure, for the unit test. [unlocked]: the user
+         * has unlocked since the screen last went off (USER_PRESENT), which wins over
+         * [keyguardLocked] — on the phone (build-160) the tab stayed up after unlocking, the
+         * keyguard most likely still reading locked while it animated away.
+         */
+        fun shouldShow(
+            keyguardLocked: Boolean,
+            unlocked: Boolean,
+            wanted: Boolean,
+            phase: DictationStatus.Phase,
+        ): Boolean =
+            keyguardLocked && !unlocked && wanted &&
                 phase != DictationStatus.Phase.LISTENING && phase != DictationStatus.Phase.WORKING
     }
 
@@ -54,10 +64,28 @@ class LockHandle(private val svc: AccessibilityService) {
     private var view: BubbleView? = null
     private var params: WindowManager.LayoutParams? = null
 
+    /** USER_PRESENT came since the last SCREEN_OFF; see [shouldShow]. Main thread. */
+    private var unlocked = false
+
     // The keyguard has no lock-state callback an app may use, so re-check on every screen
     // event: with a lock delay the keyguard is not up yet at SCREEN_OFF, but is at SCREEN_ON.
     private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = refresh()
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> unlocked = false
+                Intent.ACTION_USER_PRESENT -> unlocked = true
+            }
+            Log.i(TAG, "lock handle: ${intent.action?.substringAfterLast('.')} keyguard=${keyguard?.isKeyguardLocked}")
+            apply()
+        }
+    }
+
+    /**
+     * A window came or went (from the accessibility service). While the tab is up this
+     * re-checks the keyguard, in case USER_PRESENT never came or came too early. Main thread.
+     */
+    fun onWindowsChanged() {
+        if (view != null) apply()
     }
 
     fun start() {
@@ -91,7 +119,7 @@ class LockHandle(private val svc: AccessibilityService) {
     private fun apply() {
         val bubble = BubbleService.instance
         val locked = keyguard?.isKeyguardLocked == true
-        if (bubble != null && shouldShow(locked, bubble.lockHandleWanted, DictationStatus.phase.value)) {
+        if (bubble != null && shouldShow(locked, unlocked, bubble.lockHandleWanted, DictationStatus.phase.value)) {
             show(bubble)
         } else {
             remove()
