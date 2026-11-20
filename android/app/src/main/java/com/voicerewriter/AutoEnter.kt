@@ -94,8 +94,11 @@ object AutoEnter {
      * Whether a button with vertical extent [top]..[bottom] sits beside a field spanning
      * [fieldTop]..[fieldBottom]: on its row or the toolbar row just under or over it, within
      * [reach] px. Keeps a message in the conversation above from passing for the send button.
+     * [placeless]: a button off screen that reports no bounds, which only the search inside the
+     * field's own composer looks at — taken as beside it.
      */
-    fun besideField(top: Int, bottom: Int, fieldTop: Int, fieldBottom: Int, reach: Int): Boolean {
+    fun besideField(top: Int, bottom: Int, fieldTop: Int, fieldBottom: Int, reach: Int, placeless: Boolean = false): Boolean {
+        if (placeless) return true
         val cy = (top + bottom) / 2
         return cy >= fieldTop - reach && cy <= fieldBottom + reach
     }

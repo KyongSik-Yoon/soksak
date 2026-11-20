@@ -102,6 +102,11 @@ class AutoEnterTest {
         assertFalse(AutoEnter.besideField(1400, 1500, 1800, 1900, 200))
     }
 
+    @Test fun `an off-screen button with no bounds counts as beside the field`() {
+        assertTrue(AutoEnter.besideField(0, 0, 1800, 1900, 200, placeless = true))
+        assertFalse(AutoEnter.besideField(0, 0, 1800, 1900, 200))
+    }
+
     @Test fun `editor actions through the input connection`() {
         assertEquals(EditorInfo.IME_ACTION_SEND, AutoEnter.editorActionFor(EditorInfo.IME_ACTION_SEND))
         assertEquals(EditorInfo.IME_ACTION_SEARCH, AutoEnter.editorActionFor(EditorInfo.IME_ACTION_SEARCH))

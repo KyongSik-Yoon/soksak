@@ -43,6 +43,10 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         private const val SEND_SEARCH_LEVELS = 8
         private const val SEND_SEARCH_NEAR = 600
         private const val SEND_SEARCH_WINDOW = 3000
+        /** Ancestors of the field searched for a send button scrolled out of view (the composer box). */
+        private const val SEND_SEARCH_HIDDEN_LEVELS = 3
+        /** After asking the page to scroll a send button into view, before tapping it. */
+        private const val SHOW_SETTLE_MS = 400L
 
         /** "MM-dd HH:mm · why" for the last dictation that ended on the clipboard, or null. */
         fun lastFallback(context: Context): String? =
@@ -450,7 +454,10 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             if (n.isEditable && n.isVisibleToUser && n.isEnabled && !n.isPassword) { fields += n; continue }
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
         }
-        val pick = AutoEnter.pickField(fields.size) { findSendButton(fields[it], root) != null }
+        val pick = AutoEnter.pickField(fields.size) {
+            val fb = android.graphics.Rect().also { r -> fields[it].getBoundsInScreen(r) }
+            (findSendButton(fields[it], root, fb) ?: trailingUnnamedButton(fields[it], fb)) != null
+        }
         Log.i(TAG, "fields on screen in $pkg: ${fields.size}, picked ${pick?.index} enter=${pick?.enter}")
         if (pick == null) {
             lastAttempt = if (fields.isEmpty()) "no field on screen in $pkg" else "${fields.size} fields on screen in $pkg, none clearly the one"
@@ -681,7 +688,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     /** Click the send button nearest [field] in its window. [restore]: field text to put back first. */
     private fun clickSendButton(field: AccessibilityNodeInfo, restore: String?): Boolean {
         val root = field.window?.root ?: rootInActiveWindow ?: return false
-        val (btn, label) = findSendButton(field, root) ?: run {
+        val fb = android.graphics.Rect().also { field.getBoundsInScreen(it) }
+        val found = findSendButton(field, root, fb)
+        val hidden = if (found == null) hiddenSendButton(field, fb) else null
+        val offscreen = hidden != null
+        val (btn, label) = found ?: hidden ?: trailingUnnamedButton(field, fb) ?: run {
             Log.i(TAG, "auto Enter: no send button found; beside the field: ${buttonsNear(field)}")
             return false
         }
@@ -691,7 +702,28 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             }
             field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         }
-        if (inWebContent(btn) && tapCenter(btn)) {
+        if (offscreen) {
+            // agent world with a picture attached: the grown field reached the keyboard and pushed
+            // its Send row under it (2026-11-20, user log). Scroll it into view, then press it.
+            val shown = btn.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+            Log.i(TAG, "auto Enter: send button \"$label\" is off screen ${boundsOf(btn)}; show on screen=$shown")
+            enterHandler.postDelayed({
+                if (enterCancelled) { Log.i(TAG, "auto Enter: cancelled while scrolling to the send button"); return@postDelayed }
+                val visible = btn.refresh() && btn.isVisibleToUser
+                Log.i(TAG, "auto Enter: after scrolling, send button visible=$visible ${boundsOf(btn)}")
+                pressSendButton(btn, label, tap = visible)
+            }, SHOW_SETTLE_MS)
+            return true
+        }
+        return pressSendButton(btn, label, tap = true)
+    }
+
+    /**
+     * A real tap on a web page's button ([inWebContent]) when [tap] allows it (the button is on
+     * screen), otherwise an accessibility click.
+     */
+    private fun pressSendButton(btn: AccessibilityNodeInfo, label: String, tap: Boolean): Boolean {
+        if (tap && inWebContent(btn) && tapCenter(btn)) {
             Log.i(TAG, "auto Enter: send button \"$label\" tapped")
             return true
         }
@@ -726,12 +758,16 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         if (b.isEmpty) return false
         val x = b.exactCenterX()
         val y = b.exactCenterY()
-        val ours = try { windows } catch (_: Exception) { null }.orEmpty().any { w ->
-            val r = w.root
-            val mine = r?.packageName == packageName
-            mine && android.graphics.Rect().also { w.getBoundsInScreen(it) }.contains(x.toInt(), y.toInt())
+        val over = try { windows } catch (_: Exception) { null }.orEmpty().filter { w ->
+            android.graphics.Rect().also { w.getBoundsInScreen(it) }.contains(x.toInt(), y.toInt())
         }
-        if (ours) { Log.i(TAG, "auto Enter: the bubble covers the send button, clicking instead"); return false }
+        if (over.any { it.root?.packageName == packageName }) {
+            Log.i(TAG, "auto Enter: the bubble covers the send button, clicking instead"); return false
+        }
+        // A tap there would type on the keyboard instead.
+        if (over.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }) {
+            Log.i(TAG, "auto Enter: the keyboard covers the send button, clicking instead"); return false
+        }
         val path = android.graphics.Path().apply { moveTo(x, y) }
         val gesture = android.accessibilityservice.GestureDescription.Builder()
             .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60))
@@ -739,11 +775,14 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         return try { dispatchGesture(gesture, null, null) } catch (e: Exception) { Log.w(TAG, "tap failed", e); false }
     }
 
-    /** The send button nearest [field] under [root], with its label; null when there is none. */
-    private fun findSendButton(field: AccessibilityNodeInfo, root: AccessibilityNodeInfo): Pair<AccessibilityNodeInfo, String>? {
-        val fb = android.graphics.Rect().also { field.getBoundsInScreen(it) }
-        // A toolbar row under or over the field (Claude's composer) is within reach; the chat isn't.
-        val reach = (72 * resources.displayMetrics.density).toInt()
+    /** A toolbar row under or over the field (Claude's composer) is within reach; the chat isn't. */
+    private fun sendReach(): Int = (72 * resources.displayMetrics.density).toInt()
+
+    /** The visible send button nearest [field] (bounds [fb]) under [root], with its label; null when there is none. */
+    private fun findSendButton(
+        field: AccessibilityNodeInfo, root: AccessibilityNodeInfo, fb: android.graphics.Rect,
+    ): Pair<AccessibilityNodeInfo, String>? {
+        val reach = sendReach()
         // The composer around the field first, nearest ancestor out: a whole-window scan has a node
         // budget, and a long conversation above the composer may spend it before the button.
         var anc = field.parent
@@ -758,7 +797,22 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         val (found, full) = sendButtonUnder(root, fb, reach, SEND_SEARCH_WINDOW)
         if (found != null) return found
         if (full) Log.i(TAG, "auto Enter: send button scan hit its node limit")
-        return trailingUnnamedButton(field, fb)
+        return null
+    }
+
+    /**
+     * A send button in the field's own composer (a few ancestors up) that is not on screen: scrolled
+     * away, or under the keyboard. Only that close, since pressing it means scrolling the page.
+     */
+    private fun hiddenSendButton(field: AccessibilityNodeInfo, fb: android.graphics.Rect): Pair<AccessibilityNodeInfo, String>? {
+        val reach = sendReach()
+        var anc = field.parent
+        repeat(SEND_SEARCH_HIDDEN_LEVELS) {
+            val a = anc ?: return null
+            sendButtonUnder(a, fb, reach, SEND_SEARCH_NEAR, hidden = true).first?.let { return it }
+            anc = a.parent
+        }
+        return null
     }
 
     /**
@@ -799,9 +853,12 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         return null
     }
 
-    /** The send button under [top] nearest the field [fb]; and whether [limit] nodes ran out first. */
+    /**
+     * The send button under [top] nearest the field [fb]; and whether [limit] nodes ran out first.
+     * [hidden]: only buttons not visible to the user, which may have no place on screen at all.
+     */
     private fun sendButtonUnder(
-        top: AccessibilityNodeInfo, fb: android.graphics.Rect, reach: Int, limit: Int,
+        top: AccessibilityNodeInfo, fb: android.graphics.Rect, reach: Int, limit: Int, hidden: Boolean = false,
     ): Pair<Pair<AccessibilityNodeInfo, String>?, Boolean> {
         var best: AccessibilityNodeInfo? = null
         var bestLabel = ""
@@ -812,14 +869,14 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             val n = queue.removeFirst()
             seen++
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
-            if (n.isEditable || !n.isVisibleToUser || !n.isEnabled) continue
+            if (n.isEditable || n.isVisibleToUser == hidden || !n.isEnabled) continue
             val isButton = n.className?.toString()?.endsWith("Button") == true
             val label = nameOf(n, isButton)
             if (!AutoEnter.isSendButton(label, n.viewIdResourceName)) continue
             // A web button need not say it is clickable to take a click (Chrome decides that itself).
             val target = clickableSelfOrParent(n) ?: n.takeIf { isButton } ?: continue
             val b = android.graphics.Rect().also { target.getBoundsInScreen(it) }
-            if (!AutoEnter.besideField(b.top, b.bottom, fb.top, fb.bottom, reach)) continue
+            if (!AutoEnter.besideField(b.top, b.bottom, fb.top, fb.bottom, reach, placeless = hidden && b.isEmpty)) continue
             val dx = (b.centerX() - fb.centerX()).toLong()
             val dy = (b.centerY() - fb.centerY()).toLong()
             val d = dx * dx + dy * dy
