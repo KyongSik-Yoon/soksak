@@ -112,6 +112,8 @@
   마이크를 못 잡은 경우만 화면이 뜬 뒤 한 번 재시도(`widgetTakeFromScreen`).
   위젯 클릭은 백그라운드 FGS 시작이 허용돼 버블이 꺼져 있어도 서비스를 띄운다. 잠금화면(One UI)에 올려 쓰고 있다.
   앱을 업데이트하면 잠금화면 위젯이 "위젯 정보를 불러오는 중"에 멈춰 매번 다시 등록해야 했다 → `DictateWidget.refreshAll`이 패키지 교체·부팅(`BootReceiver`)·버블 서비스 시작·앱 열기 때 RemoteViews를 다시 보낸다(2026-11-11, build-124·125 업데이트에서 사용자 확인: 멈추지 않음). 멈춘 정확한 원인은 로그로 확인하지 못했다.
+- 잠금화면 핸들(`LockHandle.kt`, 2026-11-20 사용자 아이디어): 버블이 항상 보이는 상태(`gateFor` false)이고 PC 연동(`PcLink.configured`)이 있으면, 잠금 중에 버블의 숨은 탭과 같은 모양·자리(쪽·높이)의 탭을 띄우고 한 번 탭하면 위젯과 똑같이 받아쓴다(`BubbleService.dictateFromWidget`). 끌기·시스템이 가져간 제스처는 무시, 받아쓰는 동안(LISTENING/WORKING)은 숨김, 잠금 해제(USER_PRESENT)면 없앤다.
+  버블 창(`TYPE_APPLICATION_OVERLAY`)은 잠금화면 아래에 그려져서 접근성 서비스가 `TYPE_ACCESSIBILITY_OVERLAY` 창으로 따로 띄운다 — 이 창 종류는 그 서비스의 WindowManager로만 붙일 수 있어 서비스가 소유한다. 잠금 상태 콜백이 앱에 없어 SCREEN_ON/OFF·USER_PRESENT마다 `isKeyguardLocked`를 다시 본다. 로그 `lock handle shown/removed/tapped`(태그 `OpenWisprA11y`).
 - 모델 전환: 버블을 **길게 누르거나**(450ms 움직임 없이, `LONG_PRESS_MS`; 손이 닿은 채로 메뉴가 뜨고 떼면 아무것도 안 함. 녹음 중에는 메뉴 없이 뗄 때 탭=중지, 변환 중·결과 표시 중에는 아무것도 안 함) 버블을 **위로 휙 밀면**(250ms 안에 36dp 이상, 수직 위주; `isFlickUp`) `ModelPicker.kt` 오버레이 메뉴가 뜬다
   (FLAG_NOT_FOCUSABLE이라 대상 앱 포커스 유지, 바깥 터치·6초 무동작이면 닫힘). 위쪽은 설정 행(선 아이콘 `ic_menu_*` + 이름 + 현재 값, 이모지·글자 배지는 쓰지 않음), 구분선 아래가 모델 목록. 고르면 `sttModel` 저장 + 백그라운드 warm.
   길게 누르기는 원래 누르는 동안 녹음(hold-to-talk)이었는데, 조금 오래 누르면 의도치 않게 녹음이 시작돼 2026-11-17 없앴다(사용자 요청). 받아쓰기는 탭으로 시작·중지만 한다.

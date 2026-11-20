@@ -78,6 +78,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         /** True when the user has enabled the service in Accessibility settings. */
         val isEnabled: Boolean get() = instance != null
 
+        /** Re-decide the lock-screen tab ([LockHandle]); any thread, no-op without the service. */
+        fun refreshLockHandle() {
+            instance?.lockHandle?.refresh()
+        }
+
         /**
          * Stage [text] on the clipboard and insert it into the host app's focused
          * field as soon as that app is back in front. Returns true if the service
@@ -147,10 +152,14 @@ class OpenWisprAccessibilityService : AccessibilityService() {
      */
     private var lastEditable: AccessibilityNodeInfo? = null
 
+    /** The bubble's tab on the lock screen; owned here because only this service may draw there. */
+    private var lockHandle: LockHandle? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         Log.i(TAG, "service connected")
+        lockHandle = LockHandle(this).also { it.start() }
         // Now that focus detection is available, let the bubble switch to its
         // "only show on text fields" behavior (it starts always-visible without us).
         BubbleService.instance?.refreshGating()
@@ -272,6 +281,8 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         main.removeCallbacks(fieldCheck)
+        lockHandle?.stop()
+        lockHandle = null
         if (instance === this) instance = null
         // Service gone — focus detection is impossible, so let the bubble show always.
         BubbleService.instance?.refreshGating()

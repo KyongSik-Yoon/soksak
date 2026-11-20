@@ -171,9 +171,8 @@ class BubbleService : Service() {
         super.onCreate()
         enterForeground()
         DictateWidget.refreshAll(this)
-        gateSetting = try {
-            runBlocking { gateFor(SettingsRepository(applicationContext).get()) }
-        } catch (_: Exception) { true }
+        gateSetting = true // if the read fails
+        readGateSettings() // its lock-tab refresh is posted, so it runs once instance is set
         addBubble()
         watchModelBadge()
         isRunning = true
@@ -316,7 +315,13 @@ class BubbleService : Service() {
         // The dictation widget: like tapping the bubble (start, or stop the running take), but
         // with the widget's own settings (widgetTake) and, since it is used on the lock screen
         // where the bubble says nothing, a full-screen view of the take.
-        if (intent?.action == ACTION_DICTATE) mainHandler.post {
+        if (intent?.action == ACTION_DICTATE) dictateFromWidget()
+        return START_STICKY
+    }
+
+    /** A widget tap, or a tap on the lock-screen tab ([LockHandle]). Any thread. */
+    fun dictateFromWidget() {
+        mainHandler.post {
             val starting = recordingStopper == null && !HeadlessDictation.active
             // The last take's result may still be up; the screen reads IDLE as "not started yet".
             if (starting) DictationStatus.phase.value = DictationStatus.Phase.IDLE
@@ -325,7 +330,35 @@ class BubbleService : Service() {
                 startActivity(Intent(this, LockDictationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
-        return START_STICKY
+    }
+
+    /**
+     * Whether the lock screen gets the tucked tab ([LockHandle]): the bubble is always shown
+     * (so the user knows the tab) and the PC link is set up, since a lock-screen take goes to
+     * the PC like a widget take.
+     */
+    @Volatile
+    var lockHandleWanted = false
+        private set
+
+    class LockPlace(val left: Boolean, val y: Int, val height: Int, val dark: Boolean)
+
+    /** Where the bubble's own tab sits, so the lock-screen one matches it. */
+    fun lockHandlePlace(): LockPlace = LockPlace(
+        left = dockedLeft,
+        y = if (::params.isInitialized) params.y else dp(200f),
+        height = windowH(),
+        dark = isNightMode(),
+    )
+
+    /** Re-reads the settings that decide the bubble's gate and the lock-screen tab. */
+    private fun readGateSettings() {
+        try {
+            val s = runBlocking { SettingsRepository(applicationContext).get() }
+            gateSetting = gateFor(s)
+            lockHandleWanted = !gateSetting && PcLink.configured(s)
+        } catch (_: Exception) {}
+        OpenWisprAccessibilityService.refreshLockHandle()
     }
 
     /**
@@ -1336,9 +1369,7 @@ class BubbleService : Service() {
 
     /** Re-read the gating preference and apply (e.g. after accessibility connects). */
     fun refreshGating() {
-        gateSetting = try {
-            runBlocking { gateFor(SettingsRepository(applicationContext).get()) }
-        } catch (_: Exception) { gateSetting }
+        readGateSettings()
         mainHandler.post {
             if (gateActive()) untuck() // gated bubbles shrink instead of tucking
             applyGating(animate = true)
@@ -1472,6 +1503,7 @@ class BubbleService : Service() {
         railRight = null
         isRunning = false
         if (instance === this) instance = null
+        OpenWisprAccessibilityService.refreshLockHandle() // no bubble, no lock-screen tab
     }
 }
 
