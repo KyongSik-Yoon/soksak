@@ -55,6 +55,24 @@ class LockHandle(private val svc: AccessibilityService) {
         ): Boolean =
             keyguardLocked && !unlocked && wanted &&
                 phase != DictationStatus.Phase.LISTENING && phase != DictationStatus.Phase.WORKING
+
+        /** Heights the tab takes in turn, each side of the bubble's own: [SHIFT_SLOTS] of them. */
+        const val SHIFT_SLOTS = 9
+        const val SHIFT_STEP_DP = 16f
+
+        /**
+         * How far (in [SHIFT_STEP_DP] steps, -4..4) the tab sits from the bubble's height after
+         * the screen has gone off [screenOffs] times. The tab stays lit on the always-on
+         * display, so it must not sit on the same pixels for months (OLED burn-in). A timer
+         * would not tick there — the CPU sleeps — so it moves once per screen-off instead; wear
+         * adds up per pixel either way. The range is twice the 64dp tab, since a few pixels
+         * would only soften its edges. Strides of 4 so two nights in a row are far apart.
+         */
+        fun shiftSlot(screenOffs: Int): Int = Math.floorMod(screenOffs * 4 + 4, SHIFT_SLOTS) - 4
+
+        /** The window's top with the shift, kept on the screen. */
+        fun shiftedY(y: Int, slot: Int, stepPx: Int, height: Int, screenHeight: Int): Int =
+            (y + slot * stepPx).coerceIn(0, (screenHeight - height).coerceAtLeast(0))
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -67,12 +85,15 @@ class LockHandle(private val svc: AccessibilityService) {
     /** USER_PRESENT came since the last SCREEN_OFF; see [shouldShow]. Main thread. */
     private var unlocked = false
 
+    /** Screen-offs so far, for [shiftSlot]. Main thread. */
+    private var screenOffs = 0
+
     // The keyguard has no lock-state callback an app may use, so re-check on every screen
     // event: with a lock delay the keyguard is not up yet at SCREEN_OFF, but is at SCREEN_ON.
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_OFF -> unlocked = false
+                Intent.ACTION_SCREEN_OFF -> { unlocked = false; screenOffs++ }
                 Intent.ACTION_USER_PRESENT -> unlocked = true
             }
             Log.i(TAG, "lock handle: ${intent.action?.substringAfterLast('.')} keyguard=${keyguard?.isKeyguardLocked}")
@@ -132,14 +153,21 @@ class LockHandle(private val svc: AccessibilityService) {
         val place = bubble.lockHandlePlace()
         val w = dp(BubbleView.TUCKED_W_DP)
         val x = if (place.left) 0 else svc.resources.displayMetrics.widthPixels - w
+        // Kept through the lit lock screen too: the tab must not jump as the screen wakes
+        // under a finger already on its way.
+        val y = shiftedY(
+            place.y, shiftSlot(screenOffs), dp(SHIFT_STEP_DP), place.height,
+            svc.resources.displayMetrics.heightPixels,
+        )
         val existing = view
         val p = params
         if (existing != null && p != null) {
             existing.dockedLeft = place.left
             existing.dark = place.dark
-            if (p.x != x || p.y != place.y || p.height != place.height) {
-                p.x = x; p.y = place.y; p.height = place.height
+            if (p.x != x || p.y != y || p.height != place.height) {
+                p.x = x; p.y = y; p.height = place.height
                 runCatching { wm.updateViewLayout(existing, p) }
+                Log.i(TAG, "lock handle moved (y=$y, bubble y=${place.y})")
             }
             return
         }
@@ -159,14 +187,14 @@ class LockHandle(private val svc: AccessibilityService) {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             this.x = x
-            y = place.y
+            this.y = y
         }
         attachTouch(v)
         try {
             wm.addView(v, lp)
             view = v
             params = lp
-            Log.i(TAG, "lock handle shown (left=${place.left} y=${place.y})")
+            Log.i(TAG, "lock handle shown (left=${place.left} y=$y, bubble y=${place.y})")
         } catch (e: Exception) {
             Log.w(TAG, "lock handle not added", e)
         }
