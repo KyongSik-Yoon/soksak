@@ -98,6 +98,7 @@
   한글에는 Soundex 가산점을 주지 않는다.
 - 환각 거르기(`textproc/HallucinationFilter.kt`, 모든 Whisper 결과): 거의 빈 클립에서 Whisper가 프롬프트(Style example·단어장)
   끝을 그대로 내거나 "이 시각 세계였습니다" 같은 방송 상투구를 낸다 → 프롬프트 조각(6자 이상)이면 버리고 상투구 문장은 지운다.
+- 반복 붕괴(`textproc/RepetitionLoop.kt`, NPU만, 2026-11-22): sherpa QNN 디코더는 탐욕 디코드라 한 번 반복에 빠지면 토큰 한도까지 같은 말을 쓰고 뒤 문장을 잃는다(Turbo NPU "이제, 이제, …"). 창의 글이 반복으로 **끝나면**(단어·구 5번 이상 — 문장 중간의 반복은 실제 말일 수 있어 안 건드림) 그 창을 둘로 나눠 다시 디코드하고(`LocalSherpaStt.transcribe`), 남은 반복은 한 번만 남기고 자른다. CPU(whisper.cpp)는 자체 폴백이 있어 적용 안 함.
 - 모델 비교: 설정 → Compare models (`CompareActivity.kt`), 저장된 녹음(`PendingAudio`)을 모든 모델로 재실행.
 
 ## 녹음·입력 구조
