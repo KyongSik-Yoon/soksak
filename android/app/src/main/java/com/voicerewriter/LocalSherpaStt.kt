@@ -9,6 +9,7 @@ import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.k2fsa.sherpa.onnx.QnnConfig
 import com.voicerewriter.textproc.HallucinationFilter
+import com.voicerewriter.textproc.RepetitionLoop
 import com.whispercpp.whisper.WhisperCpuConfig
 import java.io.BufferedInputStream
 import java.io.File
@@ -49,6 +50,9 @@ object LocalSherpaStt {
     /** The input is fixed at 30s, which at 6 tokens/s allows 180 tokens: the start and hint tokens, then 14s at [QNN_TOKENS_PER_S]. */
     internal const val QNN_WINDOW_S = 14.0
     private const val QNN_MIN_WINDOW_S = 9.0
+
+    /** A window that ended in a [RepetitionLoop] is decoded again in two halves, unless shorter than this. */
+    private const val LOOP_SPLIT_MIN_S = 2.0
 
     /**
      * `<|startofprev|> 네, 알겠어.` decoded before the start sequence. Without it Medium writes whole
@@ -204,19 +208,36 @@ object LocalSherpaStt {
                 // Silero doesn't hear whispers, so Quiet mode judges silence by loudness instead.
                 val dropEchoes = hint.isNotEmpty()
                 val partLog = ArrayList<String>(parts.size)
-                val text = parts.mapNotNull { r ->
+                fun decode(part: FloatArray): String {
                     val stream = rec.createStream()
                     try {
-                        val part = if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1)
                         stream.acceptWaveform(if (qnn) paddedForTokenBudget(part, hintTokens = hint.size) else part, 16_000)
                         val d0 = System.nanoTime()
                         rec.decode(stream)
                         val result = rec.getResult(stream)
                         partLog += "${(System.nanoTime() - d0) / 1_000_000}ms/${result.tokens.size}tok"
-                        clean(result.text).takeUnless { it.isEmpty() || dropEchoes && isHintEcho(it) && !hasSpeech(context, part, settings.quietMode) }
+                        return clean(result.text)
                     } finally {
                         stream.release()
                     }
+                }
+                val text = parts.mapNotNull { r ->
+                    val part = if (r.first == 0 && r.last == samples.size - 1) samples else samples.copyOfRange(r.first, r.last + 1)
+                    var out = decode(part)
+                    if (RepetitionLoop.start(out) >= 0) {
+                        // The decoder is greedy and nothing stops it once it loops; what was said
+                        // after that point is not in the text. Each half decoded on its own starts
+                        // without the context that led into the loop.
+                        Log.w(TAG, "window of ${part.size / 16_000.0}s ended in a repetition loop (${out.length} chars), decoding it in halves")
+                        partLog += "loop"
+                        val again = if (part.size >= LOOP_SPLIT_MIN_S * 16_000) {
+                            val cut = quietest(part, part.size * 3 / 10, part.size * 7 / 10)
+                            listOf(part.copyOfRange(0, cut), part.copyOfRange(cut, part.size))
+                                .map { RepetitionLoop.cut(decode(it)) }.filter { it.isNotEmpty() }.joinToString(" ")
+                        } else ""
+                        out = again.ifEmpty { RepetitionLoop.cut(out) }
+                    }
+                    out.takeUnless { it.isEmpty() || dropEchoes && isHintEcho(it) && !hasSpeech(context, part, settings.quietMode) }
                 }.joinToString(" ")
                 Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s, load ${loadMs}ms, decode $partLog -> ${text.length} chars")
                 // Whisper on silence recites stock TV/YouTube lines.
@@ -244,25 +265,31 @@ object LocalSherpaStt {
     internal fun windows(samples: FloatArray, sr: Int = 16_000): List<IntRange> {
         val max = (QNN_WINDOW_S * sr).toInt()
         val min = (QNN_MIN_WINDOW_S * sr).toInt()
-        val win = sr / 5
-        val hop = sr / 50
         val out = mutableListOf<IntRange>()
         var start = 0
         while (samples.size - start > max) {
-            var best = start + max
-            var bestE = Double.MAX_VALUE
-            var p = start + min
-            while (p + win <= start + max) {
-                var e = 0.0
-                for (i in p until p + win) e += samples[i] * samples[i]
-                if (e < bestE) { bestE = e; best = p + win / 2 }
-                p += hop
-            }
+            val best = quietest(samples, start + min, start + max, sr)
             out += start until best
             start = best
         }
         out += start until samples.size
         return out
+    }
+
+    /** The middle of the quietest 0.2s of [samples] between [from] and [to]; [to] when there is no room. */
+    internal fun quietest(samples: FloatArray, from: Int, to: Int, sr: Int = 16_000): Int {
+        val win = sr / 5
+        val hop = sr / 50
+        var best = to
+        var bestE = Double.MAX_VALUE
+        var p = from
+        while (p + win <= to) {
+            var e = 0.0
+            for (i in p until p + win) e += samples[i] * samples[i]
+            if (e < bestE) { bestE = e; best = p + win / 2 }
+            p += hop
+        }
+        return best
     }
 
     /** [text] is only what the hint produces on a window with no voice ("네." is also a real answer, so check the audio). */
