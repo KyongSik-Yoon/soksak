@@ -664,6 +664,7 @@ class BubbleService : Service() {
                             moved = true
                             mainHandler.removeCallbacks(longPress)
                             morph?.cancel() // a drag beats an in-flight snap
+                            slideIn?.cancel() // and puts the disc under the finger
                             // Picked up: lift it, and show the rails it can be dropped onto.
                             if (view.state == BubbleView.State.IDLE) {
                                 view.state = BubbleView.State.LIFTED
@@ -806,6 +807,9 @@ class BubbleService : Service() {
     /** The idle disc is sliding off toward [BubbleView.State.TUCKED]; cleared to call it off. */
     private var tucking = false
 
+    /** The disc sliding in from the edge inside its window; see [untuck]. */
+    private var slideIn: ValueAnimator? = null
+
     /**
      * Slide the idle disc off the docked edge, then swap it for the tucked tab, whose window is
      * only the tab: the app beneath stays touchable up to the edge margin. Field-gated bubbles
@@ -815,6 +819,7 @@ class BubbleService : Service() {
         val v = bubble ?: return
         if (v.state != BubbleView.State.IDLE || tucking) return
         v.dockedLeft = dockedLeft
+        slideIn?.cancel()
         tucking = true
         animateGeometry(
             targetW = params.width,
@@ -842,11 +847,31 @@ class BubbleService : Service() {
         tucking = false
         morph?.cancel()
         if (tucked) {
+            // The window goes straight to its resting place and the disc slides in inside it.
+            // Sliding the window in from past the edge (as [tuck] slides it out) showed nothing
+            // on the phone: the tab vanished and the disc was just there (2026-11-22, user) —
+            // the window is resized in the same step, and its first frame at the new size
+            // lands after most of the travel. Drawing the travel ourselves has no such race.
+            // The window's padding reaches past the screen edge, so nothing is clipped.
             v.state = BubbleView.State.IDLE
-            params.width = windowW(BubbleView.State.IDLE)
-            params.x = offscreenX()
-            runCatching { wm.updateViewLayout(v, params) }
+            redock(animate = false)
+            slideIn?.cancel()
+            v.translationX = (offscreenX() - restingX(BubbleView.State.IDLE)).toFloat()
+            slideIn = ValueAnimator.ofFloat(v.translationX, 0f).apply {
+                duration = MORPH_MS
+                interpolator = PathInterpolator(0.3f, 0.7f, 0.2f, 1f)
+                addUpdateListener { a -> v.translationX = a.animatedValue as Float }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    // Also when cancelled: never left part-way off the edge.
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        v.translationX = 0f
+                    }
+                })
+                start()
+            }
+            return true
         }
+        // Caught part-way out: the window itself is mid-slide, so it slides back.
         // No countdown here: the touch that popped it restarts one on release, and so does
         // [applyGating] when the gate turned on.
         redock(animate = true)
@@ -1488,6 +1513,7 @@ class BubbleService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         morph?.cancel()
+        slideIn?.cancel()
         morph = null
         picker?.dismiss()
         picker = null
