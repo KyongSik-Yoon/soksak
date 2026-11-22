@@ -42,6 +42,20 @@ class StreamingWhisper(
          * weakest whispers, and a missed stretch must not pass for a pause and split a word.
          */
         const val QUIET_PAUSE_S = 0.7
+
+        /**
+         * Quiet mode takes a shorter pause the longer a piece has been waiting for one: 0.7s was
+         * never found inside 28s of whispering read aloud (phone log, build-166), where spoken
+         * takes cut every 5-9s. Past [RELAX_2_S] the piece is close to the NPU's 14s window,
+         * which is cut at its quietest 0.2s whatever happens, so a 0.3s gap loses nothing.
+         */
+        const val RELAX_1_S = 8.0
+        const val RELAX_1_PAUSE_S = 0.5
+        const val RELAX_2_S = 11.0
+        const val RELAX_2_PAUSE_S = 0.3
+
+        /** Frames in a row before a sound counts as whispering (0.1s), as the auto-stop asks: a click or a breath is not a word and must not end a pause. */
+        const val QUIET_SPEECH_RUN = 5
         const val MIN_PIECE_S = 5.0
         private const val FRAME = 320 // 20ms
         private const val SR = AudioRecorder.SAMPLE_RATE
@@ -67,6 +81,20 @@ class StreamingWhisper(
             return minOf(rawEnd, (last + 1) * FRAME + (TAIL_MARGIN_S * SR).toInt())
         }
 
+        /** How many pauses of each length a quiet-mode take had, for tuning the cut rule from a phone log. */
+        internal fun pauseStats(flags: List<Float>): String {
+            val edges = listOf(0.2, 0.3, 0.5, 0.7, 1.0)
+            val counts = IntArray(edges.size)
+            var run = 0
+            var speech = 0
+            fun close() { val s = run * FRAME / SR.toDouble(); edges.forEachIndexed { k, e -> if (s >= e) counts[k]++ }; run = 0 }
+            for (f in flags) if (f < 0.5f) run++ else { speech++; close() }
+            close()
+            val total = flags.size * FRAME / SR.toDouble()
+            return "%.1fs, speech %d%%, pauses %s".format(total, if (flags.isEmpty()) 0 else speech * 100 / flags.size,
+                edges.indices.joinToString(" ") { ">=${edges[it]}s:${counts[it]}" })
+        }
+
         /** RMS of [a][from, to), normalized to 0..1. */
         internal fun rms(a: ShortArray, from: Int = 0, to: Int = a.size): Float {
             if (to <= from) return 0f
@@ -87,9 +115,10 @@ class StreamingWhisper(
          * starts (sample offset), the sample offset to cut at, or null. Quiet = 26dB under the
          * speech level heard so far.
          */
-        internal fun findCut(e: List<Float>, pieceStart: Int, fromFrame: Int, level: Float, pauseS: Double = PAUSE_S): Pair<Int, Int>? {
+        internal fun findCut(e: List<Float>, pieceStart: Int, fromFrame: Int, level: Float, pauseS: Double = PAUSE_S, relax: Boolean = false): Pair<Int, Int>? {
             val thr = maxOf(level * 0.05f, 1e-4f)
-            val need = (pauseS * SR / FRAME).toInt()
+            fun frames(s: Double) = (s * SR / FRAME).toInt()
+            val full = frames(pauseS)
             var run = 0
             // A run already in progress at fromFrame is counted from its start.
             var i = fromFrame
@@ -97,7 +126,14 @@ class StreamingWhisper(
             i = fromFrame
             while (i < e.size) {
                 run = if (e[i] < thr) run + 1 else 0
-                if (run >= need && (i - run + 1) * FRAME - pieceStart >= (MIN_PIECE_S * SR).toInt()) {
+                val len = (i - run + 1) * FRAME - pieceStart // the piece up to where this pause began
+                val need = when {
+                    !relax -> full
+                    len >= RELAX_2_S * SR -> minOf(full, frames(RELAX_2_PAUSE_S))
+                    len >= RELAX_1_S * SR -> minOf(full, frames(RELAX_1_PAUSE_S))
+                    else -> full
+                }
+                if (run >= need && len >= (MIN_PIECE_S * SR).toInt()) {
                     return (i - run / 2) * FRAME to i + 1
                 }
                 i++
@@ -114,6 +150,7 @@ class StreamingWhisper(
      * against 1.1s for a spoken take in ten pieces (phone log, 2026-11-22).
      */
     private val quiet = if (settings.quietMode) QuietSpeechDetector(Int.MAX_VALUE, Int.MAX_VALUE) else null
+    private var quietRun = 0 // speech frames in a row, for [QUIET_SPEECH_RUN]
     private val energies = ArrayList<Float>()  // touched only by scan()
     @Volatile private var currentLevel = 0f   // speech level for decode(), set by scan()
     private var pieceStart = 0      // sample where the pending piece begins
@@ -162,7 +199,8 @@ class StreamingWhisper(
             while (off + FRAME <= pcm.size) {
                 if (quiet != null) {
                     quiet.feedPcm(pcm.copyOfRange(off, off + FRAME), FRAME, have + off + FRAME)
-                    energies.add(if (quiet.lastFrameSpeech) 1f else 0f)
+                    quietRun = if (quiet.lastFrameSpeech) quietRun + 1 else 0
+                    energies.add(if (quietRun >= QUIET_SPEECH_RUN) 1f else 0f)
                 } else {
                     energies.add(rms(pcm, off, off + FRAME))
                 }
@@ -172,7 +210,7 @@ class StreamingWhisper(
         val lvl = if (quiet != null) 1f else level(energies)
         currentLevel = lvl
         while (true) {
-            val (cut, next) = findCut(energies, pieceStart, scanFrom, lvl, if (quiet != null) QUIET_PAUSE_S else PAUSE_S) ?: break
+            val (cut, next) = findCut(energies, pieceStart, scanFrom, lvl, if (quiet != null) QUIET_PAUSE_S else PAUSE_S, relax = quiet != null) ?: break
             enqueue(pieceStart until cut)
             pieces++
             pieceStart = cut
@@ -230,6 +268,7 @@ class StreamingWhisper(
         TranscribeProgress.begin(model, (queuedSamples.get() - doneSamples.get()) / SR.toFloat(), android.os.SystemClock.uptimeMillis())
         val t0 = System.nanoTime()
         worker?.join()
+        if (quiet != null) Log.i(TAG, "quiet pauses: ${pauseStats(energies)}")
         Log.i(TAG, "finished: ${pieces + 1} pieces, wait after stop ${(System.nanoTime() - t0) / 1_000_000}ms")
         if (failure != null) return null
         return texts.joinToString(" ").trim()

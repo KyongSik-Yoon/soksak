@@ -1,6 +1,7 @@
 package com.voicerewriter
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -60,5 +61,22 @@ class StreamingWhisperTest {
         val pause = speech + List(40) { 0f } + List(50) { 1f } // 0.8s
         val (cut, _) = StreamingWhisper.findCut(pause, 0, 0, 1f, StreamingWhisper.QUIET_PAUSE_S)!!
         assertTrue(cut > 6 * 16000 && cut < (6 * 50 + 40) * 320)
+    }
+
+    @Test fun quietModeTakesAShorterPauseOnceThePieceIsLong() {
+        fun take(speechS: Int, gapFrames: Int) = List(speechS * 50) { 1f } + List(gapFrames) { 0f } + List(50) { 1f }
+        fun cut(e: List<Float>) = StreamingWhisper.findCut(e, 0, 0, 1f, StreamingWhisper.QUIET_PAUSE_S, relax = true)
+        assertNull(cut(take(6, 30)))    // 0.6s after 6s: wait for a real pause
+        assertNotNull(cut(take(9, 30))) // after 9s, 0.5s will do
+        assertNull(cut(take(9, 20)))
+        assertNotNull(cut(take(12, 20))) // after 11s, 0.3s
+        // Spoken takes are untouched.
+        assertNull(StreamingWhisper.findCut(take(12, 20), 0, 0, 1f))
+    }
+
+    @Test fun pauseStatsCountsByLength() {
+        val e = List(50) { 1f } + List(40) { 0f } + List(50) { 1f } + List(12) { 0f } + List(50) { 1f }
+        val s = StreamingWhisper.pauseStats(e)
+        assertTrue(s, s.contains(">=0.2s:2") && s.contains(">=0.7s:1") && s.contains(">=1.0s:0"))
     }
 }
