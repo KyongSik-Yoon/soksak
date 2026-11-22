@@ -143,6 +143,7 @@
      녹음 전체에서 등록 목소리 창이 하나도 없으면(유사도 0.35 미만, 단독 0.25 미만) 전사하지 않는다 — 대신 버블 "Not you"(`showNotYourVoice`, 시트는 Retry 오류), 말소리 구간을 Unfinished에 저장(게이트 없이 재시도), 로그 `SpeakerGate`에 최고 유사도(`AudioRecorder.gateRejection`). 예전엔 처리 표시 없이 조용히 버려져 "가끔 인식 실패"로 보였다(2026-11-17, 사용자 보고). 원본으로 그냥 전사하는 안은 TV 소리를 막는 게이트 목적과 어긋나 사용자가 고르지 않았다.
   2) **수동 음성 분리(VoxLock v2)**(`voiceIsolation`, 기본 끔): 시끄러운 환경에서 버블 메뉴(`ModelPicker.kt`, `BubbleView.kt` 세이지 그린 배지)나 설정에서 켜면 `AudioRecorder.kt` 녹음 청크가 실시간 `VoxLockEngine.Stream`을 거쳐 타겟 음성만 분리한다. SM8850/SM8750 기기에서는 QAIRT 2.40 HTP 네이티브 백엔드(`VoxLockQnn.kt`, `libvoxlock_qnn`, `K=25` 고정 청크 FP16 컨텍스트 바이너리, `NpuLoadGuard` 보호)를 우선 사용하고, 미지원·실패 시 INT8 ONNX CPU 모델로 폴백한다.
   3) **우회·보조**: Quiet mode가 켜지면(`Settings.forDictation()`) 게이팅과 VoxLock이 모두 자동 우회된다. Android Q(API 29)+에서는 `AudioRecord`에 `MIC_DIRECTION_TOWARDS_USER` 지향성 힌트도 best-effort 적용한다.
+  조용히 말하기에서는 쉼을 `QuietSpeechDetector`의 프레임 판정으로 찾고(0.7초 `QUIET_PAUSE_S`, 꼬리는 안 자름, 2026-11-22): 전체 음량 기준으로는 방 저음 소음이 속삭임보다 커서 한 번도 안 잘리고 끝난 뒤 통째로 디코드했다(폰 로그: 39.8초 1조각·대기 6.8초 vs 일반 10조각·1.1초).
   멈추면 꼬리만 디코드(자동 중지 무음은 잘라 마지막 소리 뒤 0.4초까지, `tailEnd`). 소리 0.3초 미만 조각은 건너뜀. 조각 하나라도 실패하면 전체를 통째로 다시 디코드.
   근거: `chunk-bench.yml` — 15초 코드스위칭 CER 22.6→23.8%(동급), 30초+ 및 쉼 많은 실음성은 통째 디코드가 문장을 통째로 빠뜨림
   (45→14%), 멈춘 뒤 대기 ~20초→~3초. Retry/Compare는 여전히 통째로. 녹음 원본은 `AudioRecorder.rawCopy`.
