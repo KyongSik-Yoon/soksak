@@ -2,6 +2,7 @@ package com.voicerewriter
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StreamingWhisperTest {
@@ -49,5 +50,15 @@ class StreamingWhisperTest {
     @Test fun tailNeverRunsPastTheRecording() {
         val e = frames(3.0, 0.1f)
         assertEquals(e.size * frame, StreamingWhisper.tailEnd(e, 0, e.size * frame, 0.1f))
+    }
+
+    @Test fun quietModeCutsOnSpeechFlagsAfterALongerPause() {
+        // 1 = whisper heard, 0 = not (50 frames a second), as quiet mode fills the list.
+        val speech = List(6 * 50) { 1f }
+        val shortGap = speech + List(30) { 0f } + List(50) { 1f } // 0.6s: may be a missed whisper
+        assertNull(StreamingWhisper.findCut(shortGap, 0, 0, 1f, StreamingWhisper.QUIET_PAUSE_S))
+        val pause = speech + List(40) { 0f } + List(50) { 1f } // 0.8s
+        val (cut, _) = StreamingWhisper.findCut(pause, 0, 0, 1f, StreamingWhisper.QUIET_PAUSE_S)!!
+        assertTrue(cut > 6 * 16000 && cut < (6 * 50 + 40) * 320)
     }
 }

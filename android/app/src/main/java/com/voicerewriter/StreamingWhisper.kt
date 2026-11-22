@@ -36,6 +36,12 @@ class StreamingWhisper(
     companion object {
         private const val TAG = "StreamingWhisper"
         const val PAUSE_S = 0.5
+
+        /**
+         * Quiet mode's pause. Longer, because its speech test ([QuietSpeechDetector]) misses the
+         * weakest whispers, and a missed stretch must not pass for a pause and split a word.
+         */
+        const val QUIET_PAUSE_S = 0.7
         const val MIN_PIECE_S = 5.0
         private const val FRAME = 320 // 20ms
         private const val SR = AudioRecorder.SAMPLE_RATE
@@ -81,9 +87,9 @@ class StreamingWhisper(
          * starts (sample offset), the sample offset to cut at, or null. Quiet = 26dB under the
          * speech level heard so far.
          */
-        internal fun findCut(e: List<Float>, pieceStart: Int, fromFrame: Int, level: Float): Pair<Int, Int>? {
+        internal fun findCut(e: List<Float>, pieceStart: Int, fromFrame: Int, level: Float, pauseS: Double = PAUSE_S): Pair<Int, Int>? {
             val thr = maxOf(level * 0.05f, 1e-4f)
-            val need = (PAUSE_S * SR / FRAME).toInt()
+            val need = (pauseS * SR / FRAME).toInt()
             var run = 0
             // A run already in progress at fromFrame is counted from its start.
             var i = fromFrame
@@ -100,6 +106,14 @@ class StreamingWhisper(
         }
     }
 
+    /**
+     * Quiet mode (whispering): frames are judged by [QuietSpeechDetector] and [energies] holds 1
+     * for speech, 0 for none. By plain loudness a whispered take was never cut — the room's
+     * rumble under 500 Hz is louder than the whisper, so a pause is nowhere near 26 dB down —
+     * and the whole of it was decoded after the stop: 39.8s in one piece, 6.8s of waiting,
+     * against 1.1s for a spoken take in ten pieces (phone log, 2026-11-22).
+     */
+    private val quiet = if (settings.quietMode) QuietSpeechDetector(Int.MAX_VALUE, Int.MAX_VALUE) else null
     private val energies = ArrayList<Float>()  // touched only by scan()
     @Volatile private var currentLevel = 0f   // speech level for decode(), set by scan()
     private var pieceStart = 0      // sample where the pending piece begins
@@ -145,12 +159,20 @@ class StreamingWhisper(
         if (len - have >= FRAME) {
             val pcm = recorder.gatedCopy(have, len - (len - have) % FRAME)
             var off = 0
-            while (off + FRAME <= pcm.size) { energies.add(rms(pcm, off, off + FRAME)); off += FRAME }
+            while (off + FRAME <= pcm.size) {
+                if (quiet != null) {
+                    quiet.feedPcm(pcm.copyOfRange(off, off + FRAME), FRAME, have + off + FRAME)
+                    energies.add(if (quiet.lastFrameSpeech) 1f else 0f)
+                } else {
+                    energies.add(rms(pcm, off, off + FRAME))
+                }
+                off += FRAME
+            }
         }
-        val lvl = level(energies)
+        val lvl = if (quiet != null) 1f else level(energies)
         currentLevel = lvl
         while (true) {
-            val (cut, next) = findCut(energies, pieceStart, scanFrom, lvl) ?: break
+            val (cut, next) = findCut(energies, pieceStart, scanFrom, lvl, if (quiet != null) QUIET_PAUSE_S else PAUSE_S) ?: break
             enqueue(pieceStart until cut)
             pieces++
             pieceStart = cut
@@ -163,16 +185,20 @@ class StreamingWhisper(
 
     private suspend fun decode(r: IntRange) {
         val pcm = recorder.gatedCopy(r.first, r.last + 1)
-        val lvl = currentLevel
-        var voiced = 0
-        var off = 0
-        while (off + FRAME <= pcm.size) {
-            if (rms(pcm, off, off + FRAME) > maxOf(lvl * 0.1f, 1e-4f)) voiced += FRAME
-            off += FRAME
-        }
-        if (voiced < MIN_VOICED_S * SR) return
-        val t0 = System.nanoTime()
         val samples = WavIo.toFloats(pcm)
+        if (quiet != null) {
+            if (!QuietSpeechDetector.hasSpeech(samples)) return
+        } else {
+            val lvl = currentLevel
+            var voiced = 0
+            var off = 0
+            while (off + FRAME <= pcm.size) {
+                if (rms(pcm, off, off + FRAME) > maxOf(lvl * 0.1f, 1e-4f)) voiced += FRAME
+                off += FRAME
+            }
+            if (voiced < MIN_VOICED_S * SR) return
+        }
+        val t0 = System.nanoTime()
         val text = when (WhisperModelManager.model(model).engine) {
             SpeechEngine.WHISPER -> LocalWhisperStt.transcribe(context, s, samples, bias(), previousText = texts.joinToString(" "))
             else -> LocalSherpaStt.transcribe(context, s, samples)
@@ -194,7 +220,9 @@ class StreamingWhisper(
         // The take ends with the auto-stop wait (1.6–5s of silence). Encoder time grows with clip
         // length, so decoding that silence was most of the wait after stop on Turbo, and silence
         // is where Whisper invents text. Keep a short margin after the last voiced frame.
-        val end = tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel)
+        // Quiet mode keeps the whole tail, as its recorder trims nothing: the last whispered
+        // syllables are the ones its speech test is likeliest to miss.
+        val end = if (quiet != null) recorder.rawLength() else tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel)
         if (end > pieceStart) enqueue(pieceStart until end)
         queue.close()
         // What is still to decode now that the user has stopped: the tail plus any piece queued
