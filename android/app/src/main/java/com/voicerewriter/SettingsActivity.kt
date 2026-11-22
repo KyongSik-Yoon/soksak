@@ -392,8 +392,9 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             updateStatus = try {
                 val r = AppUpdater.latest()
                 val cur = AppUpdater.installedVersionCode(context)
-                if (r.versionCode > cur) { UpdateCheck.available = r; trf("Build %s is available.", r.run) }
-                else { UpdateCheck.available = null; trf("Up to date (build %s).", r.run) }
+                UpdateCheck.offer(r, cur, prompt = false)
+                if (r.versionCode > cur) trf("Build %s is available.", r.run)
+                else trf("Up to date (build %s).", r.run)
             } catch (e: Exception) { e.message ?: tr("Check failed.") }
         }
     }
@@ -1393,7 +1394,9 @@ private fun HeroHeader(pageTitle: String? = null, onBack: (() -> Unit)? = null) 
         ) {
             if (onBack != null) Icon(Icons.Filled.ChevronLeft, tr("Back"), tint = MarkLight, modifier = Modifier.size(40.dp))
             else Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = MarkLight, modifier = Modifier.size(40.dp))
-            Text(pageTitle ?: tr("Settings"), color = MarkLight, style = Wordmark, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            // Page names are longer than "Settings": at the wordmark's 26sp "Recording & inserting"
+            // does not fit a 360dp screen.
+            Text(pageTitle ?: tr("Settings"), color = MarkLight, style = if (pageTitle != null) Wordmark.copy(fontSize = 21.sp) else Wordmark, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }

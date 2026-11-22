@@ -11,6 +11,11 @@ class I18nTest {
         }
     }
 
+    /** Page titles reach tr() through the enum, so a missing entry would not show up in a grep. */
+    @Test fun everySettingsPageHasKorean() {
+        for (p in SettingsPage.values()) assertEquals("Korean for '${p.title}'", true, I18n.KO.containsKey(p.title))
+    }
+
     @Test fun modeSwitchesLanguage() {
         val before = I18n.mode
         try {

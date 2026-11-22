@@ -23,7 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +32,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -49,6 +52,16 @@ object UpdateCheck {
     var available by mutableStateOf<AppUpdater.Release?>(null)
     /** Whether the dialog is up: opened by the check for a build not yet declined, or by the banner. */
     var promptOpen by mutableStateOf(false)
+
+    /**
+     * Record what a check found. A newer build is always kept for the banner; the dialog opens
+     * by itself only when [prompt] is set and that build was not already answered with "Later".
+     */
+    fun offer(latest: AppUpdater.Release, installedCode: Long, prompt: Boolean) {
+        if (latest.versionCode <= installedCode) { available = null; promptOpen = false; return }
+        available = latest
+        if (prompt && latest.run != dismissedRun) promptOpen = true
+    }
 
     fun due(): Boolean {
         val now = System.currentTimeMillis()
@@ -70,13 +83,18 @@ fun UpdatePrompt() {
     var progress by remember { mutableStateOf<Float?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
-        if (!UpdateCheck.due()) return@LaunchedEffect
-        val r = runCatching { AppUpdater.latest() }.getOrNull() ?: return@LaunchedEffect
-        if (r.versionCode > AppUpdater.installedVersionCode(context)) {
-            UpdateCheck.available = r
-            if (r.run != UpdateCheck.dismissedRun) UpdateCheck.promptOpen = true
+    // On every resume, not once per activity: the bubble keeps the process alive and Home is
+    // usually resumed rather than recreated, so a check tied to creation ran about once a day.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME && UpdateCheck.due()) scope.launch {
+                val r = runCatching { AppUpdater.latest() }.getOrNull() ?: return@launch
+                UpdateCheck.offer(r, AppUpdater.installedVersionCode(context), prompt = true)
+            }
         }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
     }
 
     val r = UpdateCheck.available?.takeIf { UpdateCheck.promptOpen } ?: return
