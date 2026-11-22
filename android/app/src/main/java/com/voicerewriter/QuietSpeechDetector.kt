@@ -34,6 +34,8 @@ class QuietSpeechDetector(private val hangoverSamples: Int, private val minSpeec
         const val STARTUP_SAMPLES = (0.3 * 16_000).toInt()
         /** A sound shorter than this (~0.1s) is a click, not a word. */
         const val MIN_RUN_SAMPLES = 1500
+        /** Speech stretches remembered for [summary]. */
+        const val BURSTS_KEPT = 12
 
         // 2nd-order Butterworth sections at 16 kHz: high-pass 500 Hz, low-pass 2500 Hz.
         private val HP = biquad(highPass = true, hz = 500.0)
@@ -76,6 +78,32 @@ class QuietSpeechDetector(private val hangoverSamples: Int, private val minSpeec
     private var lastSpeech = 0
     private var runSamples = 0
     private var fired = false
+
+    /** A stretch that counted as speech: where it began, how long, its loudest frame over the floor, the floor then. */
+    private class Burst(val start: Int, val samples: Int, val peakOverFloor: Float, val floor: Float)
+    private val bursts = ArrayDeque<Burst>()
+    private var burstOpen = false
+    private var runStart = 0
+    private var runPeak = 0f
+    private var runFloor = 0f
+    private var floorMin = -1f
+
+    /**
+     * What the detector saw, for the log line a take leaves when it ends at sample [end]: was
+     * a silence allowed to end it (enough speech heard), how long since the last speech, the
+     * noise floor (dBFS in the measured band, now and at its lowest), and the last
+     * [BURSTS_KEPT] stretches that counted as speech as `start+length peak-over-floor@floor`.
+     * A take that would not end shows here as short bursts after the words stopped (a sound
+     * restarting the wait) or as a floor that fell under the room.
+     */
+    fun summary(end: Int): String {
+        fun sec(samples: Int) = "%.1f".format(samples / 16_000.0)
+        fun db(v: Float) = kotlin.math.round(20 * kotlin.math.log10(maxOf(v, 1e-6f))).toInt()
+        val list = bursts.joinToString(" ") { "${sec(it.start)}+${sec(it.samples)}s ${db(it.peakOverFloor)}dB@${db(it.floor)}" }
+        return "armed=${speechSamples >= minSpeechSamples} speech=${sec(speechSamples)}s sinceSpeech=${sec(end - lastSpeech)}s " +
+            "floor=${db(floor)}dB min=${db(floorMin)}dB bursts: $list"
+    }
+
     // Filter state: x[n-1], x[n-2], y[n-1], y[n-2] for each section.
     private val hp = DoubleArray(4)
     private val lp = DoubleArray(4)
@@ -118,11 +146,21 @@ class QuietSpeechDetector(private val hangoverSamples: Int, private val minSpeec
             rms < floor -> maxOf(floor * 0.7f + rms * 0.3f, FLOOR_MIN)
             else -> floor * 0.999f + rms * 0.001f
         }
+        if (floorMin < 0f || floor < floorMin) floorMin = floor
         lastFrameSpeech = rms > floor * SPEECH_OVER_FLOOR && rms > ABS_MIN_SPEECH
+        if (lastFrameSpeech) {
+            if (runSamples == 0) { runStart = end - n; runPeak = 0f; runFloor = floor }
+            if (floor > 0f && rms / floor > runPeak) runPeak = rms / floor
+        }
         runSamples = if (lastFrameSpeech) runSamples + n else 0
         if (runSamples >= MIN_RUN_SAMPLES) {
+            if (burstOpen) bursts.removeLast() else if (bursts.size == BURSTS_KEPT) bursts.removeFirst()
+            bursts.addLast(Burst(runStart, runSamples, runPeak, runFloor))
+            burstOpen = true
             speechSamples += n
             lastSpeech = end
+        } else if (!lastFrameSpeech) {
+            burstOpen = false
         }
         if (!fired && speechSamples >= minSpeechSamples && end - lastSpeech >= hangoverSamples) {
             fired = true

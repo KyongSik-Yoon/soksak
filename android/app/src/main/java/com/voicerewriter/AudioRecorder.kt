@@ -396,6 +396,12 @@ class AudioRecorder(private val context: Context) {
             r.release()
         }
         record = null
+        // Why a whispered take did or did not end by itself, readable from a copied debug log.
+        quietDetector?.let {
+            Log.i("AudioRecorder", "quiet take: %.1fs ended=%s wait=%.1fs %s".format(
+                totalSamples / SAMPLE_RATE.toDouble(), if (autoStopFired) "auto" else "tap",
+                hangoverSamples / SAMPLE_RATE.toDouble(), it.summary(totalSamples)))
+        }
 
         val vox = voxLockStream
         voxLockStream = null

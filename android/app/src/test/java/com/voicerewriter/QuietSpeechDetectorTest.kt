@@ -127,6 +127,16 @@ class QuietSpeechDetectorTest {
         assertTrue("fired at $fired", fired != null && fired in 7.2..7.6)
     }
 
+    @Test fun summaryShowsTheSoundThatRestartedTheWait() {
+        // 1s room, 1s whisper, 1s quiet, a 0.2s noise, 1s quiet: the noise is the last burst.
+        val d = detector()
+        val levels = frames(1.0, 0.001f) + frames(1.0, 0.006f) + frames(1.0, 0.001f) + frames(0.2, 0.004f) + frames(1.0, 0.001f)
+        assertTrue(run(d, levels).isEmpty())
+        val s = d.summary(levels.size * n)
+        assertTrue(s, s.startsWith("armed=true speech=1.0s sinceSpeech=1.0s floor=-60dB min=-60dB"))
+        assertTrue(s, s.endsWith("bursts: 1.0+1.0s 16dB@-60 3.0+0.2s 12dB@-60"))
+    }
+
     @Test fun silentTakeHasNoSpeech() {
         // Room hiss with a short click: the "네." echo from such a take should be dropped.
         val room = audio(2.0 to 0.001f, 0.04 to 0.01f, 2.0 to 0.001f)
