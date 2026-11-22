@@ -35,7 +35,7 @@ object LocalWhisperStt {
     ): String {
         val id = settings.sttModel.ifBlank { WhisperModelManager.DEFAULT_MODEL }
         if (!WhisperModelManager.isReady(context, id)) {
-            throw IllegalStateException("On-device model not downloaded. Open Settings → Voice → Download model.")
+            throw IllegalStateException("On-device model not downloaded. Open Settings → Models & language.")
         }
         val seconds = samples.size / AudioRecorder.SAMPLE_RATE.toFloat()
         val t0 = System.nanoTime()

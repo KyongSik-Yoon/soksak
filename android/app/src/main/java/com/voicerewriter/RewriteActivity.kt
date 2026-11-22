@@ -503,7 +503,7 @@ class RewriteActivity : ComponentActivity() {
                 // spinner and start the moment it lands. With no download running there is
                 // nothing to wait for, so say so at once.
                 if (!WhisperModelManager.anyDownloading) {
-                    error = "On-device model not downloaded. Open Settings → Voice → Download model."
+                    error = "On-device model not downloaded. Open Settings → Models & language."
                     stage = Stage.ERROR
                     return
                 }
@@ -518,7 +518,7 @@ class RewriteActivity : ComponentActivity() {
                             return@launch
                         }
                     }
-                    error = "On-device model not downloaded. Open Settings → Voice → Download model."
+                    error = "On-device model not downloaded. Open Settings → Models & language."
                     stage = Stage.ERROR
                 }
                 return

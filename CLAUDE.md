@@ -100,7 +100,7 @@
 - 환각 거르기(`textproc/HallucinationFilter.kt`, 모든 Whisper 결과): 거의 빈 클립에서 Whisper가 프롬프트(Style example·단어장)
   끝을 그대로 내거나 "이 시각 세계였습니다" 같은 방송 상투구를 낸다 → 프롬프트 조각(6자 이상)이면 버리고 상투구 문장은 지운다.
 - 반복 붕괴(`textproc/RepetitionLoop.kt`, NPU만, 2026-11-22): sherpa QNN 디코더는 탐욕 디코드라 한 번 반복에 빠지면 토큰 한도까지 같은 말을 쓰고 뒤 문장을 잃는다(Turbo NPU "이제, 이제, …"). 창의 글이 반복으로 **끝나면**(단어·구 5번 이상 — 문장 중간의 반복은 실제 말일 수 있어 안 건드림) 그 창을 둘로 나눠 다시 디코드하고(`LocalSherpaStt.transcribe`), 남은 반복은 한 번만 남기고 자른다. CPU(whisper.cpp)는 자체 폴백이 있어 적용 안 함.
-- 모델 비교: 설정 → Compare models (`CompareActivity.kt`), 저장된 녹음(`PendingAudio`)을 모든 모델로 재실행.
+- 모델 비교: 설정 목록의 Compare models (`CompareActivity.kt`), 저장된 녹음(`PendingAudio`)을 모든 모델로 재실행.
 
 ## 녹음·입력 구조
 - 플로팅 버튼 서비스(`BubbleService.kt`)가 앱 UI가 보일 때 **microphone 타입 FGS**로 승격(`enterForeground`, `micReady`).
@@ -171,7 +171,8 @@
 ## 앱 내 업데이트
 - `AppUpdater.kt`: Releases API를 익명으로 호출(시간당 60회/IP). 저장소가 공개라 GitHub 토큰 설정은 2026-11-11 지웠다(저장된 값은 다음 저장 때 폰에서 삭제). 모델 다운로드도 같은 경로 → APK를 캐시에 받고
   FileProvider(`update_paths.xml`) URI로 **시스템 패키지 설치 관리자**를 연다(ACTION_VIEW, 브라우저 다운로드와 같은 경로).
-- 설정 Updates 카드는 열 때 자동으로 Check하고 "Build N is available"을 우선 표시한다.
+- 설정 Updates 페이지는 설정 탭을 열 때 자동으로 Check하고 "Build N is available"을 우선 표시한다.
+- 새 빌드가 있으면 홈 맨 위(로고 아래)와 설정 목록 맨 위에 배너(`UpdateBanner`)가 뜬다(2026-11-22). 찾은 빌드는 `UpdateCheck.available` 한 곳에 두고 창·배너·설정이 같이 본다. 창의 "Later"는 창이 저절로 다시 뜨는 것만 막고 배너는 남는다. 홈 배너를 누르면 업데이트 창, 설정 배너를 누르면 Updates 페이지.
 - 앱이 직접 PackageInstaller 세션을 만드는 방식은 쓰지 않는다. 사용자 폰(Galaxy)에서 그 방식은 "self update"로 분류돼,
   설치된 앱의 installer of record가 이 앱 자신이면 `INSTALL_FAILED_ABORTED: Self update is blocked by unknown source package`로
   거부됐다(웹 설치 후 첫 업데이트는 성공, 두 번째부터 실패). USER_ACTION_REQUIRED를 명시해도 같았다.
@@ -180,6 +181,12 @@
   (셸 사용자 = ADB 설치)해서 확인 화면 없이 설치. 아니면 위 시스템 설치 관리자로 폴백. 설정 Updates 카드에 상태 행.
   `Shizuku.newProcess`는 13.x에서 private이라 리플렉션으로 호출. 매니페스트에 ShizukuProvider와 `<queries>`.
   `setRequestUpdateOwnership`/USER_ACTION_NOT_REQUIRED 세션은 위의 self update 차단 때문에 이 폰에서 해법이 아니다.
+
+## 설정 화면 구조 (2026-11-22)
+- 설정 탭은 목록(`page == null`)으로 열리고, 행을 누르면 그 섹션만 있는 페이지(`SettingsPage`)로 간다 — 한 화면에 열 섹션이 이어져 찾기 어려웠다(사용자 요청).
+  묶음: 받아쓰기(Models & language, Recording & inserting, Voice lock, Compare models) / 버블·PC(Bubble, Send to PC) / 맞춤 설정(단어장·수정에서 배운 것·연락처 — 자체 화면이라 목록에서 바로 엶) / 앱(Privacy, Updates, Troubleshooting = 예전 Reliability+Feedback, General).
+- 페이지를 별도 액티비티·컴포저블 상태로 쪼개지 않는다: `snapshot()`이 `SettingsScreen`의 상태로 Settings 전체를 다시 만든다. 섹션은 `if (page == …) Section { }`로 가리기만 한다. 새 설정은 맞는 페이지의 Card에 넣고, 새 페이지는 `SettingsPage` + 목록의 `IndexRow` + `I18n.KO`.
+- 뒤로: 헤더(제목 줄 전체)와 시스템 뒤로(`BackHandler`). 탭을 나갔다 오면 목록부터.
 
 ## 언어
 - 설정 화면은 한국어 지원(`I18n.kt`): 호출부는 영어 그대로 두고 `tr("English")`/`trf("…%s…", x)`로 감싼다. 한국어는

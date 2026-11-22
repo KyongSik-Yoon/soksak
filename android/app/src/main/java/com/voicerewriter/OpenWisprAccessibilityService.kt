@@ -960,7 +960,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Remember why the last dictation ended on the clipboard, for Settings → Reliability. */
+    /** Remember why the last dictation ended on the clipboard, for Settings → Troubleshooting. */
     private fun recordFallback(reason: String) {
         val stamp = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
         getSharedPreferences(DIAG_PREFS, Context.MODE_PRIVATE).edit()
