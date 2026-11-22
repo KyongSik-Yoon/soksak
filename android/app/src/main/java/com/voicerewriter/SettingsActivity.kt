@@ -13,6 +13,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -68,7 +73,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -456,18 +460,28 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
 
     // The index keeps its place while a page is open; each page starts at its top.
     val indexScroll = rememberScrollState()
-    val pageScroll = key(page) { rememberScrollState() }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(if (page == null) indexScroll else pageScroll)) {
-        HeroHeader(page?.let { tr(it.title) }, onBack = if (page != null) ({ page = null }) else null)
+    // Index and page slide past each other the way Home and Settings do. `shown` is the page
+    // this pane draws: during the slide the outgoing and incoming panes are both composed.
+    AnimatedContent(
+        targetState = page,
+        transitionSpec = {
+            val forward = targetState != null
+            slideInHorizontally(tween(250)) { if (forward) it else -it } togetherWith
+                slideOutHorizontally(tween(250)) { if (forward) -it else it }
+        },
+        label = "settings page",
+    ) { shown ->
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(if (shown == null) indexScroll else rememberScrollState())) {
+        HeroHeader(shown?.let { tr(it.title) }, onBack = if (shown != null) ({ page = null }) else null)
 
         Column(
             Modifier.fillMaxWidth().padding(16.dp), // the bottom bar keeps clear of the navigation bar
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             // ---------------- SETUP STATUS ----------------
-            if (page == null) UpdateBanner { page = SettingsPage.UPDATES }
+            if (shown == null) UpdateBanner { page = SettingsPage.UPDATES }
             val setupComplete = bubbleOn && a11yEnabled && micGranted
-            if (page == null) SetupStatusCard(setupComplete) {
+            if (shown == null) SetupStatusCard(setupComplete) {
                 if (!setupComplete) {
                     StatusRow(tr("Microphone"), if (micGranted) tr("On") else tr("Needed to hear you"), micGranted) {
                         if (!micGranted) PillButton(tr("Enable")) { micLauncher.launch(Manifest.permission.RECORD_AUDIO) }
@@ -544,7 +558,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- INDEX ----------------
-            if (page == null) {
+            if (shown == null) {
                 fun open(p: SettingsPage): () -> Unit = { page = p }
                 fun start(c: Class<*>): () -> Unit = { context.startActivity(Intent(context, c)) }
                 val modelLabel = WhisperModelManager.MODELS.firstOrNull { it.id == sttModel }?.label
@@ -593,7 +607,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- MODELS & LANGUAGE ----------------
-            if (page == SettingsPage.MODELS) Section {
+            if (shown == SettingsPage.MODELS) Section {
                 Card {
                     Padded {
                         Text(tr("Models download once, then run fully offline."),
@@ -641,7 +655,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- RECORDING & INSERTING ----------------
-            if (page == SettingsPage.DICTATION) Section {
+            if (shown == SettingsPage.DICTATION) Section {
                 Card {
                     ToggleRow(
                         tr("Transcribe while you talk"),
@@ -812,7 +826,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 vlErrorMsg = null
             }
 
-            if (page == SettingsPage.VOICE_LOCK) Section {
+            if (shown == SettingsPage.VOICE_LOCK) Section {
                 Card {
                     Padded {
                         Text(
@@ -970,7 +984,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- BUBBLE ----------------
-            if (page == SettingsPage.BUBBLE) Section {
+            if (shown == SettingsPage.BUBBLE) Section {
                 Card {
                     ToggleRow(tr("Show bubble"), tr("The floating tap-to-talk button"), bubbleOn) { want ->
                         if (want) enableBubble() else { SetupUtils.stopBubble(context); bubbleOn = false }
@@ -991,7 +1005,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- SEND TO PC ----------------
-            if (page == SettingsPage.PC) Section {
+            if (shown == SettingsPage.PC) Section {
                 Card {
                     Padded {
                         Text(tr("Copies each dictation to the clipboard of your computer, directly over Tailscale. The computer runs soksak-daemon; `soksak-daemon pair` there shows the address and code. Nothing is sent while this is set to this phone only."),
@@ -1050,7 +1064,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- PRIVACY ----------------
-            if (page == SettingsPage.PRIVACY) Section {
+            if (shown == SettingsPage.PRIVACY) Section {
                 Card {
                     ToggleRow(tr("Keep history"), tr("Stored on this device · powers personalization"), keepHistory) {
                         keepHistory = it
@@ -1097,7 +1111,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- RELIABILITY ----------------
-            if (page == SettingsPage.TROUBLE) Section(tr("Reliability")) {
+            if (shown == SettingsPage.TROUBLE) Section(tr("Reliability")) {
                 Card {
                     // Why the last dictation went to the clipboard instead of the field, so a
                     // screenshot of Settings is enough to diagnose it.
@@ -1133,7 +1147,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             // ---------------- GENERAL ----------------
             // ---------------- FEEDBACK ----------------
             // Prefills version/device details and hands off to the browser; nothing is sent by us.
-            if (page == SettingsPage.TROUBLE) Section(tr("Feedback")) {
+            if (shown == SettingsPage.TROUBLE) Section(tr("Feedback")) {
                 Card {
                     NavRow(tr("Report a problem"), tr("Open an issue on GitHub")) {
                         launchOrNotify(context, Feedback.issueIntent(context), tr("Couldn't open a browser."))
@@ -1141,7 +1155,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 }
             }
 
-            if (page == SettingsPage.UPDATES) Section {
+            if (shown == SettingsPage.UPDATES) Section {
                 Card {
                     Padded {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1195,7 +1209,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 }
             }
 
-            if (page == SettingsPage.GENERAL) Section {
+            if (shown == SettingsPage.GENERAL) Section {
                 Card {
                     NavRow(tr("Replay onboarding"), tr("Walk through setup again")) { context.startActivity(OnboardingActivity.intent(context)) }
                     Divider()
@@ -1249,6 +1263,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             Spacer(Modifier.height(8.dp))
         }
     }
+    } // AnimatedContent
 }
 
 

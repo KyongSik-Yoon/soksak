@@ -187,6 +187,7 @@
   묶음: 받아쓰기(Models & language, Recording & inserting, Voice lock, Compare models) / 버블·PC(Bubble, Send to PC) / 맞춤 설정(단어장·수정에서 배운 것·연락처 — 자체 화면이라 목록에서 바로 엶) / 앱(Privacy, Updates, Troubleshooting = 예전 Reliability+Feedback, General).
 - 페이지를 별도 액티비티·컴포저블 상태로 쪼개지 않는다: `snapshot()`이 `SettingsScreen`의 상태로 Settings 전체를 다시 만든다. 섹션은 `if (page == …) Section { }`로 가리기만 한다. 새 설정은 맞는 페이지의 Card에 넣고, 새 페이지는 `SettingsPage` + 목록의 `IndexRow` + `I18n.KO`.
 - 뒤로: 헤더(제목 줄 전체)와 시스템 뒤로(`BackHandler`). 탭을 나갔다 오면 목록부터.
+- 목록↔페이지는 `AnimatedContent`로 250ms 좌우 슬라이드. 전환 중에는 두 화면이 동시에 composition에 있으므로 본문에서는 `page`가 아니라 그 화면의 `shown`으로 가린다.
 
 ## 언어
 - 설정 화면은 한국어 지원(`I18n.kt`): 호출부는 영어 그대로 두고 `tr("English")`/`trf("…%s…", x)`로 감싼다. 한국어는
