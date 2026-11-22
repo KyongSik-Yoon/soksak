@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,7 +37,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Book
+import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.Settings as SettingsIcon
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,10 +68,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,9 +100,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Settings: a sectioned, on-device-first surface — setup status, Voice (engine segment +
- * per-model Whisper download manager, the device-fit pick badged as recommended), Bubble,
- * Privacy, Personalization, Reliability, General. Changes persist immediately.
+ * Settings: an index of grouped rows (Dictation, Bubble & PC, Personalization, App) that opens
+ * one page per section ([SettingsPage]); rows that already have their own screen (dictionary,
+ * Compare models) open it straight from the index. Changes persist immediately.
  */
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,6 +129,11 @@ class SettingsActivity : ComponentActivity() {
 internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Unit) -> Unit) {
     val context = LocalContext.current
     var loaded by remember { mutableStateOf(false) }
+    // null is the index: a short grouped list. Every section lives on its own page, but all of
+    // them stay in this one composable because snapshot() rebuilds Settings from its state.
+    // Saveable so the language switch (which recreates the activity) comes back to its page.
+    var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+    BackHandler(enabled = page != null) { page = null }
 
     // permissions / setup
     var bubbleOn by remember { mutableStateOf(BubbleService.isRunning || BubblePrefs.enabled(context)) }
@@ -431,8 +453,11 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         }
     }
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
-        HeroHeader()
+    // The index keeps its place while a page is open; each page starts at its top.
+    val indexScroll = rememberScrollState()
+    val pageScroll = key(page) { rememberScrollState() }
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(if (page == null) indexScroll else pageScroll)) {
+        HeroHeader(page?.let { tr(it.title) }, onBack = if (page != null) ({ page = null }) else null)
 
         Column(
             Modifier.fillMaxWidth().padding(16.dp), // the bottom bar keeps clear of the navigation bar
@@ -440,7 +465,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
         ) {
             // ---------------- SETUP STATUS ----------------
             val setupComplete = bubbleOn && a11yEnabled && micGranted
-            SetupStatusCard(setupComplete) {
+            if (page == null) SetupStatusCard(setupComplete) {
                 if (!setupComplete) {
                     StatusRow(tr("Microphone"), if (micGranted) tr("On") else tr("Needed to hear you"), micGranted) {
                         if (!micGranted) PillButton(tr("Enable")) { micLauncher.launch(Manifest.permission.RECORD_AUDIO) }
@@ -516,8 +541,57 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 )
             }
 
-            // ---------------- VOICE · TRANSCRIPTION ----------------
-            Section(tr("Voice · transcription")) {
+            // ---------------- INDEX ----------------
+            if (page == null) {
+                fun open(p: SettingsPage): () -> Unit = { page = p }
+                fun start(c: Class<*>): () -> Unit = { context.startActivity(Intent(context, c)) }
+                val modelLabel = WhisperModelManager.MODELS.firstOrNull { it.id == sttModel }?.label
+                Section(tr("Dictation")) {
+                    Card {
+                        IndexRow(Icons.Outlined.GraphicEq, tr(SettingsPage.MODELS.title), modelLabel ?: tr("Model, dictation language, style example"), open(SettingsPage.MODELS))
+                        Divider()
+                        IndexRow(Icons.Outlined.Tune, tr(SettingsPage.DICTATION.title), tr("Auto-stop, Auto Enter, Quiet mode"), open(SettingsPage.DICTATION))
+                        Divider()
+                        IndexRow(Icons.Outlined.RecordVoiceOver, tr(SettingsPage.VOICE_LOCK.title), tr("Enroll your voice, speaker gate, isolation"), open(SettingsPage.VOICE_LOCK))
+                        Divider()
+                        IndexRow(Icons.Outlined.Science, tr("Compare models"), tr("Re-run a recent dictation on every model"), start(CompareActivity::class.java))
+                    }
+                }
+                Section(tr("Bubble & PC")) {
+                    Card {
+                        IndexRow(Icons.Outlined.ChatBubbleOutline, tr(SettingsPage.BUBBLE.title), if (bubbleOn) tr("On") else tr("Off"), open(SettingsPage.BUBBLE))
+                        Divider()
+                        IndexRow(Icons.Outlined.Computer, tr(SettingsPage.PC.title), tr(PcLink.label(PcLink.mode(snapshot()))), open(SettingsPage.PC))
+                    }
+                }
+                Section(tr("Personalization")) {
+                    Card {
+                        IndexRow(Icons.Outlined.Book, tr("Personal dictionary"), tr("Names & terms you taught it"), start(VocabActivity::class.java))
+                        Divider()
+                        IndexRow(Icons.Outlined.AutoFixHigh, tr("Learned from edits"), tr("Corrections it remembered"), start(LearnedVocabActivity::class.java))
+                        Divider()
+                        IndexRow(Icons.Outlined.Contacts, tr("Import from contacts"), tr("Matched on-device · never uploaded"), start(ContactsImportActivity::class.java))
+                    }
+                }
+                Section(tr("App")) {
+                    Card {
+                        IndexRow(Icons.Outlined.Lock, tr(SettingsPage.PRIVACY.title), tr("History, kept audio, clear all data"), open(SettingsPage.PRIVACY))
+                        Divider()
+                        IndexRow(
+                            Icons.Outlined.SystemUpdate, tr(SettingsPage.UPDATES.title),
+                            latestBuild?.let { trf("Build %s is available.", it.run) } ?: trf("Installed: %s", prettyVersion(appVersion(context))),
+                            open(SettingsPage.UPDATES), highlight = latestBuild != null,
+                        )
+                        Divider()
+                        IndexRow(Icons.Outlined.BugReport, tr(SettingsPage.TROUBLE.title), tr("Debug log, report a problem"), open(SettingsPage.TROUBLE))
+                        Divider()
+                        IndexRow(Icons.Outlined.SettingsIcon, tr(SettingsPage.GENERAL.title), tr("Language, backup, licenses"), open(SettingsPage.GENERAL))
+                    }
+                }
+            }
+
+            // ---------------- MODELS & LANGUAGE ----------------
+            if (page == SettingsPage.MODELS) Section {
                 Card {
                     Padded {
                         Text(tr("Models download once, then run fully offline."),
@@ -561,7 +635,12 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                         Spacer(Modifier.height(8.dp))
                         KeyField(promptExample, tr("e.g. GitLab에 MR 올려줘.")) { promptExample = it; persist() }
                     }
-                    Divider()
+                }
+            }
+
+            // ---------------- RECORDING & INSERTING ----------------
+            if (page == SettingsPage.DICTATION) Section {
+                Card {
                     ToggleRow(
                         tr("Transcribe while you talk"),
                         tr("Whisper models start on what you've said at each pause, so only the last few seconds are left when you stop. Also keeps long dictations from losing sentences."),
@@ -731,7 +810,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 vlErrorMsg = null
             }
 
-            Section(tr("Voice lock")) {
+            if (page == SettingsPage.VOICE_LOCK) Section {
                 Card {
                     Padded {
                         Text(
@@ -889,7 +968,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- BUBBLE ----------------
-            Section(tr("Bubble")) {
+            if (page == SettingsPage.BUBBLE) Section {
                 Card {
                     ToggleRow(tr("Show bubble"), tr("The floating tap-to-talk button"), bubbleOn) { want ->
                         if (want) enableBubble() else { SetupUtils.stopBubble(context); bubbleOn = false }
@@ -910,7 +989,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- SEND TO PC ----------------
-            Section(tr("Send to PC")) {
+            if (page == SettingsPage.PC) Section {
                 Card {
                     Padded {
                         Text(tr("Copies each dictation to the clipboard of your computer, directly over Tailscale. The computer runs soksak-daemon; `soksak-daemon pair` there shows the address and code. Nothing is sent while this is set to this phone only."),
@@ -969,7 +1048,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             }
 
             // ---------------- PRIVACY ----------------
-            Section(tr("Privacy")) {
+            if (page == SettingsPage.PRIVACY) Section {
                 Card {
                     ToggleRow(tr("Keep history"), tr("Stored on this device · powers personalization"), keepHistory) {
                         keepHistory = it
@@ -1015,21 +1094,8 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 }
             }
 
-            // ---------------- PERSONALIZATION ----------------
-            Section(tr("Personalization")) {
-                Card {
-                    NavRow(tr("Personal dictionary"), tr("Names & terms you taught it")) { context.startActivity(Intent(context, VocabActivity::class.java)) }
-                    Divider()
-                    NavRow(tr("Compare models"), tr("Re-run a recent dictation on every model")) { context.startActivity(Intent(context, CompareActivity::class.java)) }
-                    Divider()
-                    NavRow(tr("Learned from edits"), tr("Corrections it remembered")) { context.startActivity(Intent(context, LearnedVocabActivity::class.java)) }
-                    Divider()
-                    NavRow(tr("Import from contacts"), tr("Matched on-device · never uploaded")) { context.startActivity(Intent(context, ContactsImportActivity::class.java)) }
-                }
-            }
-
             // ---------------- RELIABILITY ----------------
-            Section(tr("Reliability")) {
+            if (page == SettingsPage.TROUBLE) Section(tr("Reliability")) {
                 Card {
                     // Why the last dictation went to the clipboard instead of the field, so a
                     // screenshot of Settings is enough to diagnose it.
@@ -1065,7 +1131,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             // ---------------- GENERAL ----------------
             // ---------------- FEEDBACK ----------------
             // Prefills version/device details and hands off to the browser; nothing is sent by us.
-            Section(tr("Feedback")) {
+            if (page == SettingsPage.TROUBLE) Section(tr("Feedback")) {
                 Card {
                     NavRow(tr("Report a problem"), tr("Open an issue on GitHub")) {
                         launchOrNotify(context, Feedback.issueIntent(context), tr("Couldn't open a browser."))
@@ -1073,7 +1139,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 }
             }
 
-            Section(tr("Updates")) {
+            if (page == SettingsPage.UPDATES) Section {
                 Card {
                     Padded {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1127,7 +1193,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
                 }
             }
 
-            Section(tr("General")) {
+            if (page == SettingsPage.GENERAL) Section {
                 Card {
                     NavRow(tr("Replay onboarding"), tr("Walk through setup again")) { context.startActivity(OnboardingActivity.intent(context)) }
                     Divider()
@@ -1299,24 +1365,61 @@ private fun sttModelOptions(recommendedId: String): List<SttModelOption> =
 
 /* ------------------------ reusable pieces ------------------------ */
 
+/** The pages behind the Settings index. [title] is the English key for [tr]. */
+internal enum class SettingsPage(val title: String) {
+    MODELS("Models & language"),
+    DICTATION("Recording & inserting"),
+    VOICE_LOCK("Voice lock"),
+    BUBBLE("Bubble"),
+    PC("Send to PC"),
+    PRIVACY("Privacy"),
+    UPDATES("Updates"),
+    TROUBLE("Troubleshooting"),
+    GENERAL("General"),
+}
+
+/** The index shows the mark and "Settings"; a page shows a back arrow and its own name. */
 @Composable
-private fun HeroHeader() {
+private fun HeroHeader(pageTitle: String? = null, onBack: (() -> Unit)? = null) {
     Column(
         Modifier.fillMaxWidth().background(DuskBrush).statusBarsPadding().padding(24.dp, 22.dp, 24.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = MarkLight, modifier = Modifier.size(40.dp))
-            Text(tr("Settings"), color = MarkLight, style = Wordmark)
+        Row(
+            // The whole title is the back target: the arrow alone is a small thing to hit.
+            if (onBack != null) Modifier.fillMaxWidth().clickable { onBack() } else Modifier,
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (onBack != null) Icon(Icons.Filled.ChevronLeft, tr("Back"), tint = MarkLight, modifier = Modifier.size(40.dp))
+            else Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_mark), null, tint = MarkLight, modifier = Modifier.size(40.dp))
+            Text(pageTitle ?: tr("Settings"), color = MarkLight, style = Wordmark, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }
 
+/** [title] is null on a page that holds one section: the header already names it. */
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(title: String? = null, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Text(title.uppercase(), style = MonoEyebrow.trackedFor(title), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+        if (title != null) Text(title.uppercase(), style = MonoEyebrow.trackedFor(title), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
         content()
+    }
+}
+
+/** One line of the index: icon, name, and what is set there now. */
+@Composable
+private fun IndexRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit, highlight: Boolean = false) {
+    Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp, 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
     }
 }
 
