@@ -210,6 +210,7 @@ class HomeActivity : ComponentActivity() {
                             .padding(18.dp, 14.dp, 18.dp, 28.dp),
                     ) {
                         TopLockup()
+                        UpdateBanner(Modifier.padding(top = 14.dp))
                         Spacer(Modifier.height(18.dp))
 
                         val d = data

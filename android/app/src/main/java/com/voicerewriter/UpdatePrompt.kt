@@ -1,6 +1,20 @@
 package com.voicerewriter
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
@@ -27,6 +41,14 @@ object UpdateCheck {
     private var lastCheck = 0L
     /** A build the user said "Later" to: not offered again until a newer one appears. */
     var dismissedRun: Int = -1
+    /**
+     * The newer build the last check found, or null. Held here rather than in the prompt so the
+     * banner on Home and the Updates page in Settings show the same answer, and so it outlives
+     * "Later" and a recreated Home (the throttle would not check again for ten minutes).
+     */
+    var available by mutableStateOf<AppUpdater.Release?>(null)
+    /** Whether the dialog is up: opened by the check for a build not yet declined, or by the banner. */
+    var promptOpen by mutableStateOf(false)
 
     fun due(): Boolean {
         val now = System.currentTimeMillis()
@@ -45,21 +67,22 @@ object UpdateCheck {
 fun UpdatePrompt() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var release by remember { mutableStateOf<AppUpdater.Release?>(null) }
     var progress by remember { mutableStateOf<Float?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         if (!UpdateCheck.due()) return@LaunchedEffect
         val r = runCatching { AppUpdater.latest() }.getOrNull() ?: return@LaunchedEffect
-        if (r.versionCode > AppUpdater.installedVersionCode(context) && r.run != UpdateCheck.dismissedRun) {
-            release = r
+        if (r.versionCode > AppUpdater.installedVersionCode(context)) {
+            UpdateCheck.available = r
+            if (r.run != UpdateCheck.dismissedRun) UpdateCheck.promptOpen = true
         }
     }
 
-    val r = release ?: return
+    val r = UpdateCheck.available?.takeIf { UpdateCheck.promptOpen } ?: return
     val busy = progress != null
-    fun later() { UpdateCheck.dismissedRun = r.run; release = null }
+    // "Later" only stops the dialog from coming back by itself; the banner stays.
+    fun later() { UpdateCheck.dismissedRun = r.run; UpdateCheck.promptOpen = false }
 
     AlertDialog(
         onDismissRequest = { if (!busy) later() },
@@ -95,4 +118,24 @@ fun UpdatePrompt() {
         },
         dismissButton = { TextButton(enabled = !busy, onClick = { later() }) { Text("Later") } },
     )
+}
+
+/**
+ * A strip saying a newer build is out, for the top of Home and of the Settings index. Draws
+ * nothing when there is none. Tapping opens the update dialog unless the caller sends it elsewhere.
+ */
+@Composable
+fun UpdateBanner(modifier: Modifier = Modifier, onClick: () -> Unit = { UpdateCheck.promptOpen = true }) {
+    val r = UpdateCheck.available ?: return
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(cs.primary).clickable { onClick() }.padding(16.dp, 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.SystemUpdate, null, tint = cs.onPrimary, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(trf("Build %s is available.", r.run), style = MaterialTheme.typography.bodyMedium, color = cs.onPrimary, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(12.dp))
+        Text(tr("Update"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = cs.onPrimary)
+    }
 }

@@ -161,7 +161,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     var pcType by remember { mutableStateOf(false) }
     var pcTestStatus by remember { mutableStateOf("") }
     var updateStatus by remember { mutableStateOf("") }
-    var latestBuild by remember { mutableStateOf<AppUpdater.Release?>(null) }
+    val latestBuild = UpdateCheck.available // shared with Home's banner and dialog
     var updateProgress by remember { mutableStateOf<Float?>(null) }
     var reviewBeforeInsert by remember { mutableStateOf(false) }
     var bubbleOnlyOnFields by remember { mutableStateOf(true) }
@@ -386,14 +386,14 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
     }
 
     fun checkUpdate() {
-        updateStatus = tr("Checking…"); latestBuild = null
+        updateStatus = tr("Checking…")
         AppUpdater.lastResult.value = null // a stale "Installer opened" must not hide the answer
         launch {
             updateStatus = try {
                 val r = AppUpdater.latest()
                 val cur = AppUpdater.installedVersionCode(context)
-                if (r.versionCode > cur) { latestBuild = r; trf("Build %s is available.", r.run) }
-                else trf("Up to date (build %s).", r.run)
+                if (r.versionCode > cur) { UpdateCheck.available = r; trf("Build %s is available.", r.run) }
+                else { UpdateCheck.available = null; trf("Up to date (build %s).", r.run) }
             } catch (e: Exception) { e.message ?: tr("Check failed.") }
         }
     }
@@ -464,6 +464,7 @@ internal fun SettingsScreen(repo: SettingsRepository, launch: (suspend () -> Uni
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             // ---------------- SETUP STATUS ----------------
+            if (page == null) UpdateBanner { page = SettingsPage.UPDATES }
             val setupComplete = bubbleOn && a11yEnabled && micGranted
             if (page == null) SetupStatusCard(setupComplete) {
                 if (!setupComplete) {
