@@ -154,6 +154,8 @@
   다른 앱에서 돌아오면 `findFocus`가 입력창 대신 일반 `View`를 줘서 키보드가 떠 있어도 매번 클립보드로 빠졌다(build-108, 2026-11-11). 노드 캐시 비우기(build-107)는 효과가 없었다.
   포커스된 editable 노드가 아예 없는데 키보드 입력은 받고 있는 편집기(삼성 노트: 포커스가 본문을 감싼 ScrollView에 있고 EditText 노드는 focused=false — uiautomator로 확인, 2026-11-11)는 Android 13+의 접근성 입력 연결(`commitToInputConnection`, 서비스 설정의 `flagInputMethodEditor`)로 키보드처럼 commitText한다. 기존 SET_TEXT 경로가 먼저이고, 이 경로는 포커스된 editable을 못 찾았을 때만. 사용자 확인(build-129): 삼성 노트에 들어감, 로그 `inserted through the input connection`.
 
+- 접근성 "켜짐인데 연결 안 됨"(`SetupUtils.accessibilityStuck`, 2026-11-23): 프로세스가 새로 뜬 뒤 시스템이 서비스를 다시 묶지 않으면 설정은 켜짐인데 `instance`가 없어, 링 없이 시트 경로로 돌고 글은 클립보드로만 간다(사용자 폰, 껐다 켜서 복구; 프로세스가 죽은 이유는 로그에 없음). 묶는 건 시스템 몫이라 알리기만 한다: 홈 맨 위 배너(`AccessibilityStuckBanner`, 누르면 접근성 설정; 홈에 돌아오고 1.5초 뒤 판정 — 막 뜬 프로세스는 아직 묶이는 중)와, 그 상태에서 클립보드로 빠졌을 때 버블 알약 "No access"(`showAccessibilityStuck`). 접근성을 아예 안 켠 사용자의 클립보드 폴백에는 여전히 아무것도 안 띄운다.
+
 ## PC로 보내기 (2026-11-11)
 - 받아쓴 글을 사용자 PC의 클립보드로 보낸다. 폰 쪽 `PcLink.kt`, PC 쪽 `daemon/`(Rust, 의존 크레이트 없음, `daemon/README.md`).
   설정 `pcSend`(`off`/`both`/`pc`)·`pcHost`·`pcCode`, 기본 꺼짐. 주소와 코드가 모두 있어야 동작한다. 버블 메뉴에도 행이 있다(설정된 경우만).

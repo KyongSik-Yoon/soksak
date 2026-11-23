@@ -135,6 +135,8 @@ object I18n {
         "Updates" to "업데이트",
         "Checking…" to "확인 중…",
         "Build %s is available." to "빌드 %s 업데이트가 있어요.",
+        "Accessibility is on but not connected, so text goes to the clipboard. Turn Soksak off and on again in Accessibility." to "접근성이 켜져 있지만 연결되지 않아 글이 클립보드로 들어가요. 접근성에서 속삭을 껐다 켜 주세요.",
+        "Open" to "열기",
         "Up to date (build %s)." to "최신이에요 (빌드 %s).",
         "Check failed." to "확인에 실패했어요.",
         "Build %s is available (installed: %s)." to "빌드 %s 업데이트가 있어요 (설치됨: %s).",

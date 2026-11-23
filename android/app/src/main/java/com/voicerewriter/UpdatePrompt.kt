@@ -142,6 +142,26 @@ fun UpdatePrompt() {
  * A strip saying a newer build is out, for the top of Home and of the Settings index. Draws
  * nothing when there is none. Tapping opens the update dialog unless the caller sends it elsewhere.
  */
+/**
+ * On Home while Accessibility is on but not connected ([SetupUtils.accessibilityStuck]); opens
+ * the system's Accessibility settings. In the error colours: until it is fixed nothing is typed.
+ */
+@Composable
+fun AccessibilityStuckBanner(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(cs.errorContainer).clickable { onClick() }.padding(16.dp, 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            tr("Accessibility is on but not connected, so text goes to the clipboard. Turn Soksak off and on again in Accessibility."),
+            style = MaterialTheme.typography.bodyMedium, color = cs.onErrorContainer, modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(tr("Open"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = cs.onErrorContainer)
+    }
+}
+
 @Composable
 fun UpdateBanner(modifier: Modifier = Modifier, onClick: () -> Unit = { UpdateCheck.promptOpen = true }) {
     val r = UpdateCheck.available ?: return

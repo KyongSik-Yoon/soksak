@@ -38,6 +38,16 @@ object SetupUtils {
         return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 
+    /**
+     * Accessibility is switched on for this app, but the system has not bound the service to this
+     * process. Seen after the process was restarted (phone log, 2026-11-23): dictation went to the
+     * sheet and the clipboard with nothing to say why, until the user switched it off and on.
+     * Binding is the system's to do; all the app can do is tell the user. Right after a process
+     * start it is briefly true while the bind is still on its way.
+     */
+    fun accessibilityStuck(ctx: Context): Boolean =
+        !OpenWisprAccessibilityService.isEnabled && accessibilityEnabled(ctx)
+
     // ---- bubble service ----
 
     /**

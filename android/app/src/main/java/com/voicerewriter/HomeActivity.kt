@@ -150,6 +150,7 @@ class HomeActivity : ComponentActivity() {
         var showAllUnfinished by remember { mutableStateOf(false) }
         // Settings is a tab here, so only the content slides and the bottom bar stays put.
         var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+        var a11yStuck by remember { mutableStateOf(false) }
         val settingsRepo = remember { SettingsRepository(applicationContext) }
 
         fun reload() {
@@ -162,7 +163,11 @@ class HomeActivity : ComponentActivity() {
         // Reload every time the screen resumes (stats change as you dictate).
         DisposableEffect(lifecycle) {
             val obs = LifecycleEventObserver { _, e ->
-                if (e == Lifecycle.Event.ON_RESUME) { reload(); restoreBubbleIfWanted(ctx); DictateWidget.refreshAll(ctx) }
+                if (e == Lifecycle.Event.ON_RESUME) {
+                    reload(); restoreBubbleIfWanted(ctx); DictateWidget.refreshAll(ctx)
+                    // After a moment: a process that has just started is still being bound.
+                    scope.launch { kotlinx.coroutines.delay(1500); a11yStuck = SetupUtils.accessibilityStuck(ctx) }
+                }
             }
             lifecycle.addObserver(obs)
             onDispose { lifecycle.removeObserver(obs) }
@@ -211,6 +216,9 @@ class HomeActivity : ComponentActivity() {
                     ) {
                         TopLockup()
                         UpdateBanner(Modifier.padding(top = 14.dp))
+                        if (a11yStuck) AccessibilityStuckBanner(Modifier.padding(top = 14.dp)) {
+                            runCatching { startActivity(SetupUtils.accessibilitySettingsIntent()) }
+                        }
                         Spacer(Modifier.height(18.dp))
 
                         val d = data
