@@ -192,6 +192,8 @@ class RewriteActivity : ComponentActivity() {
             if (!OpenWisprAccessibilityService.enqueueInsert(result, s?.autoEnterMs() ?: 0L, s?.fieldOnScreen() == true)) {
                 (app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                     .setPrimaryClip(ClipData.newPlainText("rewrite", result))
+                // Unlike the chosen clipboard above: the user did turn Accessibility on.
+                if (SetupUtils.accessibilityStuck(app)) BubbleService.instance?.showAccessibilityStuck()
             }
         }
         LastDictation.set(this, result)

@@ -1248,6 +1248,16 @@ class BubbleService : Service() {
     }
 
     /**
+     * The text went to the clipboard because Accessibility is on but not connected
+     * ([SetupUtils.accessibilityStuck]); Home explains what to do.
+     */
+    fun showAccessibilityStuck() {
+        android.util.Log.w("BubbleService", "accessibility is on but not connected; text went to the clipboard")
+        showClipboardFallback()
+        mainHandler.post { bubble?.pillLabel = "No access" }
+    }
+
+    /**
      * Whether the dictation reached the PC ([PcLink]). On the bubble for the same reason as the
      * clipboard fallback: a toast from here would not be shown.
      */
