@@ -97,6 +97,13 @@ class AudioRecorder(private val context: Context) {
     private var firstSpeechSample = 0
     private var lastSpeechSample = 0
     private var autoStopFired = false
+    // Microphone level before and after voice isolation, for the log line a take leaves.
+    private var micSq = 0.0
+    private var micPeak = 0
+    private var micN = 0L
+    private var isoSq = 0.0
+    private var isoPeak = 0
+    private var isoN = 0L
     private var speechSamples = 0
     private var quietDetector: QuietSpeechDetector? = null
     private var speakerGateSession: SpeakerGateSession? = null
@@ -189,6 +196,7 @@ class AudioRecorder(private val context: Context) {
         firstSpeechSample = 0
         lastSpeechSample = 0
         autoStopFired = false
+        micSq = 0.0; micPeak = 0; micN = 0; isoSq = 0.0; isoPeak = 0; isoN = 0
         speechSamples = 0
         vadTailLen = 0
         rawCaptureOnlyMode = rawCaptureOnly
@@ -277,11 +285,23 @@ class AudioRecorder(private val context: Context) {
                     }
                 }
 
+                for (i in 0 until n) {
+                    val v = buf[i].toInt()
+                    micSq += v.toDouble() * v
+                    if (abs(v) > micPeak) micPeak = abs(v)
+                }
+                micN += n
+
                 if (vox != null) {
                     val floats = FloatArray(n) { buf[it] / 32768f }
                     val isolated = vox.push(floats)
                     if (isolated.isNotEmpty()) {
                         val isoPcm = floatsToPcm16(isolated)
+                        for (v in isoPcm) {
+                            isoSq += v.toDouble() * v
+                            if (abs(v.toInt()) > isoPeak) isoPeak = abs(v.toInt())
+                        }
+                        isoN += isoPcm.size
                         emitProcessedChunk(isoPcm, isoPcm.size, vadInst, quietInst = null, gate = null, vadAutoStop = vadAutoStop, onAutoStop = onAutoStop)
                     }
                 } else {
@@ -401,6 +421,15 @@ class AudioRecorder(private val context: Context) {
             Log.i("AudioRecorder", "quiet take: %.1fs ended=%s wait=%.1fs %s".format(
                 totalSamples / SAMPLE_RATE.toDouble(), if (autoStopFired) "auto" else "tap",
                 hangoverSamples / SAMPLE_RATE.toDouble(), it.summary(totalSamples)))
+        }
+
+        // Was the microphone itself quiet, or did voice isolation take the voice out? Speaking
+        // with a flat waveform and nothing recognized looks the same from outside (2026-11-23).
+        if (micN > 0) {
+            fun db(sq: Double, n: Long) = if (n == 0L) -99 else (10 * kotlin.math.log10(maxOf(sq / n, 1e-3) / (32768.0 * 32768.0))).toInt()
+            fun peakDb(p: Int) = (20 * kotlin.math.log10(maxOf(p, 1) / 32768.0)).toInt()
+            Log.i("AudioRecorder", "take level: %.1fs mic rms=%ddB peak=%ddB".format(micN / SAMPLE_RATE.toDouble(), db(micSq, micN), peakDb(micPeak)) +
+                if (voxLockStream != null) " isolated rms=${db(isoSq, isoN)}dB peak=${peakDb(isoPeak)}dB" else "")
         }
 
         val vox = voxLockStream
