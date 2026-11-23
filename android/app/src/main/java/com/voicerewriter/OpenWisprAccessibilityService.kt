@@ -230,7 +230,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         }
         if (ourModalActive) return // leave the bubble as-is while our sheet is up
         Log.d(TAG, "fieldFocus editable=$editable ime=$imeOpen host=$lastHostPackage")
-        BubbleService.instance?.setFieldFocused(editable || imeOpen)
+        BubbleService.instance?.setFieldFocused(editable || imeOpen, imeOpen)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

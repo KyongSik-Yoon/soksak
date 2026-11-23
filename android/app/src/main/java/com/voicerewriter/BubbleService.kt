@@ -813,7 +813,8 @@ class BubbleService : Service() {
     /**
      * Slide the idle disc off the docked edge, then swap it for the tucked tab, whose window is
      * only the tab: the app beneath stays touchable up to the edge margin. Field-gated bubbles
-     * never tuck (they shrink); a take, a touch or turning the gate on brings it out ([untuck]).
+     * never tuck (they shrink); a take, a touch, the keyboard coming up or turning the gate on
+     * brings it out ([untuck]).
      */
     private fun tuck() {
         val v = bubble ?: return
@@ -1364,16 +1365,25 @@ class BubbleService : Service() {
      * Called by the accessibility service when a host app's editable field gains or
      * loses input focus. No-op when gating is off (bubble is always visible then).
      */
-    fun setFieldFocused(focused: Boolean) {
+    fun setFieldFocused(focused: Boolean, imeOpen: Boolean? = null) {
         mainHandler.post {
             val gained = focused && !fieldFocused
             fieldFocused = focused
             if (gained) noteTypingNow() // coming back to a text field counts as using the keyboard
+            // An always-shown bubble that tucked away comes back out when the keyboard comes up
+            // (2026-11-23, user): once per opening, then it tucks again after the usual wait,
+            // so it does not sit over the app's send button for as long as the keyboard is up.
+            if (keyboard.opened(imeOpen) && untuck()) {
+                android.util.Log.i("BubbleService", "keyboard opened: tucked bubble out")
+                scheduleShrink()
+            }
             // Reconcile against the *actual* shown state (incl. alpha), so a transition
             // that left the view VISIBLE-but-transparent can't strand it hidden.
             if (shouldShow() != isShown()) applyGating(animate = true)
         }
     }
+
+    private val keyboard = KeyboardEdge()
 
     private var lastTypingAt = 0L
 
