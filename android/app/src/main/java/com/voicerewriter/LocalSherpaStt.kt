@@ -73,6 +73,9 @@ object LocalSherpaStt {
     /** What Medium (and Turbo, assumed the same until seen) writes under the hint when a window has no voice in it, as [HallucinationFilter.norm] leaves it. */
     private val HINT_ECHOES = setOf("네", "네알겠어", "네알겠습니다")
 
+    /** The hint's own text, as [HallucinationFilter.norm] leaves it. */
+    private const val HINT_TEXT = "네알겠어"
+
     internal fun qnnHint(modelId: String, language: String): List<Int> =
         when {
             language != "ko" -> emptyList()
@@ -237,7 +240,7 @@ object LocalSherpaStt {
                         } else ""
                         out = again.ifEmpty { RepetitionLoop.cut(out) }
                     }
-                    out.takeUnless { it.isEmpty() || dropEchoes && isHintEcho(it) && !hasSpeech(context, part, settings.quietMode) }
+                    out.takeUnless { it.isEmpty() || dropEchoes && dropsEcho(it, settings.quietMode) { hasSpeech(context, part, settings.quietMode) } }
                 }.joinToString(" ")
                 Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s, load ${loadMs}ms, decode $partLog -> ${text.length} chars")
                 // Whisper on silence recites stock TV/YouTube lines.
@@ -294,6 +297,21 @@ object LocalSherpaStt {
 
     /** [text] is only what the hint produces on a window with no voice ("네." is also a real answer, so check the audio). */
     internal fun isHintEcho(text: String): Boolean = HallucinationFilter.norm(text) in HINT_ECHOES
+
+    /**
+     * Whether a window's [text] is the hint coming back rather than something said.
+     *
+     * Quiet mode drops the hint's own words whatever the audio holds: its speech test is loudness
+     * over the room, which any 0.1s sound passes, and a piece only reaches the decoder after
+     * passing that same test ([StreamingWhisper]), so asking it again never dropped anything. A
+     * take in which nothing was said, with one 0.4s sound in 2.4s, typed "네, 알겠어." (phone log,
+     * 2026-11-23). The cost is a whispered answer of exactly those words. "네." and
+     * "네, 알겠습니다." are likelier real answers and still go by the audio.
+     */
+    internal fun dropsEcho(text: String, quiet: Boolean, hasSpeech: () -> Boolean): Boolean {
+        val n = HallucinationFilter.norm(text)
+        return n in HINT_ECHOES && (quiet && n == HINT_TEXT || !hasSpeech())
+    }
 
     /**
      * Quiet mode: loudness over the room ([QuietSpeechDetector]), because Silero misses whispers.

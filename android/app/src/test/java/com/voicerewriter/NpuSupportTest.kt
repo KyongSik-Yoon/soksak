@@ -99,6 +99,17 @@ class QnnWindowsTest {
         assertFalse(LocalSherpaStt.isHintEcho("네, 정말 감사합니다."))
     }
 
+    @Test
+    fun `quiet mode drops the hint's own words even when a sound passed for speech`() {
+        assertTrue(LocalSherpaStt.dropsEcho("네, 알겠어.", quiet = true) { true })
+        // Outside quiet mode Silero judges the audio, and other short answers always go by it.
+        assertFalse(LocalSherpaStt.dropsEcho("네, 알겠어.", quiet = false) { true })
+        assertTrue(LocalSherpaStt.dropsEcho("네, 알겠어.", quiet = false) { false })
+        assertFalse(LocalSherpaStt.dropsEcho("네.", quiet = true) { true })
+        assertTrue(LocalSherpaStt.dropsEcho("네.", quiet = true) { false })
+        assertFalse(LocalSherpaStt.dropsEcho("일회성 네, 알겠어.", quiet = true) { false })
+    }
+
     @Test fun strayVadFramesAreNotSpeech() {
         assertFalse(SileroVad.enoughSpeech(listOf(0.9f, 0.1f, 0.9f, 0.1f)))
         assertFalse(SileroVad.enoughSpeech(listOf(0.9f, 0.1f, 0.9f, 0.1f, 0.9f, 0.2f, 0.8f)))
