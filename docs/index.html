@@ -416,6 +416,7 @@ footer a { color: var(--ink-2); }
       <ul class="points r" style="--i:3">
         <li><b>누르고 말하기</b>말이 멈추면 알아서 끝내고 글을 넣습니다. 말하는 동안에는 화면이 잠기지 않고, 멈춘 뒤 남은 변환 양은 버블 테두리 링으로 보여 줍니다.</li>
         <li><b>자동 엔터</b>켜 두면 글을 넣고 1~5초 뒤 Enter까지 눌러 보냅니다. 기다리는 동안 버블에 ⏎와 줄어드는 링이 돌고, 그사이 버블을 누르면 보내지 않습니다.</li>
+        <li><b>가장자리로 비키기</b>버블을 항상 띄워 두면, 쓰지 않을 때 화면 끝의 얇은 탭으로 들어가 앱의 버튼을 가리지 않습니다. 탭을 누르거나 키보드가 올라오면 다시 미끄러져 나옵니다.</li>
         <li><b>길게 누르기</b>버블을 길게 누르거나 위로 휙 밀면, 모델과 조용히 말하기 · 내 목소리만 토글을 고르는 메뉴가 버블 옆에 뜹니다.</li>
         <li><b>포커스는 그대로</b>화면을 띄우지 않아 대상 앱의 커서와 키보드가 남습니다. 삼성 노트처럼 입력창을 따로 그리는 앱에도 키보드처럼 넣습니다.</li>
         <li><b>단어장</b>"클로드 코드"를 <code>Claude Code</code>로. 조사와 어미가 붙어도 찾아 바꿉니다.</li>
@@ -458,7 +459,7 @@ footer a { color: var(--ink-2); }
   <div class="wrap">
     <p class="eyebrow r">PC로 보내기</p>
     <h2 class="r" style="--i:1">폰에 말하면,<br><em>컴퓨터에 글이 뜹니다.</em></h2>
-    <p class="lede r" style="--i:2">잠금화면 위젯을 한 번 누르거나, 버블을 PC 전송으로 두고 말합니다. 받아쓴 글이 컴퓨터에서 쓰던 입력창에 들어옵니다. 폰을 열지 않아도 되고, 키보드에 손을 올리지 않아도 됩니다.</p>
+    <p class="lede r" style="--i:2">잠금화면 위젯이나 잠금화면 가장자리의 탭을 한 번 누르거나, 버블을 PC 전송으로 두고 말합니다. 받아쓴 글이 컴퓨터에서 쓰던 입력창에 들어옵니다. 폰을 열지 않아도 되고, 키보드에 손을 올리지 않아도 됩니다.</p>
     <div class="modes r" style="--i:3" role="tablist" aria-label="보내는 방법">
       <button role="tab" id="pcModeW" aria-selected="true">잠금화면 위젯</button>
       <button role="tab" id="pcModeB" aria-selected="false">버블 · PC 전송</button>
@@ -506,7 +507,7 @@ footer a { color: var(--ink-2); }
     </div>
     <p class="status r" style="--i:5;margin-top:22px" id="pcStatus">위젯이나 버블을 눌러 보세요</p>
     <div class="facts r" style="--i:6">
-      <div class="fact"><b>한 번</b>잠금화면 위젯을 누르면 폰을 열지 않고 바로 듣습니다. 2.2초 조용하면 알아서 끝내고 보냅니다.</div>
+      <div class="fact"><b>한 번</b>잠금화면 위젯을 누르면 폰을 열지 않고 바로 듣습니다. 버블을 항상 띄워 두었다면 잠금화면에도 같은 자리에 탭이 떠서, 그 탭을 눌러도 됩니다. 2.2초 조용하면 알아서 끝내고 보냅니다.</div>
       <div class="fact"><b>서버 없이</b>폰에서 내 컴퓨터로 Tailscale을 타고 바로 갑니다. 컴퓨터에는 작은 프로그램 하나만 띄웁니다. <a href="https://github.com/KyongSik-Yoon/soksak/tree/main/daemon">soksak-daemon</a></div>
       <div class="fact"><b>클립보드 또는 바로 입력</b>기본은 컴퓨터 클립보드에 넣습니다. 컴퓨터에서 허용해 두면 쓰던 입력창에 바로 입력합니다.</div>
     </div>
@@ -532,7 +533,7 @@ footer a { color: var(--ink-2); }
     <div class="facts r" style="--i:4">
       <div class="fact"><b>약 20초 → 3초</b>말을 멈춘 뒤 글이 들어오기까지 기다리는 시간.</div>
       <div class="fact"><b>45% → 14%</b>쉼이 많은 긴 말에서 문장이 통째로 빠지던 오류율.</div>
-      <div class="fact"><b>CPU · NPU 공통</b>어느 모델을 골라도 같은 방식으로 동작합니다.</div>
+      <div class="fact"><b>CPU · NPU 공통</b>어느 모델을 골라도, 조용히 말하기로 속삭일 때도 같은 방식으로 동작합니다.</div>
     </div>
   </div>
 </section>
@@ -546,7 +547,7 @@ footer a { color: var(--ink-2); }
     <div class="strip r" id="strip" style="--i:3" aria-hidden="true"><span class="cut"></span></div>
     <div class="labels r" style="--i:4"><span>평소 목소리</span><span>속삭임 · 보통은 점선 아래를 침묵으로 보고 끊습니다</span></div>
     <div class="heard r" style="--i:5"><span class="q">SA</span><span>회의 중이라 조용히 말할게. 이 버그 원인만 찾아 줘.</span></div>
-    <p class="lede r" style="--i:6;font-size:14.5px">켜 두면 버블 배지가 장밋빛으로 바뀌고, 속삭임을 잘 듣는 모델로 자동 전환합니다.</p>
+    <p class="lede r" style="--i:6;font-size:14.5px">켜 두면 버블 배지가 장밋빛으로 바뀌고, 속삭임을 잘 듣는 모델로 자동 전환합니다. 속삭이는 동안에도 쉼마다 먼저 글로 풀어 둡니다. 주변이 조용할 때 쓰는 모드라, TV나 다른 목소리가 들리면 끄고 평소 목소리로 말하는 편이 제때 끝납니다.</p>
   </div>
 </section>
 
