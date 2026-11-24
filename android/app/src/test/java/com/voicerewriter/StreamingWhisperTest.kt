@@ -108,18 +108,29 @@ class StreamingWhisperTest {
         val sr = 16000
         val piece = 5 * sr
         // Too little sound: skipped whatever the VAD says.
-        assertNotNull(StreamingWhisper.skipReason(sr / 10, null, 0, piece))
+        assertNotNull(StreamingWhisper.skipReason(sr / 10, null, 0, piece, false))
         // Loud, no VAD: decoded.
-        assertNull(StreamingWhisper.skipReason(piece, null, 0, piece))
-        // Loud, and the VAD heard nothing in the whole take: it is not trusted, decoded.
-        assertNull(StreamingWhisper.skipReason(piece, BooleanArray(400), 0, piece))
+        assertNull(StreamingWhisper.skipReason(piece, null, 0, piece, false))
         // Loud, the VAD heard speech earlier in the take but none in this piece (road noise): skipped.
         val flags = BooleanArray(400) { it < 100 } // speech in the first 3.2s only
-        assertNotNull(StreamingWhisper.skipReason(piece, flags, 5 * sr, 10 * sr))
-        assertNull(StreamingWhisper.skipReason(piece, flags, 0, piece))
+        assertNotNull(StreamingWhisper.skipReason(piece, flags, 5 * sr, 10 * sr, true))
+        assertNull(StreamingWhisper.skipReason(piece, flags, 0, piece, true))
         // One short word (4 chunks, 0.13s) is enough.
         val word = BooleanArray(400) { it < 100 || it in 200..203 }
-        assertNull(StreamingWhisper.skipReason(piece, word, 5 * sr, 10 * sr))
+        assertNull(StreamingWhisper.skipReason(piece, word, 5 * sr, 10 * sr, true))
+        // A VAD that is not trusted drops nothing.
+        assertNull(StreamingWhisper.skipReason(piece, BooleanArray(400), 0, piece, false))
+    }
+
+    @Test fun theVadIsTrustedOnlyIfItHearsAShareOfWhatIsLoud() {
+        // build-175: a soft voice, 23.4s with about 60% of it over the loudness test, and the VAD heard one chunk.
+        assertTrue(!StreamingWhisper.vadTrusted(voicedFrames = 700, vadSpeechFrames = 2))
+        assertTrue(!StreamingWhisper.vadTrusted(voicedFrames = 700, vadSpeechFrames = 0))
+        // A car: everything is loud, the VAD hears the 80% that is speech.
+        assertTrue(StreamingWhisper.vadTrusted(voicedFrames = 1200, vadSpeechFrames = 960))
+        // A quiet room.
+        assertTrue(StreamingWhisper.vadTrusted(voicedFrames = 400, vadSpeechFrames = 380))
+        assertTrue(!StreamingWhisper.vadTrusted(0, 0))
     }
 
     @Test fun findCutToleratesAStartPastTheFramesItHas() {
