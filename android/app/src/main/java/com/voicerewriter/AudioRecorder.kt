@@ -87,7 +87,7 @@ class AudioRecorder(private val context: Context) {
     private val pcmLock = Any()
     private var pcm = ShortArray(SAMPLE_RATE * 30)
     @Volatile private var pcmLen = 0
-    // One flag per Silero chunk of an isolated take (see [speechFlags]); guarded by pcmLock.
+    // One flag per Silero chunk of a spoken take (see [speechFlags]); guarded by pcmLock.
     private var speechFlagBuf = BooleanArray(2048)
     private var speechFlagLen = 0
     @Volatile private var keepSpeechFlags = false
@@ -172,9 +172,10 @@ class AudioRecorder(private val context: Context) {
     }
 
     /**
-     * Silero's verdict on each 512-sample chunk of an isolated take, in order from sample 0, or
-     * null when the take is not isolated. [StreamingWhisper] finds its pauses in these: by
-     * loudness an isolated take was never cut (100s in one piece, phone log 2026-11-24).
+     * Silero's verdict on each 512-sample chunk of a spoken take, in order from sample 0 (of the
+     * isolated audio when voice isolation is on), or null in quiet mode, enrollment or without
+     * the VAD model. [StreamingWhisper] falls back on these where loudness finds no pause: in a
+     * moving car a take was never cut (100s in one piece, phone log 2026-11-24).
      */
     fun speechFlags(): BooleanArray? = synchronized(pcmLock) {
         if (!keepSpeechFlags) null else speechFlagBuf.copyOf(speechFlagLen)
@@ -233,8 +234,8 @@ class AudioRecorder(private val context: Context) {
         // returned untrimmed either way.
         val useVad = vadAutoStop && !quiet
         val isolating = voiceIsolation && !quiet && !rawCaptureOnly
-        // An isolated take runs Silero even with auto-stop off, for [speechFlags].
-        vad = if (useVad || isolating || (speakerGate && !quiet && !rawCaptureOnly)) {
+        // A spoken take runs Silero even with auto-stop off, for [speechFlags].
+        vad = if (useVad || (!quiet && !rawCaptureOnly)) {
             SileroVad.shared(context)?.also { it.reset() }
         } else null
         quietDetector = if (vadAutoStop && quiet && !rawCaptureOnly) {
@@ -244,7 +245,7 @@ class AudioRecorder(private val context: Context) {
         voxLockStream = if (isolating) {
             VoiceLockManager.openVoxLockStream(context)
         } else null
-        keepSpeechFlags = voxLockStream != null && vad != null
+        keepSpeechFlags = vad != null && !quiet && !rawCaptureOnly
 
         speakerGateSession = if (speakerGate && voxLockStream == null && !quiet && !rawCaptureOnly && vad != null) {
             val embedder = VoiceLockManager.acquireEmbedder(context)

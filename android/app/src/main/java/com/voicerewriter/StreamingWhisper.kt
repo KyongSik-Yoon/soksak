@@ -57,6 +57,17 @@ class StreamingWhisper(
         /** Frames in a row before a sound counts as whispering (0.1s), as the auto-stop asks: a click or a breath is not a word and must not end a pause. */
         const val QUIET_SPEECH_RUN = 5
         const val MIN_PIECE_S = 5.0
+
+        /** A spoken piece this long that loudness has not cut is cut at a Silero pause of [VAD_PAUSE_S]. */
+        const val VAD_AFTER_S = RELAX_2_S
+        const val VAD_PAUSE_S = RELAX_2_PAUSE_S
+
+        /**
+         * Speech Silero must have heard in a piece for it to be decoded. Shorter than
+         * [MIN_VOICED_S]: a one-word answer is under 0.3s of its chunks, and this check only has
+         * to stop pieces with no speech at all.
+         */
+        private const val MIN_VAD_VOICED_S = 0.1
         private const val FRAME = 320 // 20ms
         private const val SR = AudioRecorder.SAMPLE_RATE
         /** A piece needs this much sound to be decoded; whisper invents text for silence. */
@@ -113,6 +124,42 @@ class StreamingWhisper(
             return "p95 ${db(0.95)}dB p50 ${db(0.5)}dB p25 ${db(0.25)}dB p10 ${db(0.1)}dB"
         }
 
+        /** Where to cut, the first frame not yet examined, and whether the VAD rule found it. */
+        internal class Cut(val sample: Int, val nextFrame: Int, val byVad: Boolean)
+
+        /**
+         * The cut rule for spoken takes. By loudness first ([findCut] over the frame energies
+         * [e]): that is the rule the chunk benchmark measured, and in a quiet room it cuts every
+         * 5-9s. Where the room never gets 26 dB under the voice (a moving car: 100s in one
+         * piece), a piece that has reached [VAD_AFTER_S] is cut at a [VAD_PAUSE_S] pause in
+         * Silero's verdicts [vad] instead. The earlier of the two wins.
+         */
+        internal fun pickCut(e: List<Float>, vad: List<Float>?, pieceStart: Int, fromE: Int, fromVad: Int, level: Float): Cut? {
+            val loud = findCut(e, pieceStart, fromE, level)
+            val v = vad?.let { findCut(it, pieceStart, fromVad, 1f, pauseS = VAD_PAUSE_S, minPieceS = VAD_AFTER_S) }
+            return when {
+                loud == null && v == null -> null
+                v == null || (loud != null && loud.first <= v.first) -> Cut(loud!!.first, loud.second, false)
+                else -> Cut(v.first, v.second, true)
+            }
+        }
+
+        /**
+         * Why the piece [from, to) is not worth decoding, or null if it is. [voiced] is its
+         * samples over the loudness test. Loud is not speech — road noise passes that test — so
+         * Silero ([flags], per 512-sample chunk) must have heard some too; but only in a take
+         * where it has heard speech at all, so a Silero that hears nothing (it failed, or the
+         * voice is too soft for it) leaves the old rule and loses no words.
+         */
+        internal fun skipReason(voiced: Int, flags: BooleanArray?, from: Int, to: Int): String? {
+            if (voiced < MIN_VOICED_S * SR) return "sound %.2fs".format(voiced / SR.toFloat())
+            if (flags == null || flags.none { it }) return null
+            val a = from / SileroVad.CHUNK
+            val b = minOf(flags.size, (to - 1) / SileroVad.CHUNK + 1)
+            val speech = (a until b).count { flags[it] } * SileroVad.CHUNK
+            return if (speech < MIN_VAD_VOICED_S * SR) "no speech by the VAD (%.2fs)".format(speech / SR.toFloat()) else null
+        }
+
         /** RMS of [a][from, to), normalized to 0..1. */
         internal fun rms(a: ShortArray, from: Int = 0, to: Int = a.size): Float {
             if (to <= from) return 0f
@@ -133,15 +180,16 @@ class StreamingWhisper(
          * starts (sample offset), the sample offset to cut at, or null. Quiet = 26dB under the
          * speech level heard so far.
          */
-        internal fun findCut(e: List<Float>, pieceStart: Int, fromFrame: Int, level: Float, pauseS: Double = PAUSE_S, relax: Boolean = false): Pair<Int, Int>? {
+        internal fun findCut(e: List<Float>, pieceStart: Int, fromFrame: Int, level: Float, pauseS: Double = PAUSE_S, relax: Boolean = false, minPieceS: Double = MIN_PIECE_S): Pair<Int, Int>? {
             val thr = maxOf(level * 0.05f, 1e-4f)
             fun frames(s: Double) = (s * SR / FRAME).toInt()
             val full = frames(pauseS)
             var run = 0
             // A run already in progress at fromFrame is counted from its start.
-            var i = fromFrame
+            val from = minOf(fromFrame, e.size)
+            var i = from
             while (i > 0 && e[i - 1] < thr) { i--; run++ }
-            i = fromFrame
+            i = from
             while (i < e.size) {
                 run = if (e[i] < thr) run + 1 else 0
                 val len = (i - run + 1) * FRAME - pieceStart // the piece up to where this pause began
@@ -151,7 +199,7 @@ class StreamingWhisper(
                     len >= RELAX_1_S * SR -> minOf(full, frames(RELAX_1_PAUSE_S))
                     else -> full
                 }
-                if (run >= need && len >= (MIN_PIECE_S * SR).toInt()) {
+                if (run >= need && len >= (minPieceS * SR).toInt()) {
                     return (i - run / 2) * FRAME to i + 1
                 }
                 i++
@@ -171,12 +219,13 @@ class StreamingWhisper(
     private var quietRun = 0 // speech frames in a row, for [QUIET_SPEECH_RUN]
 
     /**
-     * Voice isolation ("내 목소리만"): frames come from the recorder's Silero verdicts on the
-     * isolated audio, 1 for speech and 0 for none. By loudness no pause was found in it — every
-     * isolated take went as one piece, 100.7s with 18.8s of waiting (phone log, 2026-11-24).
+     * Silero's verdict per frame (1 speech, 0 none) for a spoken take, beside [energies]: the
+     * second chance of [pickCut]. Null in quiet mode or without the VAD.
      */
-    private val byVad = quiet == null && recorder.speechFlags() != null
-    private val flagged get() = quiet != null || byVad
+    private val vadFrames: ArrayList<Float>? = if (quiet == null && recorder.speechFlags() != null) ArrayList() else null
+    private var vadScanFrom = 0
+    private var loudCuts = 0
+    private var vadCuts = 0
     private val energies = ArrayList<Float>()  // touched only by scan()
     @Volatile private var currentLevel = 0f   // speech level for decode(), set by scan()
     private var pieceStart = 0      // sample where the pending piece begins
@@ -219,9 +268,7 @@ class StreamingWhisper(
     private fun scan() {
         val len = recorder.rawLength()
         val have = energies.size * FRAME
-        if (byVad) {
-            recorder.speechFlags()?.let { energies.addAll(framesFromFlags(it, energies.size)) }
-        } else if (len - have >= FRAME) {
+        if (len - have >= FRAME) {
             val pcm = recorder.gatedCopy(have, len - (len - have) % FRAME)
             var off = 0
             while (off + FRAME <= pcm.size) {
@@ -235,18 +282,26 @@ class StreamingWhisper(
                 off += FRAME
             }
         }
-        val lvl = if (flagged) 1f else level(energies)
+        if (vadFrames != null) recorder.speechFlags()?.let { vadFrames.addAll(framesFromFlags(it, vadFrames.size)) }
+        val lvl = if (quiet != null) 1f else level(energies)
         currentLevel = lvl
         while (true) {
-            val (cut, next) = findCut(energies, pieceStart, scanFrom, lvl, if (quiet != null) QUIET_PAUSE_S else PAUSE_S, relax = flagged) ?: break
-            enqueue(pieceStart until cut)
+            val c = if (quiet != null) {
+                findCut(energies, pieceStart, scanFrom, lvl, QUIET_PAUSE_S, relax = true)?.let { Cut(it.first, it.second, false) }
+            } else {
+                pickCut(energies, vadFrames, pieceStart, scanFrom, vadScanFrom, lvl)
+            } ?: break
+            enqueue(pieceStart until c.sample)
             pieces++
-            pieceStart = cut
-            scanFrom = next
+            if (c.byVad) vadCuts++ else loudCuts++
+            pieceStart = c.sample
+            scanFrom = c.nextFrame
+            vadScanFrom = c.nextFrame
         }
         // Frames already checked can't start a new qualifying run on their own; keep a pause
         // that is still growing (findCut walks back over it).
         scanFrom = maxOf(scanFrom, energies.size)
+        if (vadFrames != null) vadScanFrom = maxOf(vadScanFrom, vadFrames.size)
     }
 
     private suspend fun decode(r: IntRange) {
@@ -254,12 +309,6 @@ class StreamingWhisper(
         val samples = WavIo.toFloats(pcm)
         if (quiet != null) {
             if (!QuietSpeechDetector.hasSpeech(samples)) return
-        } else if (byVad) {
-            val flags = recorder.speechFlags() ?: BooleanArray(0)
-            val a = r.first / SileroVad.CHUNK
-            val b = minOf(flags.size, (r.last + 1) / SileroVad.CHUNK + 1)
-            val voiced = (a until b).count { flags[it] } * SileroVad.CHUNK
-            if (voiced < MIN_VOICED_S * SR) return
         } else {
             val lvl = currentLevel
             var voiced = 0
@@ -268,7 +317,10 @@ class StreamingWhisper(
                 if (rms(pcm, off, off + FRAME) > maxOf(lvl * 0.1f, 1e-4f)) voiced += FRAME
                 off += FRAME
             }
-            if (voiced < MIN_VOICED_S * SR) return
+            skipReason(voiced, recorder.speechFlags(), r.first, r.last + 1)?.let {
+                Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s skipped: $it")
+                return
+            }
         }
         val t0 = System.nanoTime()
         val text = when (WhisperModelManager.model(model).engine) {
@@ -294,7 +346,12 @@ class StreamingWhisper(
         // is where Whisper invents text. Keep a short margin after the last voiced frame.
         // Quiet mode keeps the whole tail, as its recorder trims nothing: the last whispered
         // syllables are the ones its speech test is likeliest to miss.
-        val end = if (quiet != null) recorder.rawLength() else tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel)
+        // A spoken take ends where either test stops hearing a voice: over road noise the
+        // loudness test hears one to the very end.
+        val end = if (quiet != null) recorder.rawLength() else minOf(
+            tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel),
+            vadFrames?.let { tailEnd(it, pieceStart, recorder.rawLength(), 1f) } ?: Int.MAX_VALUE,
+        )
         if (end > pieceStart) enqueue(pieceStart until end)
         queue.close()
         // What is still to decode now that the user has stopped: the tail plus any piece queued
@@ -305,10 +362,9 @@ class StreamingWhisper(
         if (quiet != null) Log.i(TAG, "quiet pauses: ${pauseStats(energies)}")
         else {
             // Why a take was or was not cut, readable from a copied debug log: the loudness rule
-            // needs pauses 26 dB under p95; an isolated take is cut by the VAD pauses instead.
-            val all = recorder.gatedCopy(0, recorder.rawLength())
-            val rmsFrames = List(all.size / FRAME) { rms(all, it * FRAME, (it + 1) * FRAME) }
-            Log.i(TAG, "levels: ${levelStats(rmsFrames)}" + if (byVad) ", vad pauses: ${pauseStats(energies)}" else "")
+            // needs pauses 26 dB under p95, the VAD rule a 0.3s pause once a piece is 11s long.
+            Log.i(TAG, "levels: ${levelStats(energies)}, cuts: $loudCuts by loudness, $vadCuts by vad" +
+                (vadFrames?.let { ", vad pauses: ${pauseStats(it)}" } ?: ""))
         }
         Log.i(TAG, "finished: ${pieces + 1} pieces, wait after stop ${(System.nanoTime() - t0) / 1_000_000}ms")
         if (failure != null) return null

@@ -74,16 +74,56 @@ class StreamingWhisperTest {
         assertNull(StreamingWhisper.findCut(take(12, 20), 0, 0, 1f))
     }
 
-    @Test fun aTakeWithANoiseFloorIsCutByTheVadFlagsNotByLoudness() {
-        // Isolated audio whose pauses sit only 14 dB under the speech: 6s speech, 0.8s pause, 3s speech.
+    private fun chunks(sec: Double, v: Boolean) = List((sec * 16000 / 512).toInt()) { v }
+    private fun vad(vararg parts: List<Boolean>) = StreamingWhisper.framesFromFlags(parts.toList().flatten().toBooleanArray(), 0)
+
+    @Test fun aNoisyTakeIsCutByTheVadOnceThePieceIsLong() {
+        // Pauses only 14 dB under the speech (road noise): 12s speech, 0.4s pause, 3s speech.
+        val e = frames(12.0, 0.1f) + frames(0.4, 0.02f) + frames(3.0, 0.1f)
+        val lvl = StreamingWhisper.level(e)
+        assertNull(StreamingWhisper.findCut(e, 0, 0, lvl))
+        val c = StreamingWhisper.pickCut(e, vad(chunks(12.0, true), chunks(0.4, false), chunks(3.0, true)), 0, 0, 0, lvl)!!
+        assertTrue(c.byVad)
+        assertTrue("cut at ${c.sample}", c.sample in 12 * 16000..(12.4 * 16000).toInt())
+        // Without the VAD, as before: no cut.
+        assertNull(StreamingWhisper.pickCut(e, null, 0, 0, 0, lvl))
+    }
+
+    @Test fun theVadDoesNotCutAPieceShorterThanElevenSeconds() {
         val e = frames(6.0, 0.1f) + frames(0.8, 0.02f) + frames(3.0, 0.1f)
-        assertNull(StreamingWhisper.findCut(e, 0, 0, StreamingWhisper.level(e)))
-        // The same take as Silero chunks (512 samples): speech, no speech, speech.
-        fun chunks(sec: Double, v: Boolean) = List((sec * 16000 / 512).toInt()) { v }
-        val flags = (chunks(6.0, true) + chunks(0.8, false) + chunks(3.0, true)).toBooleanArray()
-        val f = StreamingWhisper.framesFromFlags(flags, 0)
-        val (cut, _) = StreamingWhisper.findCut(f, 0, 0, 1f, relax = true)!!
-        assertTrue("cut at $cut", cut in 6 * 16000..(6.8 * 16000).toInt())
+        assertNull(StreamingWhisper.pickCut(e, vad(chunks(6.0, true), chunks(0.8, false), chunks(3.0, true)), 0, 0, 0, StreamingWhisper.level(e)))
+    }
+
+    @Test fun aQuietRoomIsCutByLoudnessWhateverTheVadSays() {
+        val e = frames(6.0, 0.1f) + frames(0.8, 0.0f) + frames(3.0, 0.1f)
+        val lvl = StreamingWhisper.level(e)
+        val plain = StreamingWhisper.findCut(e, 0, 0, lvl)!!
+        val c = StreamingWhisper.pickCut(e, vad(chunks(9.8, true)), 0, 0, 0, lvl)!!
+        assertEquals(plain.first, c.sample)
+        assertEquals(plain.second, c.nextFrame)
+        assertTrue(!c.byVad)
+    }
+
+    @Test fun aPieceIsSkippedOnlyWhenATestThatWorksHearsNothing() {
+        val sr = 16000
+        val piece = 5 * sr
+        // Too little sound: skipped whatever the VAD says.
+        assertNotNull(StreamingWhisper.skipReason(sr / 10, null, 0, piece))
+        // Loud, no VAD: decoded.
+        assertNull(StreamingWhisper.skipReason(piece, null, 0, piece))
+        // Loud, and the VAD heard nothing in the whole take: it is not trusted, decoded.
+        assertNull(StreamingWhisper.skipReason(piece, BooleanArray(400), 0, piece))
+        // Loud, the VAD heard speech earlier in the take but none in this piece (road noise): skipped.
+        val flags = BooleanArray(400) { it < 100 } // speech in the first 3.2s only
+        assertNotNull(StreamingWhisper.skipReason(piece, flags, 5 * sr, 10 * sr))
+        assertNull(StreamingWhisper.skipReason(piece, flags, 0, piece))
+        // One short word (4 chunks, 0.13s) is enough.
+        val word = BooleanArray(400) { it < 100 || it in 200..203 }
+        assertNull(StreamingWhisper.skipReason(piece, word, 5 * sr, 10 * sr))
+    }
+
+    @Test fun findCutToleratesAStartPastTheFramesItHas() {
+        assertNull(StreamingWhisper.findCut(frames(1.0, 0f), 0, 500, 1f))
     }
 
     @Test fun framesFromFlagsGoesByTheChunkUnderEachFramesMiddle() {
