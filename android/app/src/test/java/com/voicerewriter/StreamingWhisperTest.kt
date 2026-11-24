@@ -131,6 +131,8 @@ class StreamingWhisperTest {
         // A quiet room.
         assertTrue(StreamingWhisper.vadTrusted(voicedFrames = 400, vadSpeechFrames = 380))
         assertTrue(!StreamingWhisper.vadTrusted(0, 0))
+        // build-176: 20.4s, about a third of it loud, the VAD heard 3% of the take.
+        assertTrue(!StreamingWhisper.vadTrusted(voicedFrames = 340, vadSpeechFrames = 31))
     }
 
     @Test fun findCutToleratesAStartPastTheFramesItHas() {

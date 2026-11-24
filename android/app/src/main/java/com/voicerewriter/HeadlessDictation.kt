@@ -42,6 +42,7 @@ object HeadlessDictation {
 
     private const val TAG = "HeadlessDictation"
     private const val SILENT_PROBE_MS = 700L
+    private const val UNHEARD_HOLD_MS = 1000L
     private const val PROGRESS_TICK_MS = 50L
 
     private val main = Handler(Looper.getMainLooper())
@@ -107,11 +108,16 @@ object HeadlessDictation {
 
         ampJob = scope.launch {
             var unheard = false
+            var unheardShownAt = 0L
             while (isActive && rec.isRecording) {
                 val raw = rec.amplitude()
                 BubbleService.instance?.showAmplitude(raw)
-                if (rec.voiceUnheard != unheard) {
-                    unheard = !unheard
+                // "No voice" stays for at least a second once shown: it came and went in 0.2s.
+                val now = rec.voiceUnheard
+                val clock = android.os.SystemClock.uptimeMillis()
+                if (now && !unheard || !now && unheard && clock - unheardShownAt >= UNHEARD_HOLD_MS) {
+                    unheard = now
+                    if (now) unheardShownAt = clock
                     Log.i(TAG, if (unheard) "voice isolation is passing no voice" else "voice isolation hears the voice again")
                     BubbleService.instance?.showVoiceUnheard(unheard)
                 }

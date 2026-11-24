@@ -69,8 +69,12 @@ class StreamingWhisper(
          */
         private const val MIN_VAD_VOICED_S = 0.1
 
-        /** See [vadTrusted]. Not measured: the takes Silero missed had 0-1%, the ones it heard 44-80%. */
-        const val VAD_TRUST = 0.1
+        /**
+         * See [vadTrusted]. Not measured, set between what the phone logs showed: takes Silero
+         * did not hear (soft or whispered) had it at 0-10% of the voiced frames — one sat right
+         * on a first value of 10% and was trusted — and takes it heard at 65% and more.
+         */
+        const val VAD_TRUST = 0.3
         private const val FRAME = 320 // 20ms
         private const val SR = AudioRecorder.SAMPLE_RATE
         /** A piece needs this much sound to be decoded; whisper invents text for silence. */
