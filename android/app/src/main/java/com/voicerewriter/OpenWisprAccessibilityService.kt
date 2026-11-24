@@ -629,7 +629,8 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     /**
      * IME action on the field; if the text is still there afterwards, the send button beside it.
      * A newline the app added for the IME action is taken back before clicking send, so the
-     * message does not end in a blank line. No send button and a newline: that was Enter.
+     * message does not end in a blank line. No send button and a newline: the newline stays and
+     * the press counts as not sent, so the bubble says so ("Not sent").
      */
     private fun enterOnNode(node: AccessibilityNodeInfo, t: EnterTarget, onDone: (Boolean) -> Unit) {
         val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
@@ -660,7 +661,6 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                         AutoEnter.Outcome.NEWLINE -> {
                             Log.i(TAG, "auto Enter: IME action added a newline")
                             clickSendButton(node, restore = before)
-                            true
                         }
                         AutoEnter.Outcome.NOTHING -> {
                             Log.i(TAG, "auto Enter: IME action left the text ($outcome)")

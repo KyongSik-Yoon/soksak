@@ -228,7 +228,7 @@ class BubbleView(context: Context) : View(context) {
     var badge: String? = null
         set(value) { if (field != value) { field = value; invalidate() } }
 
-    /** Words on the [State.COPIED] pill: "Copied", or how sending to the PC went. */
+    /** Words on the [State.COPIED] pill: "Copied", how sending to the PC went, or "Not sent" (Auto Enter). */
     var pillLabel: String = "Copied"
         set(value) { if (field != value) { field = value; invalidate() } }
 

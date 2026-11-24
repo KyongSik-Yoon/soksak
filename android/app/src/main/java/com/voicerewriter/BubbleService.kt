@@ -1194,10 +1194,15 @@ class BubbleService : Service() {
                     setState(BubbleView.State.INSERTED)
                     hold(INSERTED_HOLD_MS)
                 } else {
-                    holdUntil = 0L
-                    showIdle()
+                    // The text is still in the field, unsent: say so, as the clipboard fallback
+                    // does. Going back to idle looked the same as having sent it.
+                    recording = true
+                    ensureVisible()
+                    bubble?.pillLabel = "Not sent"
+                    setState(BubbleView.State.COPIED)
+                    hold(FALLBACK_HOLD_MS)
                 }
-                flushDeferredPc(if (ok) INSERTED_HOLD_MS else 0L)
+                flushDeferredPc(if (ok) INSERTED_HOLD_MS else FALLBACK_HOLD_MS)
             }
         }
     }
