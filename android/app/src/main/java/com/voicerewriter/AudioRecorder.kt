@@ -87,6 +87,10 @@ class AudioRecorder(private val context: Context) {
     private val pcmLock = Any()
     private var pcm = ShortArray(SAMPLE_RATE * 30)
     @Volatile private var pcmLen = 0
+    // One flag per Silero chunk of an isolated take (see [speechFlags]); guarded by pcmLock.
+    private var speechFlagBuf = BooleanArray(2048)
+    private var speechFlagLen = 0
+    @Volatile private var keepSpeechFlags = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // VAD state (only used when a Silero model is available + enabled)
@@ -104,6 +108,10 @@ class AudioRecorder(private val context: Context) {
     private var isoSq = 0.0
     private var isoPeak = 0
     private var isoN = 0L
+    // Longest single isolation run and when the microphone opened: an isolation run that waits
+    // behind a Whisper decode on the same NPU for longer than the mic buffer loses audio.
+    private var voxMaxMs = 0L
+    private var startedAtMs = 0L
     private var speechSamples = 0
     private var quietDetector: QuietSpeechDetector? = null
     private var speakerGateSession: SpeakerGateSession? = null
@@ -163,6 +171,23 @@ class AudioRecorder(private val context: Context) {
         return speakerGateSession?.maskStreamingChunk(from, to, raw) ?: raw
     }
 
+    /**
+     * Silero's verdict on each 512-sample chunk of an isolated take, in order from sample 0, or
+     * null when the take is not isolated. [StreamingWhisper] finds its pauses in these: by
+     * loudness an isolated take was never cut (100s in one piece, phone log 2026-11-24).
+     */
+    fun speechFlags(): BooleanArray? = synchronized(pcmLock) {
+        if (!keepSpeechFlags) null else speechFlagBuf.copyOf(speechFlagLen)
+    }
+
+    private fun noteSpeechFlag(prob: Float) {
+        if (!keepSpeechFlags) return
+        synchronized(pcmLock) {
+            if (speechFlagLen == speechFlagBuf.size) speechFlagBuf = speechFlagBuf.copyOf(speechFlagLen * 2)
+            speechFlagBuf[speechFlagLen++] = prob >= SPEECH_END_PROB
+        }
+    }
+
     /** Current peak amplitude (0..32767) for waveform visualization. */
     fun amplitude(): Int = lastPeak
 
@@ -188,7 +213,8 @@ class AudioRecorder(private val context: Context) {
         if (recording) return
         hangoverSamples = (hangoverSeconds.coerceIn(0.5, 10.0) * SAMPLE_RATE).toInt()
         chunks.clear()
-        synchronized(pcmLock) { pcmLen = 0 }
+        synchronized(pcmLock) { pcmLen = 0; speechFlagLen = 0 }
+        keepSpeechFlags = false
         lastPeak = 0
         micDeliveredNonZero = false
         totalSamples = 0
@@ -197,6 +223,7 @@ class AudioRecorder(private val context: Context) {
         lastSpeechSample = 0
         autoStopFired = false
         micSq = 0.0; micPeak = 0; micN = 0; isoSq = 0.0; isoPeak = 0; isoN = 0
+        voxMaxMs = 0
         speechSamples = 0
         vadTailLen = 0
         rawCaptureOnlyMode = rawCaptureOnly
@@ -205,16 +232,19 @@ class AudioRecorder(private val context: Context) {
         // rawCaptureOnly (voice enrollment) may still ask for the silence auto-stop; the audio is
         // returned untrimmed either way.
         val useVad = vadAutoStop && !quiet
-        vad = if (useVad || (speakerGate && !quiet && !rawCaptureOnly)) {
+        val isolating = voiceIsolation && !quiet && !rawCaptureOnly
+        // An isolated take runs Silero even with auto-stop off, for [speechFlags].
+        vad = if (useVad || isolating || (speakerGate && !quiet && !rawCaptureOnly)) {
             SileroVad.shared(context)?.also { it.reset() }
         } else null
         quietDetector = if (vadAutoStop && quiet && !rawCaptureOnly) {
             QuietSpeechDetector(hangoverSamples, MIN_SPEECH_SAMPLES)
         } else null
 
-        voxLockStream = if (voiceIsolation && !quiet && !rawCaptureOnly) {
+        voxLockStream = if (isolating) {
             VoiceLockManager.openVoxLockStream(context)
         } else null
+        keepSpeechFlags = voxLockStream != null && vad != null
 
         speakerGateSession = if (speakerGate && voxLockStream == null && !quiet && !rawCaptureOnly && vad != null) {
             val embedder = VoiceLockManager.acquireEmbedder(context)
@@ -266,6 +296,7 @@ class AudioRecorder(private val context: Context) {
         record = rec
         recording = true
         rec.startRecording()
+        startedAtMs = android.os.SystemClock.elapsedRealtime()
         worker = Thread {
             val buf = ShortArray(frame)
             val vadInst = vad
@@ -294,7 +325,9 @@ class AudioRecorder(private val context: Context) {
 
                 if (vox != null) {
                     val floats = FloatArray(n) { buf[it] / 32768f }
+                    val t0 = android.os.SystemClock.elapsedRealtime()
                     val isolated = vox.push(floats)
+                    voxMaxMs = max(voxMaxMs, android.os.SystemClock.elapsedRealtime() - t0)
                     if (isolated.isNotEmpty()) {
                         val isoPcm = floatsToPcm16(isolated)
                         for (v in isoPcm) {
@@ -374,6 +407,7 @@ class AudioRecorder(private val context: Context) {
         vadAutoStop: Boolean,
         onAutoStop: (() -> Unit)?,
     ) {
+        noteSpeechFlag(prob)
         if (gate != null) {
             if (gate.onVadFrame(prob, endSample) && !autoStopFired && vadAutoStop) {
                 autoStopFired = true
@@ -429,7 +463,7 @@ class AudioRecorder(private val context: Context) {
             fun db(sq: Double, n: Long) = if (n == 0L) -99 else (10 * kotlin.math.log10(maxOf(sq / n, 1e-3) / (32768.0 * 32768.0))).toInt()
             fun peakDb(p: Int) = (20 * kotlin.math.log10(maxOf(p, 1) / 32768.0)).toInt()
             Log.i("AudioRecorder", "take level: %.1fs mic rms=%ddB peak=%ddB".format(micN / SAMPLE_RATE.toDouble(), db(micSq, micN), peakDb(micPeak)) +
-                if (voxLockStream != null) " isolated rms=${db(isoSq, isoN)}dB peak=${peakDb(isoPeak)}dB" else "")
+                if (voxLockStream != null) " isolated rms=${db(isoSq, isoN)}dB peak=${peakDb(isoPeak)}dB, slowest isolation run ${voxMaxMs}ms, clock %.1fs".format((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000.0) else "")
         }
 
         val vox = voxLockStream
@@ -458,7 +492,10 @@ class AudioRecorder(private val context: Context) {
                         if (vadTailLen == SileroVad.CHUNK) {
                             vadTailLen = 0
                             val prob = try { vadInst.process(vadTail) } catch (_: Exception) { 0f }
-                            if (prob >= SPEECH_START_PROB) {
+                            noteSpeechFlag(prob)
+                            // Only a take that trims by auto-stop: with it off, speech first
+                            // seen here would trim the take down to this tail.
+                            if (vadActive && prob >= SPEECH_START_PROB) {
                                 if (!speechStarted) {
                                     speechStarted = true
                                     firstSpeechSample = max(0, totalSamples - tailPcm.size + off - SileroVad.CHUNK - PRE_PAD_SAMPLES)

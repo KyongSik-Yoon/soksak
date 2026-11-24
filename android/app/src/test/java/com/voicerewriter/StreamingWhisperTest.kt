@@ -74,6 +74,26 @@ class StreamingWhisperTest {
         assertNull(StreamingWhisper.findCut(take(12, 20), 0, 0, 1f))
     }
 
+    @Test fun aTakeWithANoiseFloorIsCutByTheVadFlagsNotByLoudness() {
+        // Isolated audio whose pauses sit only 14 dB under the speech: 6s speech, 0.8s pause, 3s speech.
+        val e = frames(6.0, 0.1f) + frames(0.8, 0.02f) + frames(3.0, 0.1f)
+        assertNull(StreamingWhisper.findCut(e, 0, 0, StreamingWhisper.level(e)))
+        // The same take as Silero chunks (512 samples): speech, no speech, speech.
+        fun chunks(sec: Double, v: Boolean) = List((sec * 16000 / 512).toInt()) { v }
+        val flags = (chunks(6.0, true) + chunks(0.8, false) + chunks(3.0, true)).toBooleanArray()
+        val f = StreamingWhisper.framesFromFlags(flags, 0)
+        val (cut, _) = StreamingWhisper.findCut(f, 0, 0, 1f, relax = true)!!
+        assertTrue("cut at $cut", cut in 6 * 16000..(6.8 * 16000).toInt())
+    }
+
+    @Test fun framesFromFlagsGoesByTheChunkUnderEachFramesMiddle() {
+        val flags = BooleanArray(8) { it != 3 } // chunk 3 = samples 1536..2047
+        val f = StreamingWhisper.framesFromFlags(flags, 0)
+        assertEquals(12, f.size) // 4096 samples
+        assertEquals(listOf(5), f.indices.filter { f[it] == 0f }) // frame 5's middle is sample 1760
+        assertEquals(f.drop(4), StreamingWhisper.framesFromFlags(flags, 4))
+    }
+
     @Test fun pauseStatsCountsByLength() {
         val e = List(50) { 1f } + List(40) { 0f } + List(50) { 1f } + List(12) { 0f } + List(50) { 1f }
         val s = StreamingWhisper.pauseStats(e)
