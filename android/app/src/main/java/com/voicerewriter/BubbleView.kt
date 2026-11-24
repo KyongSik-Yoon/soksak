@@ -228,6 +228,13 @@ class BubbleView(context: Context) : View(context) {
     var badge: String? = null
         set(value) { if (field != value) { field = value; invalidate() } }
 
+    /**
+     * Words in place of the waveform while listening, or null for the waveform: "No voice" when
+     * voice isolation is passing none of the sound the microphone has.
+     */
+    var listeningNote: String? = null
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     /** Words on the [State.COPIED] pill: "Copied", how sending to the PC went, or "Not sent" (Auto Enter). */
     var pillLabel: String = "Copied"
         set(value) { if (field != value) { field = value; invalidate() } }
@@ -465,6 +472,14 @@ class BubbleView(context: Context) : View(context) {
         accentPaint.alpha = (breathe * 255).toInt()
         canvas.drawCircle(content.left + inset + dp(4.5f), cy, dp(4.5f), accentPaint)
         accentPaint.alpha = 255
+
+        listeningNote?.let { note ->
+            labelPaint.color = CREAM
+            val fm = labelPaint.fontMetrics
+            val right = content.right - inset
+            canvas.drawText(note, right - labelPaint.measureText(note), cy - (fm.ascent + fm.descent) / 2f, labelPaint)
+            return
+        }
 
         // Waveform, right-aligned. Six bars, newest on the right.
         val barW = dp(4f)

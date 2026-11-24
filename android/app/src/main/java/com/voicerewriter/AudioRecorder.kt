@@ -111,6 +111,16 @@ class AudioRecorder(private val context: Context) {
     // Longest single isolation run and when the microphone opened: an isolation run that waits
     // behind a Whisper decode on the same NPU for longer than the mic buffer loses audio.
     private var voxMaxMs = 0L
+    // Voice isolation only: whether the voice is still coming through ([voiceUnheard]), and the
+    // level before/after isolation in 5s steps for the log — "it stopped hearing me" is otherwise
+    // a soft voice or a dead isolation stream with nothing to tell them apart.
+    private var isolationWatch: IsolationWatch? = null
+    private var micSound: QuietSpeechDetector? = null
+    private val levelSteps = ArrayList<String>()
+    private var stepMicSq = 0.0
+    private var stepMicN = 0
+    private var stepIsoSq = 0.0
+    private var stepIsoN = 0
     private var startedAtMs = 0L
     private var speechSamples = 0
     private var quietDetector: QuietSpeechDetector? = null
@@ -189,6 +199,12 @@ class AudioRecorder(private val context: Context) {
         }
     }
 
+    /**
+     * Voice isolation is on and has passed no speech for a while although the microphone has
+     * sound ([IsolationWatch]). The words spoken meanwhile are not in the take.
+     */
+    val voiceUnheard: Boolean get() = recording && isolationWatch?.unheard == true
+
     /** Current peak amplitude (0..32767) for waveform visualization. */
     fun amplitude(): Int = lastPeak
 
@@ -246,6 +262,11 @@ class AudioRecorder(private val context: Context) {
             VoiceLockManager.openVoxLockStream(context)
         } else null
         keepSpeechFlags = vad != null && !quiet && !rawCaptureOnly
+        val watching = voxLockStream != null && vad != null
+        isolationWatch = if (watching) IsolationWatch() else null
+        micSound = if (watching) QuietSpeechDetector(Int.MAX_VALUE, Int.MAX_VALUE) else null
+        levelSteps.clear()
+        stepMicSq = 0.0; stepMicN = 0; stepIsoSq = 0.0; stepIsoN = 0
 
         speakerGateSession = if (speakerGate && voxLockStream == null && !quiet && !rawCaptureOnly && vad != null) {
             val embedder = VoiceLockManager.acquireEmbedder(context)
@@ -325,6 +346,12 @@ class AudioRecorder(private val context: Context) {
                 micN += n
 
                 if (vox != null) {
+                    micSound?.let { d ->
+                        d.feedPcm(buf, n, micN.toInt())
+                        isolationWatch?.mic(d.lastFrameSpeech, n)
+                    }
+                    for (i in 0 until n) { val v = buf[i].toDouble(); stepMicSq += v * v }
+                    stepMicN += n
                     val floats = FloatArray(n) { buf[it] / 32768f }
                     val t0 = android.os.SystemClock.elapsedRealtime()
                     val isolated = vox.push(floats)
@@ -336,6 +363,13 @@ class AudioRecorder(private val context: Context) {
                             if (abs(v.toInt()) > isoPeak) isoPeak = abs(v.toInt())
                         }
                         isoN += isoPcm.size
+                        for (v in isoPcm) stepIsoSq += v.toDouble() * v
+                        stepIsoN += isoPcm.size
+                        if (stepMicN >= 5 * SAMPLE_RATE && levelSteps.size < 60) {
+                            fun db(sq: Double, n: Int) = if (n == 0) -99 else (10 * kotlin.math.log10(maxOf(sq / n, 1e-3) / (32768.0 * 32768.0))).toInt()
+                            levelSteps.add("${db(stepMicSq, stepMicN)}/${db(stepIsoSq, stepIsoN)}")
+                            stepMicSq = 0.0; stepMicN = 0; stepIsoSq = 0.0; stepIsoN = 0
+                        }
                         emitProcessedChunk(isoPcm, isoPcm.size, vadInst, quietInst = null, gate = null, vadAutoStop = vadAutoStop, onAutoStop = onAutoStop)
                     }
                 } else {
@@ -409,6 +443,7 @@ class AudioRecorder(private val context: Context) {
         onAutoStop: (() -> Unit)?,
     ) {
         noteSpeechFlag(prob)
+        isolationWatch?.isolated(prob >= SPEECH_END_PROB)
         if (gate != null) {
             if (gate.onVadFrame(prob, endSample) && !autoStopFired && vadAutoStop) {
                 autoStopFired = true
@@ -467,6 +502,9 @@ class AudioRecorder(private val context: Context) {
                 if (voxLockStream != null) " isolated rms=${db(isoSq, isoN)}dB peak=${peakDb(isoPeak)}dB, slowest isolation run ${voxMaxMs}ms, clock %.1fs".format((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000.0) else "")
         }
 
+        isolationWatch?.let {
+            Log.i("AudioRecorder", "isolation: voice unheard for %.1fs; mic/isolated dB per 5s: %s".format(it.unheardSeconds, levelSteps.joinToString(" ")))
+        }
         val vox = voxLockStream
         voxLockStream = null
         if (vox != null) {

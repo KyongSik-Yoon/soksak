@@ -106,9 +106,15 @@ object HeadlessDictation {
         BubbleService.recordingStopper = { stop(app, s) }
 
         ampJob = scope.launch {
+            var unheard = false
             while (isActive && rec.isRecording) {
                 val raw = rec.amplitude()
                 BubbleService.instance?.showAmplitude(raw)
+                if (rec.voiceUnheard != unheard) {
+                    unheard = !unheard
+                    Log.i(TAG, if (unheard) "voice isolation is passing no voice" else "voice isolation hears the voice again")
+                    BubbleService.instance?.showVoiceUnheard(unheard)
+                }
                 DictationStatus.silence.value = rec.silenceProgress()
                 if (!rec.micDeliveredNonZero && System.currentTimeMillis() - startMs > SILENT_PROBE_MS) {
                     // A live microphone is never digital zero for this long; a silenced one is.

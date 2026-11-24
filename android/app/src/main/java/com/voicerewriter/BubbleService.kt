@@ -1110,9 +1110,19 @@ class BubbleService : Service() {
         mainHandler.post {
             holdUntil = 0L
             recording = true
+            bubble?.listeningNote = null
             ensureVisible()
             setState(BubbleView.State.LISTENING)
         }
+    }
+
+    /**
+     * While listening with voice isolation: the microphone has sound but isolation is passing no
+     * voice, so what is being said is not being taken down. The pill says so in place of the
+     * waveform; a flat waveform alone looked like the app had stopped (2026-11-24).
+     */
+    fun showVoiceUnheard(unheard: Boolean) {
+        mainHandler.post { bubble?.listeningNote = if (unheard) "No voice" else null }
     }
 
     fun showAmplitude(amp: Int) {
