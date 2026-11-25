@@ -95,6 +95,31 @@ class AutoEnterTest {
         assertNull(AutoEnter.trailingButton(fieldTop, fieldRight, fieldBottom, listOf(toolbar, left), 16))
     }
 
+    @Test fun `a form's go-ahead is the one button on its Cancel's row`() {
+        // agent world's new-session dialog from the debug log (2026-11-25): field 1029..1805.
+        val more = intArrayOf(76, 733, 1364, 897)
+        val cancel = intArrayOf(920, 1809, 1128, 1957)
+        val build = intArrayOf(1140, 1809, 1348, 1957)
+        val labels = listOf("더 보기 agy-1", "취소", "짓기")
+        assertEquals(2, AutoEnter.confirmButton(labels, listOf(more, cancel, build), 1029, 1805, 252))
+        // No Cancel, two of them, or a third button on the row: not a form's last row.
+        assertNull(AutoEnter.confirmButton(listOf("더 보기", "짓기"), listOf(more, build), 1029, 1805, 252))
+        assertNull(AutoEnter.confirmButton(listOf("취소", "취소", "짓기"), listOf(more, cancel, build), 1029, 1805, 252))
+        val third = intArrayOf(700, 1809, 908, 1957)
+        assertNull(AutoEnter.confirmButton(listOf("미리보기", "취소", "짓기"), listOf(third, cancel, build), 1029, 1805, 252))
+        // A Cancel far from the field belongs to something else.
+        assertNull(AutoEnter.confirmButton(listOf("Cancel", "OK"), listOf(cancel, build), 200, 400, 252))
+        assertEquals(1, AutoEnter.confirmButton(listOf("Cancel", "Create"), listOf(cancel, build), 1029, 1805, 252))
+    }
+
+    @Test fun `a button that deletes, leaves or pays is never the go-ahead`() {
+        val cancel = intArrayOf(920, 1809, 1128, 1957)
+        val other = intArrayOf(1140, 1809, 1348, 1957)
+        for (l in listOf("삭제", "Delete", "Remove project", "나가기", "Discard", "결제하기", "Log out", "음성 입력")) {
+            assertNull(l, AutoEnter.confirmButton(listOf("취소", l), listOf(cancel, other), 1029, 1805, 252))
+        }
+    }
+
     @Test fun `a send button must sit beside the field`() {
         // Field at y 1800..1900, reach 200: its row and the toolbar under it, not the chat above.
         assertTrue(AutoEnter.besideField(1820, 1880, 1800, 1900, 200))

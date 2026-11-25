@@ -47,6 +47,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         private const val SEND_SEARCH_HIDDEN_LEVELS = 3
         /** After asking the page to scroll a send button into view, before tapping it. */
         private const val SHOW_SETTLE_MS = 400L
+        private const val RESTORE_SETTLE_MS = 250L
 
         /** "MM-dd HH:mm · why" for the last dictation that ended on the clipboard, or null. */
         fun lastFallback(context: Context): String? =
@@ -736,17 +737,18 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         val found = findSendButton(field, root, fb)
         val hidden = if (found == null) hiddenSendButton(field, fb) else null
         val offscreen = hidden != null
-        val (btn, label) = found ?: hidden ?: trailingUnnamedButton(field, fb) ?: run {
+        val (btn, label) = found ?: hidden ?: confirmButton(field, fb) ?: trailingUnnamedButton(field, fb) ?: run {
             Log.i(TAG, "auto Enter: no send button found; beside the field: ${buttonsNear(field)}")
             return false
         }
+        var restored = false
         if (restore != null && reportsLessThanItHolds(field, restore)) {
             Log.i(TAG, "auto Enter: newline left in place, the field reports less than it holds")
         } else if (restore != null) {
             val args = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore)
             }
-            field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            restored = field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         }
         if (offscreen) {
             // agent world with a picture attached: the grown field reached the keyboard and pushed
@@ -759,6 +761,18 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                 Log.i(TAG, "auto Enter: after scrolling, send button visible=$visible ${boundsOf(btn)}")
                 pressSendButton(btn, label, tap = visible)
             }, SHOW_SETTLE_MS)
+            return true
+        }
+        if (restored && inWebContent(btn)) {
+            // Taking the newline back may shrink the field a line and move a button under it, and
+            // the tap goes to a point on screen: let the page settle and read the place again.
+            val was = boundsOf(btn)
+            enterHandler.postDelayed({
+                if (enterCancelled) { Log.i(TAG, "auto Enter: cancelled before pressing the send button"); return@postDelayed }
+                val visible = btn.refresh() && btn.isVisibleToUser
+                Log.i(TAG, "auto Enter: newline taken back, send button $was -> ${boundsOf(btn)} visible=$visible")
+                pressSendButton(btn, label, tap = visible)
+            }, RESTORE_SETTLE_MS)
             return true
         }
         return pressSendButton(btn, label, tap = true)
@@ -859,6 +873,35 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             anc = a.parent
         }
         return null
+    }
+
+    /**
+     * No button says "send": a form's go-ahead beside its Cancel ([AutoEnter.confirmButton]).
+     * Reached only once the IME action has not sent, so the text is still waiting in the field.
+     */
+    private fun confirmButton(field: AccessibilityNodeInfo, fb: android.graphics.Rect): Pair<AccessibilityNodeInfo, String>? {
+        var top: AccessibilityNodeInfo = field
+        repeat(4) { top = top.parent ?: return@repeat }
+        val nodes = mutableListOf<AccessibilityNodeInfo>()
+        val labels = mutableListOf<String>()
+        val boxes = mutableListOf<IntArray>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(top) }
+        var seen = 0
+        while (queue.isNotEmpty() && seen < SEND_SEARCH_NEAR) {
+            val n = queue.removeFirst()
+            seen++
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+            if (n.isEditable || !n.isVisibleToUser || !n.isEnabled) continue
+            if (n.className?.toString()?.endsWith("Button") != true) continue
+            val name = nameOf(n, true) ?: continue
+            val b = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            nodes += n
+            labels += name
+            boxes += intArrayOf(b.left, b.top, b.right, b.bottom)
+        }
+        val i = AutoEnter.confirmButton(labels, boxes, fb.top, fb.bottom, sendReach()) ?: return null
+        Log.i(TAG, "auto Enter: no button says send; taking \"${labels[i]}\" beside Cancel ${boundsOf(nodes[i])}")
+        return nodes[i] to labels[i]
     }
 
     /**

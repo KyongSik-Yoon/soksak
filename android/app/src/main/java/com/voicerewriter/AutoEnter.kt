@@ -89,6 +89,35 @@ object AutoEnter {
     /** Longer than this is a sentence (a chat message saying "전송"), not a button's name. */
     const val MAX_LABEL = 20
 
+    private val CANCEL_WORDS = Regex("(?i)^(취소|cancel|닫기|close)$")
+    private val DESTRUCTIVE = Regex(
+        "(?i)(삭제|지우|제거|버리|폐기|나가기|탈퇴|초기화|로그아웃|차단|신고|결제|구매|" +
+            "delete|remove|discard|erase|clear|reset|leave|log ?out|sign ?out|block|report|\\bpay\\b|purchase|\\bbuy\\b)",
+    )
+
+    /**
+     * When no button says "send": a form's own go-ahead, the one named button sharing a row with its
+     * Cancel beside the field. agent world's new-session dialog ends in "취소 | 짓기" under the prompt,
+     * and Enter there only adds a line (2026-11-25, user log). Exactly one Cancel and exactly one
+     * other button on its row, or nothing: more than that is a toolbar, not a form. A button that
+     * deletes, leaves or pays is never pressed unattended, whatever sits next to it. [labels] and
+     * [boxes] (left, top, right, bottom) are the named buttons around the field; returns an index.
+     */
+    fun confirmButton(labels: List<String>, boxes: List<IntArray>, fieldTop: Int, fieldBottom: Int, reach: Int): Int? {
+        val cancels = labels.indices.filter { CANCEL_WORDS.matches(labels[it].trim()) }
+        val cancel = cancels.singleOrNull() ?: return null
+        val c = boxes[cancel]
+        if (!besideField(c[1], c[3], fieldTop, fieldBottom, reach)) return null
+        val row = labels.indices.filter { i ->
+            val cy = (boxes[i][1] + boxes[i][3]) / 2
+            i != cancel && cy >= c[1] && cy <= c[3]
+        }
+        val i = row.singleOrNull() ?: return null
+        val l = labels[i].trim()
+        if (l.length > MAX_LABEL || NOT_SEND.containsMatchIn(l) || DESTRUCTIVE.containsMatchIn(l)) return null
+        return i
+    }
+
     /**
      * Whether a button's [label] (content description, or the text of a button) or [viewId]
      * (resource name) says it sends the message. Voice-message and attachment buttons say "send"
