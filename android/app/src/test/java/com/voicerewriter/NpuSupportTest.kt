@@ -110,6 +110,15 @@ class QnnWindowsTest {
         assertFalse(LocalSherpaStt.dropsEcho("일회성 네, 알겠어.", quiet = true) { false })
     }
 
+    @Test fun theHintOverSpeechIsDecodedAgainOutsideQuietMode() {
+        assertTrue(LocalSherpaStt.retriesEcho("네, 알겠어.", quiet = false) { true })
+        assertFalse(LocalSherpaStt.retriesEcho("네, 알겠어.", quiet = false) { false })
+        assertFalse(LocalSherpaStt.retriesEcho("네, 알겠어.", quiet = true) { true })
+        // Shorter answers are likelier said; they go by the audio as before.
+        assertFalse(LocalSherpaStt.retriesEcho("네.", quiet = false) { true })
+        assertFalse(LocalSherpaStt.retriesEcho("네, 알겠어. 그럼 시작하자.", quiet = false) { true })
+    }
+
     @Test fun strayVadFramesAreNotSpeech() {
         assertFalse(SileroVad.enoughSpeech(listOf(0.9f, 0.1f, 0.9f, 0.1f)))
         assertFalse(SileroVad.enoughSpeech(listOf(0.9f, 0.1f, 0.9f, 0.1f, 0.9f, 0.2f, 0.8f)))

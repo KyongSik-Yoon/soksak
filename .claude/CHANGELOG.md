@@ -3,6 +3,11 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-26 — Turbo NPU가 말 대신 힌트 글("네, 알겠어.")을 낸 창은 Small ACFT로 다시
+- 사용자 Compare(11-25 21:44 녹음, 2.6초, 내 목소리만 켬, 분리 후 -46dB): Turbo NPU "네, 알겠어." / Small ACFT "…링이 안 도는 이유를 알고 싶다." 실제 받아쓰기에서도 그 7자가 입력됐다(`decode [629ms/5tok] -> 7 chars`). Silero가 말을 들어서 기존 메아리 거르기(`dropsEcho`)는 실제 답으로 보고 통과시켰다.
+- 사용자 결정: 말이 있는 창에서 힌트 글만 나오면 그 창을 CPU Small ACFT로 다시 변환(`LocalSherpaStt.retriesEcho`/`echoRetry`). 다른 안 — 네이티브 패치로 NPU에서 힌트 없이 재디코드(확인 불가·JNI 재빌드), 그냥 버리기(말을 잃음) — 은 고르지 않았다. 조용히 말하기는 그대로 버림. Small이 없으면 버림.
+- 폰 확인 전. 로그 `hint echo, small-acft -> N chars`.
+
 ## 2026-11-25 — 진행률 링이 안 뜨던 것: 마이크 차단 판정이 모델 로딩 시간까지 셌다
 - 사용자 로그(build-182, 내 목소리만 켬): 첫 받아쓰기에서 `microphone is silenced in the background; falling back to the sheet`. 판정 시계(0.7초)가 `rec.start()` 호출 전부터 돌았고, start 안에서 모델을 처음 올리는 데(Silero, VoxLock QNN, 원음용 Silero, CAM++) 약 0.6초가 걸려 마이크가 열린 지 0.07초 만에 "막힘"으로 판정됐다. build-182에서 원음 Silero·게이트를 더해 로딩이 길어진 탓. 그 뒤 `micReady=false`라 앱을 열기 전까지(로그 21:45:37 `foreground, micReady=true`) 모든 받아쓰기가 시트 경로 — 진행률 링·말하는 동안 변환이 없는 경로 — 로 갔다. 그래서 "가끔" 링이 없었다.
 - 고침: 판정을 마이크가 열린 때부터 잰다(`AudioRecorder.openForMs`). 쓰지 않는 화자 게이트는 빈 배열로 적용하지 않고 `SpeakerGateSession.discard()`로 멈춘다 — `kept 0.0s of -28.7s of speech` 같은 음수 로그가 원음 게이트에서 나왔다.

@@ -240,6 +240,10 @@ object LocalSherpaStt {
                         } else ""
                         out = again.ifEmpty { RepetitionLoop.cut(out) }
                     }
+                    if (dropEchoes && retriesEcho(out, settings.quietMode) { hasSpeech(context, part, settings.quietMode) }) {
+                        out = echoRetry(context, settings, part)
+                        partLog += "hint echo, ${WhisperModelManager.SMALL_ACFT_MODEL} -> ${out.length} chars"
+                    }
                     out.takeUnless { it.isEmpty() || dropEchoes && dropsEcho(it, settings.quietMode) { hasSpeech(context, part, settings.quietMode) } }
                 }.joinToString(" ")
                 Log.i(TAG, "${settings.sttModel}: ${samples.size / 16_000.0}s, load ${loadMs}ms, decode $partLog -> ${text.length} chars")
@@ -311,6 +315,29 @@ object LocalSherpaStt {
     internal fun dropsEcho(text: String, quiet: Boolean, hasSpeech: () -> Boolean): Boolean {
         val n = HallucinationFilter.norm(text)
         return n in HINT_ECHOES && (quiet && n == HINT_TEXT || !hasSpeech())
+    }
+
+    /**
+     * Whether a window's [text] is the hint's own words over audio Silero heard speech in, so the
+     * decoder said the hint back instead of what was said: Turbo NPU wrote "네, 알겠어." for a
+     * 2.6s isolated take (-46dB) that Small ACFT took as "링이 안 도는 이유를 알고 싶다"
+     * (2026-11-25, Compare models). The hint is fixed when the recognizer loads, so the window is
+     * decoded again on the CPU ([echoRetry]). Quiet mode keeps dropping it ([dropsEcho]): its
+     * speech test passes any sound.
+     */
+    internal fun retriesEcho(text: String, quiet: Boolean, hasSpeech: () -> Boolean): Boolean =
+        !quiet && HallucinationFilter.norm(text) == HINT_TEXT && hasSpeech()
+
+    /** [part] through Small ACFT on the CPU; empty when it isn't downloaded or fails, which drops the window. */
+    private suspend fun echoRetry(context: Context, settings: Settings, part: FloatArray): String {
+        val id = WhisperModelManager.SMALL_ACFT_MODEL
+        if (!WhisperModelManager.isReady(context, id)) {
+            Log.w(TAG, "hint echo over speech, and $id isn't downloaded: window dropped")
+            return ""
+        }
+        return runCatching { LocalWhisperStt.transcribe(context, settings.copy(sttModel = id), part).trim() }
+            .onFailure { Log.w(TAG, "hint echo retry on $id failed", it) }
+            .getOrDefault("")
     }
 
     /**
