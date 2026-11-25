@@ -45,6 +45,17 @@ object AutoEnter {
         return Outcome.NOTHING
     }
 
+    /**
+     * [judge] for a field that reports only part of its text, so the dictated text cannot be looked
+     * for: by its cursor. No longer reporting less than it holds ([stillPartial] false) means the
+     * long text left it; a cursor that moved on is the newline; otherwise nothing happened.
+     */
+    fun judgeByCursor(cursorBefore: Int, cursorAfter: Int, stillPartial: Boolean): Outcome = when {
+        !stillPartial -> Outcome.SENT
+        cursorAfter > cursorBefore -> Outcome.NEWLINE
+        else -> Outcome.NOTHING
+    }
+
     private val SEND_WORDS = Regex("(?i)(\\bsend\\b|\\bsubmit\\b|보내기|전송|제출)")
     private val SEND_ID = Regex("(?i)(^|[/_.:])(send|submit)([_.]|button|btn|$)")
     private val NOT_SEND = Regex("(?i)(voice|audio|\\bmic|record|attach|sticker|emoji|camera|gif|음성|녹음|마이크|첨부|이모티콘|사진|카메라)")

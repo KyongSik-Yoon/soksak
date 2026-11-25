@@ -142,4 +142,11 @@ class AutoEnterTest {
         assertNull(AutoEnter.pickField(2) { false })
         assertNull(AutoEnter.pickField(3) { it != 0 })
     }
+
+    /** Chrome reported 9,994 chars for a field whose cursor sat at 24,496: the text cannot be looked for. */
+    @Test fun `a field reporting part of its text is judged by its cursor`() {
+        assertEquals(AutoEnter.Outcome.NEWLINE, AutoEnter.judgeByCursor(24496, 24497, stillPartial = true))
+        assertEquals(AutoEnter.Outcome.NOTHING, AutoEnter.judgeByCursor(24496, 24496, stillPartial = true))
+        assertEquals(AutoEnter.Outcome.SENT, AutoEnter.judgeByCursor(24496, 0, stillPartial = false))
+    }
 }

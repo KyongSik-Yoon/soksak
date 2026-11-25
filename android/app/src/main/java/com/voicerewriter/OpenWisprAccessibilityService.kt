@@ -669,8 +669,14 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     private fun enterOnNode(node: AccessibilityNodeInfo, t: EnterTarget, onDone: (Boolean) -> Unit) {
         val where = "${node.packageName}/${node.className?.toString()?.substringAfterLast('.')}"
         val before = currentText(node)
+        // A field that reports part of its text cannot show the dictated text (Chrome with a pasted
+        // log: 9,994 chars reported, cursor at 24,496, "pasted text at -1" and so "Not sent",
+        // 2026-11-25). It is judged by where its cursor is instead.
+        val partial = reportsLessThanItHolds(node, before)
+        val cursorBefore = maxOf(node.textSelectionStart, node.textSelectionEnd)
+        if (partial) Log.i(TAG, "auto Enter: field reports ${before.length} chars with the cursor at $cursorBefore; going by the cursor")
         // Another field of the same app, or the text already gone: Enter would send something else.
-        if (!AutoEnter.stillThere(before, t.text)) {
+        if (!partial && !AutoEnter.stillThere(before, t.text)) {
             Log.i(TAG, "auto Enter skipped: the dictated text is not in the focused field $where")
             @Suppress("DEPRECATION") node.recycle()
             return onDone(false)
@@ -690,7 +696,11 @@ class OpenWisprAccessibilityService : AccessibilityService() {
                     if (enterCancelled) {
                         Log.i(TAG, "auto Enter: cancelled during the check, no fallback")
                         false
-                    } else when (val outcome = AutoEnter.judge(before, after, t.text)) {
+                    } else when (val outcome = if (!partial) AutoEnter.judge(before, after, t.text) else {
+                        val cursorAfter = maxOf(node.textSelectionStart, node.textSelectionEnd)
+                        Log.i(TAG, "auto Enter: cursor $cursorBefore -> $cursorAfter")
+                        AutoEnter.judgeByCursor(cursorBefore, cursorAfter, alive && reportsLessThanItHolds(node, after))
+                    }) {
                         AutoEnter.Outcome.SENT -> { Log.i(TAG, "auto Enter: sent by the IME action"); true }
                         AutoEnter.Outcome.NEWLINE -> {
                             Log.i(TAG, "auto Enter: IME action added a newline")
