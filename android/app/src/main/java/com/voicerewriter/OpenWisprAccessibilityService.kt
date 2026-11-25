@@ -483,7 +483,12 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             selA in 0..current.length && selB in 0..current.length ->
                 minOf(selA, selB) to maxOf(selA, selB)
             current.isEmpty() -> 0 to 0
-            else -> return false // unknown cursor in a non-empty field — let paste handle it
+            else -> {
+                // Lengths only. A field reporting less text than it holds would show here as a
+                // cursor past the end (suspected with a long pasted log, 2026-11-25).
+                Log.i(TAG, "no cursor to insert at: field reports ${current.length} chars, selection $selA..$selB")
+                return false // unknown cursor in a non-empty field — let paste handle it
+            }
         }
         val (newText, cursor) = InsertSplice.at(current, start, end, insert)
         val setArgs = Bundle().apply {
@@ -572,7 +577,10 @@ class OpenWisprAccessibilityService : AccessibilityService() {
     }
 
     private fun doPressEnter(onDone: (Boolean) -> Unit) {
-        val t = enterTarget ?: return onDone(false)
+        val t = enterTarget ?: run {
+            Log.i(TAG, "auto Enter skipped: nothing armed by the time the countdown ran out")
+            return onDone(false)
+        }
         enterTarget = null
         enterCancelled = false
         try {
@@ -724,7 +732,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
      */
     private fun pressSendButton(btn: AccessibilityNodeInfo, label: String, tap: Boolean): Boolean {
         if (tap && inWebContent(btn) && tapCenter(btn)) {
-            Log.i(TAG, "auto Enter: send button \"$label\" tapped")
+            Log.i(TAG, "auto Enter: send button \"$label\" tapped at ${boundsOf(btn)}")
             return true
         }
         val ok = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)

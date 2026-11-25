@@ -493,6 +493,17 @@ class AudioRecorder(private val context: Context) {
                 hangoverSamples / SAMPLE_RATE.toDouble(), it.summary(totalSamples)))
         }
 
+        // A spoken take that ended by itself mid-sentence: which rule ended it (2026-11-25). The
+        // plain rule counts from the last frame Silero was sure of; the gate from the last window
+        // it took for the enrolled voice.
+        if (quietDetector == null && vadActive) {
+            val gate = speakerGateSession
+            Log.i("AudioRecorder", "spoken take: %.1fs ended=%s wait=%.1fs %s".format(
+                totalSamples / SAMPLE_RATE.toDouble(), if (autoStopFired) "auto" else "tap",
+                hangoverSamples / SAMPLE_RATE.toDouble(),
+                gate?.summary() ?: "no gate; %.1fs since sure speech".format((totalSamples - lastSpeechSample) / SAMPLE_RATE.toDouble())))
+        }
+
         // Was the microphone itself quiet, or did voice isolation take the voice out? Speaking
         // with a flat waveform and nothing recognized looks the same from outside (2026-11-23).
         if (micN > 0) {

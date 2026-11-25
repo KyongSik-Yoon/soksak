@@ -315,7 +315,12 @@ class SpeakerGateSession(
 
             if (vadAutoStop && !autoStopFired && prob < SpeakerGate.SPEECH_END_PROB) {
                 fireNow = checkAutoStopLocked(endSample)
-                if (fireNow) autoStopFired = true
+                if (fireNow) {
+                    autoStopFired = true
+                    firedNote = "fired at %.1fs: %.1fs since my voice, %.1fs since any speech, scored up to %.1fs".format(
+                        endSample / sr, (endSample - lastTargetSpeechSample) / sr,
+                        (endSample - rawLatestActiveSample) / sr, scoredUpToSample / sr)
+                }
             }
         }
 
@@ -339,6 +344,21 @@ class SpeakerGateSession(
             return true
         }
         return false
+    }
+
+    private val sr = SpeakerGate.SR.toDouble()
+    private var firedNote: String? = null
+
+    /**
+     * 받아쓰기가 왜 그때 끝났는지 로그로 남기는 용도: 자동 중지가 걸린 순간의 상태와, 창별 유사도.
+     * 말하는 도중 끊겼다면 "since my voice"는 길고 "since any speech"는 짧게 나온다.
+     */
+    fun summary(): String = synchronized(lock) {
+        val sims = scored.map { it.similarity }
+        "gate: %s; windows %d, mine %d, similarity %.2f..%.2f, last five %s".format(
+            firedNote ?: "not fired", sims.size, sims.count { it >= threshold },
+            sims.minOrNull() ?: 0f, sims.maxOrNull() ?: 0f,
+            scored.takeLast(5).joinToString(" ") { "%.2f".format(it.similarity) })
     }
 
     /** UI 무음 링 표시용(0..1). */
