@@ -141,6 +141,7 @@ class AudioRecorder(private val context: Context) {
     private var micVad: SileroVad? = null
     private val micVadTail = FloatArray(SileroVad.CHUNK)
     private var micVadTailLen = 0
+    private var micSpeech = false // Silero's verdict on the latest microphone chunk
 
     /**
      * Set by [stop]: voice isolation lost the voice ([IsolationWatch.lostVoice]), so the take it
@@ -216,7 +217,7 @@ class AudioRecorder(private val context: Context) {
         )
     }
 
-    /** Recorder thread, voice isolation: keep the microphone's audio and feed its speaker gate. */
+    /** Recorder thread, voice isolation: keep the microphone's audio, run Silero on it, feed its speaker gate. */
     private fun keepMic(buf: ShortArray, n: Int) {
         synchronized(pcmLock) {
             var newSize = max(micPcm.size, SAMPLE_RATE * 30)
@@ -225,8 +226,8 @@ class AudioRecorder(private val context: Context) {
             buf.copyInto(micPcm, micPcmLen, 0, n)
             micPcmLen += n
         }
-        val gate = micGate ?: return
         val v = micVad ?: return
+        val gate = micGate
         var off = 0
         while (off < n) {
             val take = min(SileroVad.CHUNK - micVadTailLen, n - off)
@@ -236,7 +237,8 @@ class AudioRecorder(private val context: Context) {
             if (micVadTailLen == SileroVad.CHUNK) {
                 micVadTailLen = 0
                 val prob = try { v.process(micVadTail) } catch (_: Exception) { 0f }
-                gate.onVadFrame(prob, micPcmLen - (n - off))
+                micSpeech = prob >= SPEECH_START_PROB
+                gate?.onVadFrame(prob, micPcmLen - (n - off))
             }
         }
     }
@@ -314,6 +316,7 @@ class AudioRecorder(private val context: Context) {
         isolationFellBack = false
         synchronized(pcmLock) { micPcm = ShortArray(0); micPcmLen = 0 }
         micVadTailLen = 0
+        micSpeech = false
 
         // rawCaptureOnly (voice enrollment) may still ask for the silence auto-stop; the audio is
         // returned untrimmed either way.
@@ -342,8 +345,8 @@ class AudioRecorder(private val context: Context) {
         } else null
         // Isolating: the same gate over the microphone, so falling back on it keeps the TV out.
         // Its own Silero: the shared one is reading the isolated audio.
-        micVad = if (speakerGate && watching) secondVad(context)?.also { it.reset() } else null
-        micGate = micVad?.let { openGate(vadAutoStop = false) { start, end -> micCopy(start, end) } }
+        micVad = if (watching) secondVad(context)?.also { it.reset() } else null
+        micGate = if (speakerGate && micVad != null) openGate(vadAutoStop = false) { start, end -> micCopy(start, end) } else null
 
         vadActive = (vad != null && vadAutoStop) || quietDetector != null
 
@@ -408,11 +411,13 @@ class AudioRecorder(private val context: Context) {
                 micN += n
 
                 if (vox != null) {
+                    if (isolationWatch != null) keepMic(buf, n)
                     micSound?.let { d ->
                         d.feedPcm(buf, n, micN.toInt())
-                        isolationWatch?.mic(d.lastFrameSpeech, n)
+                        // Loudness over the room, or Silero on the microphone: in road noise the
+                        // voice may not clear the room's floor by the detector's margin.
+                        isolationWatch?.mic(d.lastFrameSpeech || micSpeech, n)
                     }
-                    if (isolationWatch != null) keepMic(buf, n)
                     for (i in 0 until n) { val v = buf[i].toDouble(); stepMicSq += v * v }
                     stepMicN += n
                     val floats = FloatArray(n) { buf[it] / 32768f }
@@ -633,14 +638,17 @@ class AudioRecorder(private val context: Context) {
         micGate = null
 
         // Voice isolation lost the voice: the microphone's audio rather than words gone for good.
-        // In a moving car isolation took a normal voice out from the start (2026-11-25).
+        // In a moving car isolation took a normal voice out from the start (2026-11-25). Only
+        // through the speaker gate: the raw microphone would type the TV or a passenger, and the
+        // whole take falls back even when only a pause went unheard.
         if (isolationWatch?.lostVoice() == true) {
             val mic = synchronized(pcmLock) { micPcm.copyOf(micPcmLen) }
-            if (mic.size >= SAMPLE_RATE / 4) {
+            if (mGate == null) {
+                Log.i("AudioRecorder", "isolation lost the voice; no speaker gate, so the isolated audio stays")
+            } else if (mic.size >= SAMPLE_RATE / 4) {
                 isolationFellBack = true
-                Log.i("AudioRecorder", "isolation lost the voice: transcribing the microphone" +
-                    if (mGate != null) " through the speaker gate" else " (no speaker gate)")
-                return if (mGate != null) gated(mGate, mic) else mic
+                Log.i("AudioRecorder", "isolation lost the voice: transcribing the microphone through the speaker gate")
+                return gated(mGate, mic)
             }
         }
         mGate?.finishAndApply(ShortArray(0))

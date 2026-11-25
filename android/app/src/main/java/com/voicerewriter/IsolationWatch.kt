@@ -29,7 +29,7 @@ class IsolationWatch {
          * never came up (2026-11-25, Silero heard 6% and 3% of them).
          */
         const val HEARD_RUN_S = 0.25
-        private val HEARD_RUN_CHUNKS = (HEARD_RUN_S * SR / CHUNK).toInt()
+        private val HEARD_RUN_CHUNKS = kotlin.math.ceil(HEARD_RUN_S * SR / CHUNK).toInt()
 
         /** [lostVoice]: this much time spent [unheard], */
         const val LOST_UNHEARD_S = 0.5
@@ -57,7 +57,7 @@ class IsolationWatch {
     /** Seconds of the take spent [unheard], for the log. */
     val unheardSeconds: Double get() = unheardSamples / SR.toDouble()
 
-    /** A microphone frame of [n] samples, before isolation: was there sound over the room's floor? */
+    /** A microphone frame of [n] samples, before isolation: was there sound (over the room's floor, or speech)? */
     fun mic(sound: Boolean, n: Int) {
         micSamples += n
         if (sound) micSoundSamples += n
