@@ -122,8 +122,10 @@ object HeadlessDictation {
                     BubbleService.instance?.showVoiceUnheard(unheard)
                 }
                 DictationStatus.silence.value = rec.silenceProgress()
-                if (!rec.micDeliveredNonZero && System.currentTimeMillis() - startMs > SILENT_PROBE_MS) {
+                if (!rec.micDeliveredNonZero && rec.openForMs > SILENT_PROBE_MS) {
                     // A live microphone is never digital zero for this long; a silenced one is.
+                    // Timed from when it opened: model loading in start() once used up the 0.7s
+                    // and sent every take to the sheet, with no progress ring (2026-11-25).
                     Log.w(TAG, "microphone is silenced in the background; falling back to the sheet")
                     abandon()
                     BubbleService.micReady = false

@@ -486,6 +486,12 @@ class SpeakerGateSession(
     private fun alreadyScoredLocked(s: Int, e: Int): Boolean =
         scored.any { it.start == s && it.end == e }
 
+    /** Stops the scorer without applying the gate: a take that is cancelled, too short, or not transcribed through it. */
+    fun discard() {
+        stopped = true
+        executor.shutdownNow()
+    }
+
     /**
      * 녹음 종료 시 백그라운드 채점기를 멈추고 남은 미채점 창을 모두 마무리한 뒤 마스킹/트리밍된 결과를 반환한다.
      */

@@ -129,6 +129,13 @@ class AudioRecorder(private val context: Context) {
     private var stepIsoSq = 0.0
     private var stepIsoN = 0
     private var startedAtMs = 0L
+
+    /**
+     * How long the microphone has been open. Not since [start] was called: start loads the
+     * models first, and on a cold voice-isolation take that took 0.6s of a 0.7s silent-mic probe.
+     */
+    val openForMs: Long
+        get() = if (recording && startedAtMs > 0) android.os.SystemClock.elapsedRealtime() - startedAtMs else 0L
     private var speechSamples = 0
     private var quietDetector: QuietSpeechDetector? = null
     private var speakerGateSession: SpeakerGateSession? = null
@@ -302,6 +309,7 @@ class AudioRecorder(private val context: Context) {
         keepSpeechFlags = false
         lastPeak = 0
         micDeliveredNonZero = false
+        startedAtMs = 0L
         totalSamples = 0
         speechStarted = false
         firstSpeechSample = 0
@@ -651,10 +659,10 @@ class AudioRecorder(private val context: Context) {
                 return gated(mGate, mic)
             }
         }
-        mGate?.finishAndApply(ShortArray(0))
+        mGate?.discard()
 
         if (total < SAMPLE_RATE / 4) {
-            gate?.finishAndApply(ShortArray(0))
+            gate?.discard()
             return null // < ~0.25s: nothing meaningful
         }
         val full = ShortArray(total)
@@ -701,9 +709,9 @@ class AudioRecorder(private val context: Context) {
         record = null
         voxLockStream?.close()
         voxLockStream = null
-        speakerGateSession?.finishAndApply(ShortArray(0))
+        speakerGateSession?.discard()
         speakerGateSession = null
-        micGate?.finishAndApply(ShortArray(0))
+        micGate?.discard()
         micGate = null
         synchronized(chunks) { chunks.clear() }
     }
