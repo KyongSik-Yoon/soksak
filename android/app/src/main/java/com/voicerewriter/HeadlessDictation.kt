@@ -154,7 +154,10 @@ object HeadlessDictation {
         ampJob?.cancel()
         BubbleService.recordingStopper = null
         val samples = rec.stop()
-        val stream = streaming
+        // Pieces decoded while talking came from the isolated audio; a take that fell back on the
+        // microphone is decoded whole.
+        if (rec.isolationFellBack) streaming?.cancel()
+        val stream = streaming.takeUnless { rec.isolationFellBack }
         streaming = null
         val durationSec = ((System.currentTimeMillis() - startMs) / 1000L).toInt().coerceAtLeast(1)
         val host = hostPkg
