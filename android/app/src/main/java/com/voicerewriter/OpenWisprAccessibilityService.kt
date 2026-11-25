@@ -113,6 +113,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         /** Forget the armed Enter, or stop one being pressed (the bubble was tapped, a new take). */
         fun cancelEnter() {
             val svc = instance ?: return
+            if (svc.enterTarget != null) Log.i(TAG, "auto Enter cancelled: bubble touched, a new take, or nowhere to show the countdown")
             svc.enterTarget = null
             svc.enterCancelled = true
         }
@@ -394,7 +395,7 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             // Web fields (a browser's search box) often report neither a cursor nor a usable
             // paste, but do take SET_TEXT, and the end is where the cursor almost always is.
             insertAtCursor(node, text) ||
-                run { viaPaste = true; pasteViaClipboard(node, text) } ||
+                run { viaPaste = true; pasteViaClipboard(node, text).also { if (it) logPasted(AccessibilityNodeInfo.obtain(node), text) } } ||
                 run { viaPaste = false; appendAtEnd(node, text) }
             }
         } catch (e: Exception) {
@@ -519,10 +520,35 @@ class OpenWisprAccessibilityService : AccessibilityService() {
         return text
     }
 
+    /**
+     * The field holds more than it reports: its cursor is past the end of the text it gives us.
+     * Chrome gave 9,388 chars for a composer with a pasted log and the cursor at 37,197
+     * (2026-11-25, user log). Text read from such a field must never be written back with
+     * SET_TEXT — that would replace what the user wrote with the part we were shown.
+     */
+    private fun reportsLessThanItHolds(node: AccessibilityNodeInfo, reported: String): Boolean =
+        maxOf(node.textSelectionStart, node.textSelectionEnd) > reported.length
+
+    /** After a paste into a field we could not splice into: what the field reports now. Lengths and offsets only. */
+    private fun logPasted(node: AccessibilityNodeInfo, text: String) {
+        enterHandler.postDelayed({
+            runCatching {
+                if (!node.refresh()) return@runCatching
+                val now = currentText(node)
+                Log.i(TAG, "after paste: field reports ${now.length} chars, selection ${node.textSelectionStart}..${node.textSelectionEnd}, " +
+                    "pasted text at ${now.indexOf(text.trim())}")
+            }
+        }, 300)
+    }
+
     /** Last resort: SET_TEXT with the dictation appended to whatever the field holds. */
     private fun appendAtEnd(node: AccessibilityNodeInfo, insert: String): Boolean {
         node.refresh()
         val current = currentText(node)
+        if (reportsLessThanItHolds(node, current)) {
+            Log.i(TAG, "not appending: field reports ${current.length} chars, selection ${node.textSelectionStart}..${node.textSelectionEnd}")
+            return false
+        }
         val sep = if (current.isNotEmpty() && !current.endsWith(" ") && !current.endsWith("\n")) " " else ""
         val newText = current + sep + insert
         val args = Bundle().apply {
@@ -704,7 +730,9 @@ class OpenWisprAccessibilityService : AccessibilityService() {
             Log.i(TAG, "auto Enter: no send button found; beside the field: ${buttonsNear(field)}")
             return false
         }
-        if (restore != null) {
+        if (restore != null && reportsLessThanItHolds(field, restore)) {
+            Log.i(TAG, "auto Enter: newline left in place, the field reports less than it holds")
+        } else if (restore != null) {
             val args = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore)
             }

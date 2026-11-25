@@ -168,4 +168,34 @@ class SpeakerGateTest {
         assertTrue(finalRes.keepRanges.isNotEmpty())
         assertEquals(1500.toShort(), finalRes.samples[minOf(finalRes.samples.lastIndex, sr)])
     }
+
+    /** 2026-11-25 폰 로그: 본인 목소리가 기준 아래로 채점되는 동안 숨 한 번(0.2초)에 문장 중간에서 끝났다. */
+    @Test fun `own voice scoring low does not end the take at a short breath, only at a pause`() {
+        val hangover = (2.2 * sr).toInt()
+        val session = SpeakerGateSession(
+            scorer = { start, _ -> if (start < 2 * sr) 0.45f else 0.15f },
+            vadAutoStop = true,
+            hangoverSamples = hangover,
+        )
+        var end = 0
+        fun feed(untilS: Double, prob: Float): Boolean {
+            var fired = false
+            while (end < (untilS * sr).toInt()) {
+                end += chunk
+                if (session.onVadFrame(prob, end)) fired = true
+                Thread.sleep(1)
+            }
+            return fired
+        }
+        // 2초까지 인식된 목소리, 그 뒤 4초는 같은 사람인데 낮게 채점됨. 중간에 0.2초·0.4초 숨.
+        assertFalse(feed(5.0, 0.9f))
+        assertFalse("0.2초 숨에 끝나면 안 됨", feed(5.2, 0.05f))
+        assertFalse(feed(6.0, 0.9f))
+        assertFalse("0.4초 숨에 끝나면 안 됨", feed(6.4, 0.05f))
+        assertFalse(feed(7.0, 0.9f))
+        // 말이 실제로 멈추면 0.7초쯤에서 끝난다(대기 2.2초를 다시 세지 않음).
+        assertFalse(feed(7.5, 0.05f))
+        assertTrue("말이 멈춘 뒤에는 끝나야 함", feed(8.0, 0.05f))
+        session.finishAndApply(makeConstantPcm(end))
+    }
 }

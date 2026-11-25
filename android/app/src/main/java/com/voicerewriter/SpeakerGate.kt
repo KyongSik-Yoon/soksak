@@ -29,6 +29,14 @@ object SpeakerGate {
     const val PRE_PAD_SAMPLES = (0.2 * SR).toInt() // 3200
     const val POST_PAD_SAMPLES = (0.3 * SR).toInt() // 4800
 
+    /**
+     * 내 목소리로 판정된 창이 대기 시간만큼 없었더라도, 말소리가 이만큼 쉰 뒤에만 Auto-stop 한다.
+     * 본인 목소리가 기준 아래로 채점되는 동안(2026-11-25 폰 로그: 창 26개 중 4개만 통과, 말이 0.0초 전까지
+     * 이어지는데 "내 목소리 2.9초 전")에는 프레임 하나만 조용해도 문장 중간에서 끊겼다. TV는 문장 사이에
+     * 이 정도는 쉬므로 여전히 끝난다.
+     */
+    const val STOP_PAUSE_SAMPLES = (0.7 * SR).toInt() // 11200
+
     private const val MAX_GAP_SAMPLES = (0.30 * SR).toInt() // 4800
     internal const val SEG_PAD_SAMPLES = (0.15 * SR).toInt() // 2400
     private const val EDGE_PAD_SAMPLES = (0.10 * SR).toInt() // 1600
@@ -334,6 +342,7 @@ class SpeakerGateSession(
         if (targetSpeechSamples >= SpeakerGate.MIN_SPEECH_SAMPLES) {
             val quietWait = endSample - lastTargetSpeechSample
             if (quietWait < hangoverSamples) return false
+            if (endSample - rawLatestActiveSample < min(hangoverSamples, SpeakerGate.STOP_PAUSE_SAMPLES)) return false
             // 방금 활성 말이 끝나서 아직 백그라운드 채점 중인 창이 있다면 최대 0.8s만 유예 후 확정
             val pendingSpeech = scoringInFlight && rawLatestActiveSample > scoredUpToSample &&
                 quietWait < hangoverSamples + SpeakerGate.WIN_SAMPLES
@@ -509,6 +518,9 @@ class SpeakerGateSession(
         }
 
         val res = SpeakerGate.applyGateMask(rawFull, finalProbs, existingScored, threshold)
+        // 게이트가 받아쓰기에서 지운 말소리: 본인 목소리가 낮게 채점되면 일찍 끝나지 않아도 여기서 단어가 빠진다.
+        Log.i("SpeakerGate", "kept %.1fs of %.1fs of speech".format(
+            res.keepRanges.sumOf { it.end - it.start } / sr, segs.sumOf { it.end - it.start } / sr))
         if (res.samples.isEmpty() || res.keepRanges.isEmpty()) {
             // VAD는 있으나 타겟 창이 끝내 나오지 않았을 때: 무음이 너무 짧았거나 속삭임에 가까웠다면 원본 유지가 안전할지 판단
             return res
