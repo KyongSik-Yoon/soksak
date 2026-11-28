@@ -218,6 +218,8 @@ class SpeakerGateTest {
         val deadline = System.currentTimeMillis() + 500
         while (!session.hasTargetVoice() && System.currentTimeMillis() < deadline) Thread.sleep(10)
         assertTrue(session.hasTargetVoice())
+        // 0.3..1.5s가 내 목소리였으므로 1.4s 시점에는 활성, 4.0s(타인 구간) 시점에는 내 목소리 경과 > hangover라 비활성
+        assertFalse(session.isTargetActiveNow(total))
         val res = session.finishAndApply(pcm)
         assertEquals(total, res.maskedFull.size)
         assertEquals(2400.toShort(), res.maskedFull[(0.9 * sr).toInt()])
@@ -230,5 +232,24 @@ class SpeakerGateTest {
         }
         val fmt = SpeakerGate.formatSegmentScores(segs, scored)
         assertTrue(fmt, fmt.contains("0.65..0.65") && fmt.contains("0.11..0.11"))
+    }
+
+    @Test fun `isTargetActiveNow는 원음에서 내 목소리가 이어지는 동안만 참이다`() {
+        val session = SpeakerGateSession(
+            scorer = { _, _ -> 0.52f },
+            vadAutoStop = false,
+            hangoverSamples = (2.2 * sr).toInt(),
+            label = "mic-gate",
+        )
+        var end = 0
+        while (end < (2.0 * sr).toInt()) {
+            end += chunk
+            session.onVadFrame(0.9f, end)
+        }
+        val deadline = System.currentTimeMillis() + 500
+        while (!session.hasTargetVoice() && System.currentTimeMillis() < deadline) Thread.sleep(10)
+        assertTrue("말하는 중에는 참", session.isTargetActiveNow(end))
+        assertFalse("말이 0.8s 쉰 뒤에는 거짓", session.isTargetActiveNow(end + (0.8 * sr).toInt()))
+        session.discard()
     }
 }

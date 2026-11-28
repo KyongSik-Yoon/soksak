@@ -417,6 +417,17 @@ class SpeakerGateSession(
     /** 지금까지 등록된 내 목소리(유사도 >= [threshold])가 한 창 이상 확인됐는지 여부. */
     fun hasTargetVoice(): Boolean = synchronized(lock) { targetSpeechStarted }
 
+    /**
+     * 지금 이 순간 원음에서 등록된 내 목소리가 이어지고 있는지 여부.
+     * VoxLock이 말하는 도중 내 목소리를 지워 분리 출력만 무음이 됐을 때, 분리 출력 VAD가
+     * 조기 자동 중지를 걸지 못하게 막고 원음 스트리밍으로 즉시 전환하는 데 쓴다(2026-11-28 로그).
+     */
+    fun isTargetActiveNow(nowSample: Int): Boolean = synchronized(lock) {
+        targetSpeechStarted &&
+            nowSample - rawLatestActiveSample < SpeakerGate.STOP_PAUSE_SAMPLES &&
+            nowSample - lastTargetSpeechSample < hangoverSamples
+    }
+
     /** [StreamingWhisper]가 녹음 중 조각 `[from, to)`를 읽을 때 확정된 비타겟 세그먼트만 0 마스킹한다. */
     fun maskStreamingChunk(from: Int, to: Int, rawSlice: ShortArray): ShortArray {
         val snapshotProbs: FloatArray

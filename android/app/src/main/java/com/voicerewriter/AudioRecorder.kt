@@ -454,11 +454,16 @@ class AudioRecorder(private val context: Context) {
                         // voice may not clear the room's floor by the detector's margin.
                         watch?.mic(d.lastFrameSpeech || micSpeech, n)
                     }
-                    // VoxLock이 내 목소리를 지워 unheard가 누적됐고 원음 CAM++가 내 목소리를 확인했다면,
-                    // 녹음이 끝날 때까지 기다리지 않고 즉시 원음 + 화자 게이트 스트리밍으로 전환한다.
+                    // VoxLock이 내 목소리를 지워 unheard가 누적됐거나, 말하는 도중 분리 출력만 2초 이상
+                    // 무음이 됐는데 원음 CAM++는 내 목소리가 계속 이어지고 있음을 확인한 경우
+                    // (2026-11-28 15:58 로그: -26/-41dB로 급감하며 2.2s 자동 중지가 먼저 끊어 끝 2.3s 유실),
+                    // 종료를 기다리지 않고 즉시 원음 + 화자 게이트 스트리밍으로 전환한다.
                     val mGate = micGate
+                    val isoDroppedMidSpeech = speechStarted &&
+                        totalSamples - lastSpeechSample >= 2 * SAMPLE_RATE &&
+                        mGate?.isTargetActiveNow(micPcmLen) == true
                     if (watch != null && mGate != null &&
-                        watch.unheardSeconds >= IsolationWatch.LOST_UNHEARD_S && mGate.hasTargetVoice()
+                        (isoDroppedMidSpeech || (watch.unheardSeconds >= IsolationWatch.LOST_UNHEARD_S && mGate.hasTargetVoice()))
                     ) {
                         vox.close()
                         voxLockStream = null
@@ -610,6 +615,9 @@ class AudioRecorder(private val context: Context) {
         // that never arms this can't lose the audio around it either.
         if (speechSamples >= MIN_SPEECH_SAMPLES && !autoStopFired && prob < SPEECH_END_PROB) {
             if (endSample - lastSpeechSample >= hangoverSamples) {
+                // 내 목소리만 모드에서 VoxLock이 말 도중 내 목소리를 지워 분리 출력만 무음이 됐는데
+                // 원음 게이트에서는 본인 목소리가 계속 이어지고 있다면 여기서 녹음을 끊지 않는다.
+                if (micGate?.isTargetActiveNow(micPcmLen) == true) return
                 autoStopFired = true
                 onAutoStop?.let { cb -> mainHandler.post { cb() } }
             }
