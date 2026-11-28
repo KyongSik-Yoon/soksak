@@ -208,16 +208,21 @@ class SpeakerGateTest {
             scorer = { start, _ -> if (start < 2 * sr) 0.65f else 0.11f },
             vadAutoStop = false,
             hangoverSamples = 2 * sr,
-            label = "isolated",
+            label = "mic-gate",
         )
+        assertFalse(session.hasTargetVoice())
         for (i in probs.indices) {
             session.onVadFrame(probs[i], (i + 1) * chunk)
         }
+        // 녹음 중 백그라운드 채점으로 hasTargetVoice()가 켜지는지 확인
+        val deadline = System.currentTimeMillis() + 500
+        while (!session.hasTargetVoice() && System.currentTimeMillis() < deadline) Thread.sleep(10)
+        assertTrue(session.hasTargetVoice())
         val res = session.finishAndApply(pcm)
         assertEquals(total, res.maskedFull.size)
         assertEquals(2400.toShort(), res.maskedFull[(0.9 * sr).toInt()])
         assertEquals(0.toShort(), res.maskedFull[(3.2 * sr).toInt()])
-        assertTrue(session.summary().startsWith("gate(isolated):"))
+        assertTrue(session.summary().startsWith("gate(mic-gate):"))
 
         val segs = SpeakerGate.activeSegments(probs, total)
         val scored = segs.flatMap { seg ->

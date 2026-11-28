@@ -414,6 +414,9 @@ class SpeakerGateSession(
         }
     }
 
+    /** 지금까지 등록된 내 목소리(유사도 >= [threshold])가 한 창 이상 확인됐는지 여부. */
+    fun hasTargetVoice(): Boolean = synchronized(lock) { targetSpeechStarted }
+
     /** [StreamingWhisper]가 녹음 중 조각 `[from, to)`를 읽을 때 확정된 비타겟 세그먼트만 0 마스킹한다. */
     fun maskStreamingChunk(from: Int, to: Int, rawSlice: ShortArray): ShortArray {
         val snapshotProbs: FloatArray
@@ -551,6 +554,7 @@ class SpeakerGateSession(
             for (w in expected) {
                 if (existingScored.none { it.start == w.start && it.end == w.end }) {
                     existingScored.add(w)
+                    if (w.similarity >= threshold) synchronized(lock) { targetSpeechStarted = true }
                 }
             }
         }

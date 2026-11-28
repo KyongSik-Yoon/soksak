@@ -98,6 +98,12 @@ class AudioRecorder(private val context: Context) {
     private var speechFlagBuf = BooleanArray(2048)
     private var speechFlagLen = 0
     @Volatile private var keepSpeechFlags = false
+    /**
+     * 녹음 도중 VoxLock이 목소리를 잃어 원음+화자 게이트로 전환되면 증가한다.
+     * [StreamingWhisper]가 이 값의 변화를 감지해 기존 분리 출력 조각을 비우고 원음 0번 샘플부터 재스캔한다.
+     */
+    @Volatile var streamGeneration = 0
+        private set
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // VAD state (only used when a Silero model is available + enabled)
@@ -140,20 +146,24 @@ class AudioRecorder(private val context: Context) {
     private var quietDetector: QuietSpeechDetector? = null
     private var speakerGateSession: SpeakerGateSession? = null
     private var voxLockStream: VoxLockEngine.Stream? = null
-    // Voice isolation only: the microphone's own audio, and the speaker gate run over it (not used
-    // for auto-stop), for when isolation loses the voice ([isolationFellBack]). Guarded by pcmLock.
+    // Voice isolation only: 원음과 원음 기준 CAM++ 화자 게이트.
+    // 분리 출력은 음색 변형으로 CAM++ 점수가 떨어질 수 있어(2026-11-28 로그: 원음 0.54 → 분리 0.15),
+    // 2차 마스킹·자동 중지·원음 폴백을 모두 원음 기준 [micGate] 하나로 처리한다. Guarded by pcmLock.
     private var micPcm = ShortArray(0)
     private var micPcmLen = 0
+    private var micSpeechFlagBuf = BooleanArray(2048)
+    private var micSpeechFlagLen = 0
     private var micGate: SpeakerGateSession? = null
     private var micVad: SileroVad? = null
     private val micVadTail = FloatArray(SileroVad.CHUNK)
     private var micVadTailLen = 0
     private var micSpeech = false // Silero's verdict on the latest microphone chunk
+    @Volatile private var switchedToMic = false
 
     /**
-     * Set by [stop]: voice isolation lost the voice ([IsolationWatch.lostVoice]), so the take it
-     * returned is the microphone's audio (through the speaker gate when that is on), not the
-     * isolated audio. Pieces decoded from the isolated audio while recording are not this take.
+     * Set by [stop]: 녹음 종료 시점에 뒤늦게 원음 폴백([IsolationWatch.lostVoice])이 발동해
+     * 말하는 동안 분리 출력으로 변환해 둔 [StreamingWhisper] 조각을 버리고 원음을 통째로 변환해야 함을 뜻한다.
+     * 녹음 도중 원음 스트리밍으로 이미 전환([switchedToMic])된 경우는 false(스트리밍 결과 그대로 사용).
      */
     @Volatile var isolationFellBack = false
         private set
@@ -184,6 +194,7 @@ class AudioRecorder(private val context: Context) {
         if (!vadActive || !recording) return 0f
         quietDetector?.let { return it.silenceFraction(totalSamples) }
         speakerGateSession?.let { return it.silenceProgress() }
+        micGate?.let { if (isolationWatch?.unheard == true || speechSamples < MIN_SPEECH_SAMPLES) return it.silenceProgress() }
         if (speechSamples < MIN_SPEECH_SAMPLES) return 0f
         return ((totalSamples - lastSpeechSample).toFloat() / hangoverSamples).coerceIn(0f, 1f)
     }
@@ -226,7 +237,7 @@ class AudioRecorder(private val context: Context) {
     }
 
     /** Recorder thread, voice isolation: keep the microphone's audio, run Silero on it, feed its speaker gate. */
-    private fun keepMic(buf: ShortArray, n: Int) {
+    private fun keepMic(buf: ShortArray, n: Int, vadAutoStop: Boolean, onAutoStop: (() -> Unit)?) {
         synchronized(pcmLock) {
             var newSize = max(micPcm.size, SAMPLE_RATE * 30)
             while (micPcmLen + n > newSize) newSize *= 2
@@ -246,7 +257,14 @@ class AudioRecorder(private val context: Context) {
                 micVadTailLen = 0
                 val prob = try { v.process(micVadTail) } catch (_: Exception) { 0f }
                 micSpeech = prob >= SPEECH_START_PROB
-                gate?.onVadFrame(prob, micPcmLen - (n - off))
+                synchronized(pcmLock) {
+                    if (micSpeechFlagLen == micSpeechFlagBuf.size) micSpeechFlagBuf = micSpeechFlagBuf.copyOf(micSpeechFlagLen * 2)
+                    micSpeechFlagBuf[micSpeechFlagLen++] = prob >= SPEECH_END_PROB
+                }
+                if (gate != null && gate.onVadFrame(prob, micPcmLen - (n - off)) && !autoStopFired && vadAutoStop) {
+                    autoStopFired = true
+                    onAutoStop?.let { cb -> mainHandler.post { cb() } }
+                }
             }
         }
     }
@@ -254,7 +272,8 @@ class AudioRecorder(private val context: Context) {
     /** [StreamingWhisper]용: 화자 게이트가 켜져 있으면 확정된 비타겟 세그먼트를 0으로 마스킹해 반환한다. */
     fun gatedCopy(from: Int, to: Int): ShortArray {
         val raw = rawCopy(from, to)
-        return speakerGateSession?.maskStreamingChunk(from, to, raw) ?: raw
+        val gate = speakerGateSession ?: micGate
+        return gate?.maskStreamingChunk(from, to, raw) ?: raw
     }
 
     /**
@@ -276,10 +295,10 @@ class AudioRecorder(private val context: Context) {
     }
 
     /**
-     * Voice isolation is on and has passed no speech for a while although the microphone has
-     * sound ([IsolationWatch]). The words spoken meanwhile are not in the take.
+     * 화자 게이트 폴백 없이 음성 분리만 켜진 상태에서 목소리가 넘어오지 않을 때 true.
+     * 화자 게이트([micGate])가 있으면 원음+게이트로 자동 전환되므로 불안한 "No voice" 경고를 띄우지 않는다.
      */
-    val voiceUnheard: Boolean get() = recording && isolationWatch?.unheard == true
+    val voiceUnheard: Boolean get() = recording && !switchedToMic && micGate == null && isolationWatch?.unheard == true
 
     /** Current peak amplitude (0..32767) for waveform visualization. */
     fun amplitude(): Int = lastPeak
@@ -323,7 +342,9 @@ class AudioRecorder(private val context: Context) {
         rawCaptureOnlyMode = rawCaptureOnly
         gateRejection = null
         isolationFellBack = false
-        synchronized(pcmLock) { micPcm = ShortArray(0); micPcmLen = 0 }
+        switchedToMic = false
+        streamGeneration = 0
+        synchronized(pcmLock) { micPcm = ShortArray(0); micPcmLen = 0; micSpeechFlagLen = 0 }
         micVadTailLen = 0
         micSpeech = false
 
@@ -349,16 +370,18 @@ class AudioRecorder(private val context: Context) {
         levelSteps.clear()
         stepMicSq = 0.0; stepMicN = 0; stepIsoSq = 0.0; stepIsoN = 0
 
-        // 내 목소리만(VoxLock) 모드에서도 화자 게이트가 켜져 있으면 분리 출력에 2차 게이트를 건다:
-        // 근접·조용한 환경에서 VoxLock을 통과해 새어 나온 타인 단독 구간과 앞뒤 꼬리를 마스킹하고 Auto-stop을 보호한다.
-        speakerGateSession = if (speakerGate && !quiet && !rawCaptureOnly && vad != null) {
-            val label = if (voxLockStream != null) "isolated" else "mic"
-            openGate(vadAutoStop, label) { start, end -> rawCopy(start, end) }
+        // 일반 모드에서는 원음에 직접 speakerGateSession을 돌린다.
+        // 내 목소리만(VoxLock) 모드에서는 분리 출력의 음색 변형으로 CAM++ 점수가 흔들리지 않도록
+        // 원음 쪽 micGate 하나만 열어 2차 마스킹·자동 중지·원음 자동 전환을 모두 담당한다.
+        speakerGateSession = if (speakerGate && voxLockStream == null && !quiet && !rawCaptureOnly && vad != null) {
+            openGate(vadAutoStop, "mic") { start, end -> rawCopy(start, end) }
         } else null
-        // Isolating: the same gate over the microphone, so falling back on it keeps the TV out.
-        // Its own Silero: the shared one is reading the isolated audio.
         micVad = if (watching) secondVad(context)?.also { it.reset() } else null
-        micGate = if (speakerGate && micVad != null) openGate(vadAutoStop = false, label = "mic-fallback") { start, end -> micCopy(start, end) } else null
+        micGate = if (speakerGate && micVad != null) {
+            openGate(vadAutoStop = vadAutoStop, label = "mic-gate") { start, end ->
+                if (switchedToMic) rawCopy(start, end) else micCopy(start, end)
+            }
+        } else null
 
         vadActive = (vad != null && vadAutoStop) || quietDetector != null
 
@@ -398,10 +421,10 @@ class AudioRecorder(private val context: Context) {
         startedAtMs = android.os.SystemClock.elapsedRealtime()
         worker = Thread {
             val buf = ShortArray(frame)
-            val vadInst = vad
+            var vadInst = vad
             val quietInst = quietDetector
-            val vox = voxLockStream
-            val gate = speakerGateSession
+            var vox = voxLockStream
+            var gate = speakerGateSession
             while (recording) {
                 val n = rec.read(buf, 0, frame)
                 if (n <= 0) continue
@@ -423,12 +446,50 @@ class AudioRecorder(private val context: Context) {
                 micN += n
 
                 if (vox != null) {
-                    if (isolationWatch != null) keepMic(buf, n)
+                    val watch = isolationWatch
+                    if (watch != null) keepMic(buf, n, vadAutoStop, onAutoStop)
                     micSound?.let { d ->
                         d.feedPcm(buf, n, micN.toInt())
                         // Loudness over the room, or Silero on the microphone: in road noise the
                         // voice may not clear the room's floor by the detector's margin.
-                        isolationWatch?.mic(d.lastFrameSpeech || micSpeech, n)
+                        watch?.mic(d.lastFrameSpeech || micSpeech, n)
+                    }
+                    // VoxLock이 내 목소리를 지워 unheard가 누적됐고 원음 CAM++가 내 목소리를 확인했다면,
+                    // 녹음이 끝날 때까지 기다리지 않고 즉시 원음 + 화자 게이트 스트리밍으로 전환한다.
+                    val mGate = micGate
+                    if (watch != null && mGate != null &&
+                        watch.unheardSeconds >= IsolationWatch.LOST_UNHEARD_S && mGate.hasTargetVoice()
+                    ) {
+                        vox.close()
+                        voxLockStream = null
+                        vox = null
+                        switchedToMic = true
+                        synchronized(pcmLock) {
+                            pcm = micPcm.copyOf(max(micPcmLen, SAMPLE_RATE * 30))
+                            pcmLen = micPcmLen
+                            speechFlagBuf = micSpeechFlagBuf.copyOf(max(micSpeechFlagLen, 2048))
+                            speechFlagLen = micSpeechFlagLen
+                        }
+                        synchronized(chunks) {
+                            chunks.clear()
+                            if (micPcmLen > 0) chunks.add(micPcm.copyOf(micPcmLen))
+                        }
+                        totalSamples = micPcmLen
+                        vadInst = micVad
+                        vad = micVad
+                        micVad = null
+                        micVadTail.copyInto(vadTail)
+                        vadTailLen = micVadTailLen
+                        gate = mGate
+                        speakerGateSession = mGate
+                        micGate = null
+                        streamGeneration++
+                        var peak = 0
+                        for (i in 0 until n) { val a = abs(buf[i].toInt()); if (a > peak) peak = a }
+                        lastPeak = peak
+                        Log.i("AudioRecorder", "isolation switched to microphone + speaker gate at %.1fs (%s)".format(
+                            micPcmLen / SAMPLE_RATE.toDouble(), watch.summary()))
+                        continue
                     }
                     for (i in 0 until n) { val v = buf[i].toDouble(); stepMicSq += v * v }
                     stepMicN += n
@@ -450,7 +511,7 @@ class AudioRecorder(private val context: Context) {
                             levelSteps.add("${db(stepMicSq, stepMicN)}/${db(stepIsoSq, stepIsoN)}")
                             stepMicSq = 0.0; stepMicN = 0; stepIsoSq = 0.0; stepIsoN = 0
                         }
-                        emitProcessedChunk(isoPcm, isoPcm.size, vadInst, quietInst = null, gate = gate, vadAutoStop = vadAutoStop, onAutoStop = onAutoStop)
+                        emitProcessedChunk(isoPcm, isoPcm.size, vadInst, quietInst = null, gate = null, vadAutoStop = vadAutoStop, onAutoStop = onAutoStop)
                     }
                 } else {
                     emitProcessedChunk(buf, n, vadInst, quietInst, gate, vadAutoStop, onAutoStop)
@@ -577,7 +638,7 @@ class AudioRecorder(private val context: Context) {
         // plain rule counts from the last frame Silero was sure of; the gate from the last window
         // it took for the enrolled voice.
         if (quietDetector == null && vadActive) {
-            val gate = speakerGateSession
+            val gate = speakerGateSession ?: micGate
             Log.i("AudioRecorder", "spoken take: %.1fs ended=%s wait=%.1fs %s".format(
                 totalSamples / SAMPLE_RATE.toDouble(), if (autoStopFired) "auto" else "tap",
                 hangoverSamples / SAMPLE_RATE.toDouble(),
@@ -589,8 +650,12 @@ class AudioRecorder(private val context: Context) {
         if (micN > 0) {
             fun db(sq: Double, n: Long) = if (n == 0L) -99 else (10 * kotlin.math.log10(maxOf(sq / n, 1e-3) / (32768.0 * 32768.0))).toInt()
             fun peakDb(p: Int) = (20 * kotlin.math.log10(maxOf(p, 1) / 32768.0)).toInt()
-            Log.i("AudioRecorder", "take level: %.1fs mic rms=%ddB peak=%ddB".format(micN / SAMPLE_RATE.toDouble(), db(micSq, micN), peakDb(micPeak)) +
-                if (voxLockStream != null) " isolated rms=${db(isoSq, isoN)}dB peak=${peakDb(isoPeak)}dB, slowest isolation run ${voxMaxMs}ms, clock %.1fs".format((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000.0) else "")
+            val isoNote = when {
+                voxLockStream != null -> " isolated rms=${db(isoSq, isoN)}dB peak=${peakDb(isoPeak)}dB, slowest isolation run ${voxMaxMs}ms, clock %.1fs".format((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000.0)
+                switchedToMic -> " switched-to-mic (before switch: isolated rms=${db(isoSq, isoN)}dB peak=${peakDb(isoPeak)}dB, slowest ${voxMaxMs}ms), clock %.1fs".format((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000.0)
+                else -> ""
+            }
+            Log.i("AudioRecorder", "take level: %.1fs mic rms=%ddB peak=%ddB".format(micN / SAMPLE_RATE.toDouble(), db(micSq, micN), peakDb(micPeak)) + isoNote)
         }
 
         isolationWatch?.let {
@@ -651,11 +716,8 @@ class AudioRecorder(private val context: Context) {
         val mGate = micGate
         micGate = null
 
-        // Voice isolation lost the voice: the microphone's audio rather than words gone for good.
-        // In a moving car isolation took a normal voice out from the start (2026-11-25). Only
-        // through the speaker gate: the raw microphone would type the TV or a passenger, and the
-        // whole take falls back even when only a pause went unheard.
-        if (isolationWatch?.lostVoice() == true) {
+        // 녹음 중 원음 전환이 안 일어났더라도 종료 시점에 목소리를 잃은 것으로 판정되면 원음+게이트로 폴백한다.
+        if (!switchedToMic && isolationWatch?.lostVoice() == true) {
             val mic = synchronized(pcmLock) { micPcm.copyOf(micPcmLen) }
             if (mGate == null) {
                 Log.i("AudioRecorder", "isolation lost the voice; no speaker gate, so the isolated audio stays")
@@ -666,22 +728,26 @@ class AudioRecorder(private val context: Context) {
                 return gated(mGate, mic, updateStreamingPcm = false)
             }
         }
-        if (mGate != null) {
-            Log.i("AudioRecorder", "isolation raw ${mGate.summary()}")
-            mGate.discard()
-        }
 
         if (total < SAMPLE_RATE / 4) {
             gate?.discard()
+            mGate?.discard()
             return null // < ~0.25s: nothing meaningful
         }
         val full = ShortArray(total)
         var off = 0
         for (c in all) { c.copyInto(full, off); off += c.size }
 
-        if (rawCaptureOnlyMode) return full
+        if (rawCaptureOnlyMode) {
+            gate?.discard()
+            mGate?.discard()
+            return full
+        }
 
-        if (gate != null) return gated(gate, full, updateStreamingPcm = true)
+        // 일반 모드(또는 녹음 중 원음 전환됨): speakerGateSession으로 마스킹.
+        // 내 목소리만 정상 통과 시: 원음 기준 mGate로 분리 출력의 타인 단독 구간·꼬리만 2차 마스킹.
+        val activeGate = gate ?: mGate
+        if (activeGate != null) return gated(activeGate, full, updateStreamingPcm = true)
 
         // VAD trim: keep just the speech region (with a little padding) — avoids
         // whisper hallucinating on trailing silence.

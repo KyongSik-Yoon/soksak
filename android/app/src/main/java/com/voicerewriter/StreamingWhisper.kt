@@ -265,10 +265,12 @@ class StreamingWhisper(
     private val energies = ArrayList<Float>()  // touched only by scan()
     @Volatile private var currentLevel = 0f   // speech level for decode(), set by scan()
     @Volatile private var trustVad = false     // [vadTrusted] for the take so far, set by scan()
-    private data class Piece(val range: IntRange, val isQuietTail: Boolean = false, val quietVoicedSamples: Int = 0)
+    private data class Piece(val range: IntRange, val isQuietTail: Boolean = false, val quietVoicedSamples: Int = 0, val gen: Int = 0)
 
     private var pieceStart = 0      // sample where the pending piece begins
     private var scanFrom = 0        // first frame not yet checked for a cut
+    @Volatile private var activeGen = 0
+    private var workerGen = 0
     private val queue = Channel<Piece>(Channel.UNLIMITED)
     private val texts = ArrayList<String>()
     @Volatile private var failure: Throwable? = null
@@ -290,6 +292,14 @@ class StreamingWhisper(
         worker = scope.launch(Dispatchers.Default) {
             for (p in queue) {
                 if (failure != null) continue
+                if (p.gen != activeGen) {
+                    doneSamples.addAndGet((p.range.last + 1 - p.range.first).toLong())
+                    continue
+                }
+                if (p.gen != workerGen) {
+                    texts.clear()
+                    workerGen = p.gen
+                }
                 try { decode(p) } catch (t: Throwable) { failure = t; Log.w(TAG, "piece failed", t) }
                 val sec = (p.range.last + 1 - p.range.first) / SR.toFloat()
                 doneSamples.addAndGet((p.range.last + 1 - p.range.first).toLong())
@@ -305,6 +315,20 @@ class StreamingWhisper(
     }
 
     private fun scan() {
+        val gen = recorder.streamGeneration
+        if (gen != activeGen) {
+            activeGen = gen
+            energies.clear()
+            vadFrames?.clear()
+            pieceStart = 0
+            scanFrom = 0
+            vadScanFrom = 0
+            pieces = 0
+            loudCuts = 0
+            vadCuts = 0
+            currentLevel = 0f
+            trustVad = false
+        }
         val len = recorder.rawLength()
         val have = energies.size * FRAME
         if (len - have >= FRAME) {
@@ -334,7 +358,7 @@ class StreamingWhisper(
             } else {
                 pickCut(energies, vadFrames, pieceStart, scanFrom, vadScanFrom, lvl)
             } ?: break
-            enqueue(Piece(pieceStart until c.sample))
+            enqueue(Piece(pieceStart until c.sample, gen = activeGen))
             pieces++
             if (c.byVad) vadCuts++ else loudCuts++
             pieceStart = c.sample
@@ -408,7 +432,7 @@ class StreamingWhisper(
                 val toF = ((end + FRAME - 1) / FRAME).coerceIn(fromF, energies.size)
                 (fromF until toF).count { energies[it] >= 0.5f } * FRAME
             } else 0
-            enqueue(Piece(pieceStart until end, isQuietTail = isQuietTail, quietVoicedSamples = quietVoiced))
+            enqueue(Piece(pieceStart until end, isQuietTail = isQuietTail, quietVoicedSamples = quietVoiced, gen = activeGen))
         }
         queue.close()
         // What is still to decode now that the user has stopped: the tail plus any piece queued
