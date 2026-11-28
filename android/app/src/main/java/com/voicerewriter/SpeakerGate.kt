@@ -52,6 +52,12 @@ object SpeakerGate {
         val trimStart: Int,
         val trimEnd: Int,
         /**
+         * 트리밍 전 전체 길이(`rawFull.size`)의 마스킹 배열.
+         * [AudioRecorder.stop] 직후 [StreamingWhisper.finish]가 원본 오프셋 기준으로 조각을 읽을 때
+         * 확정된 마스킹 결과를 반영하는 데 쓴다.
+         */
+        val maskedFull: ShortArray = samples,
+        /**
          * 말소리는 있었는데 어느 창도 등록 목소리로 판정되지 않아 [samples]가 비었을 때, 그 말소리 구간의
          * 원본(앞뒤 여유 포함). 받아쓰기를 조용히 버리지 않고 Unfinished에 남기는 데 쓴다.
          */
@@ -251,7 +257,31 @@ object SpeakerGate {
 
         val trimStart = max(0, keepRanges.first().start - PRE_PAD_SAMPLES)
         val trimEnd = min(pcm.size, keepRanges.last().end + POST_PAD_SAMPLES)
-        return GateResult(masked, keepRanges, trimStart, trimEnd)
+        return GateResult(masked, keepRanges, trimStart, trimEnd, maskedFull = masked)
+    }
+
+    /**
+     * 세그먼트별 채점 결과 요약(진단 로그용, 최대 10개 세그먼트).
+     * 예: `0.3-1.5s(0.41..0.68,4/4) 2.2-3.4s(0.08..0.14,0/4)`
+     */
+    internal fun formatSegmentScores(
+        segments: List<Segment>,
+        scored: List<ScoredWindow>,
+        threshold: Float = SIM_THRESHOLD,
+    ): String {
+        if (segments.isEmpty()) return "none"
+        val sr = SR.toDouble()
+        return segments.take(10).joinToString(" ") { seg ->
+            val wins = scored.filter { w -> w.end > seg.start && w.start < seg.end }
+            val range = "%.1f-%.1fs".format(seg.start / sr, seg.end / sr)
+            if (wins.isEmpty()) "$range(no-win)"
+            else {
+                val minS = wins.minOf { it.similarity }
+                val maxS = wins.maxOf { it.similarity }
+                val hits = wins.count { it.similarity >= threshold }
+                "$range(%.2f..%.2f,%d/%d)".format(minS, maxS, hits, wins.size)
+            }
+        } + if (segments.size > 10) " +${segments.size - 10}" else ""
     }
 }
 
@@ -266,6 +296,8 @@ class SpeakerGateSession(
     private val vadAutoStop: Boolean,
     private val hangoverSamples: Int,
     private val threshold: Float = SpeakerGate.SIM_THRESHOLD,
+    /** 로그에서 어느 오디오 경로(mic / isolated / mic-fallback)의 게이트인지 구분한다. */
+    private val label: String = "mic",
 ) {
     private val lock = Any()
     private val executor = Executors.newSingleThreadExecutor { r ->
@@ -364,7 +396,7 @@ class SpeakerGateSession(
      */
     fun summary(): String = synchronized(lock) {
         val sims = scored.map { it.similarity }
-        "gate: %s; windows %d, mine %d, similarity %.2f..%.2f, last five %s".format(
+        "gate($label): %s; windows %d, mine %d, similarity %.2f..%.2f, last five %s".format(
             firedNote ?: "not fired", sims.size, sims.count { it >= threshold },
             sims.minOrNull() ?: 0f, sims.maxOrNull() ?: 0f,
             scored.takeLast(5).joinToString(" ") { "%.2f".format(it.similarity) })
@@ -524,9 +556,19 @@ class SpeakerGateSession(
         }
 
         val res = SpeakerGate.applyGateMask(rawFull, finalProbs, existingScored, threshold)
-        // 게이트가 받아쓰기에서 지운 말소리: 본인 목소리가 낮게 채점되면 일찍 끝나지 않아도 여기서 단어가 빠진다.
-        Log.i("SpeakerGate", "kept %.1fs of %.1fs of speech".format(
-            res.keepRanges.sumOf { it.end - it.start } / sr, segs.sumOf { it.end - it.start } / sr))
+        // 게이트가 받아쓰기에서 지운 말소리 및 세그먼트별 유사도 분포(진단용).
+        val keepStr = if (res.keepRanges.isEmpty()) "none" else res.keepRanges.take(8).joinToString(" ") {
+            "%.1f-%.1fs".format(it.start / sr, it.end / sr)
+        }
+        Log.i(
+            "SpeakerGate",
+            "[$label] kept %.1fs of %.1fs of speech (keep: %s); segs: %s".format(
+                res.keepRanges.sumOf { it.end - it.start } / sr,
+                segs.sumOf { it.end - it.start } / sr,
+                keepStr,
+                SpeakerGate.formatSegmentScores(segs, existingScored, threshold),
+            ),
+        )
         if (res.samples.isEmpty() || res.keepRanges.isEmpty()) {
             // VAD는 있으나 타겟 창이 끝내 나오지 않았을 때: 무음이 너무 짧았거나 속삭임에 가까웠다면 원본 유지가 안전할지 판단
             return res

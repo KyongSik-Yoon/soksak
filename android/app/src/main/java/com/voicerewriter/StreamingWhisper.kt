@@ -2,6 +2,7 @@ package com.voicerewriter
 
 import android.content.Context
 import android.util.Log
+import com.voicerewriter.textproc.HallucinationFilter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -81,6 +82,24 @@ class StreamingWhisper(
         private const val MIN_VOICED_S = 0.3
 
         const val TAIL_MARGIN_S = 0.4
+
+        /**
+         * 조용히 말하기에서 이미 앞 조각이 있는 긴 녹음의 짧은 마지막 꼬리 조각(잡음 0.1~0.3초만 남은 구간)에
+         * Whisper가 무음 상투구("감사합니다.")를 뱉는 경우를 거르기 위한 상한 길이(초).
+         */
+        const val QUIET_TAIL_HALLUCINATION_MAX_S = 2.5
+
+        private val QUIET_TAIL_HALLUCINATIONS = setOf("감사합니다", "감사합니다감사합니다", "고맙습니다")
+
+        /**
+         * 조용히 말하기에서 앞 조각이 이미 있는 녹음의 짧은 꼬리 조각이 단독 감사 상투구만 냈는지 판정한다.
+         * 단독 1조각 녹음(실제로 "감사합니다."만 말한 경우)이나 다른 말이 섞인 문장은 건드리지 않는다.
+         */
+        internal fun dropsQuietTailHallucination(text: String, pieceSamples: Int, isQuietTail: Boolean): Boolean {
+            if (!isQuietTail || pieceSamples > (QUIET_TAIL_HALLUCINATION_MAX_S * SR).toInt()) return false
+            val n = HallucinationFilter.norm(text)
+            return n.isNotEmpty() && n in QUIET_TAIL_HALLUCINATIONS
+        }
 
         /**
          * End sample for the last piece: [TAIL_MARGIN_S] after the last voiced frame at or after
@@ -245,9 +264,11 @@ class StreamingWhisper(
     private val energies = ArrayList<Float>()  // touched only by scan()
     @Volatile private var currentLevel = 0f   // speech level for decode(), set by scan()
     @Volatile private var trustVad = false     // [vadTrusted] for the take so far, set by scan()
+    private data class Piece(val range: IntRange, val isQuietTail: Boolean = false)
+
     private var pieceStart = 0      // sample where the pending piece begins
     private var scanFrom = 0        // first frame not yet checked for a cut
-    private val queue = Channel<IntRange>(Channel.UNLIMITED)
+    private val queue = Channel<Piece>(Channel.UNLIMITED)
     private val texts = ArrayList<String>()
     @Volatile private var failure: Throwable? = null
     private var scanner: Job? = null
@@ -259,18 +280,18 @@ class StreamingWhisper(
     private val queuedSamples = java.util.concurrent.atomic.AtomicLong()
     private val doneSamples = java.util.concurrent.atomic.AtomicLong()
 
-    private fun enqueue(r: IntRange) {
-        queuedSamples.addAndGet((r.last + 1 - r.first).toLong())
-        queue.trySend(r)
+    private fun enqueue(p: Piece) {
+        queuedSamples.addAndGet((p.range.last + 1 - p.range.first).toLong())
+        queue.trySend(p)
     }
 
     fun start() {
         worker = scope.launch(Dispatchers.Default) {
-            for (r in queue) {
+            for (p in queue) {
                 if (failure != null) continue
-                try { decode(r) } catch (t: Throwable) { failure = t; Log.w(TAG, "piece failed", t) }
-                val sec = (r.last + 1 - r.first) / SR.toFloat()
-                doneSamples.addAndGet((r.last + 1 - r.first).toLong())
+                try { decode(p) } catch (t: Throwable) { failure = t; Log.w(TAG, "piece failed", t) }
+                val sec = (p.range.last + 1 - p.range.first) / SR.toFloat()
+                doneSamples.addAndGet((p.range.last + 1 - p.range.first).toLong())
                 TranscribeProgress.pieceDone(sec)
             }
         }
@@ -312,7 +333,7 @@ class StreamingWhisper(
             } else {
                 pickCut(energies, vadFrames, pieceStart, scanFrom, vadScanFrom, lvl)
             } ?: break
-            enqueue(pieceStart until c.sample)
+            enqueue(Piece(pieceStart until c.sample))
             pieces++
             if (c.byVad) vadCuts++ else loudCuts++
             pieceStart = c.sample
@@ -325,7 +346,8 @@ class StreamingWhisper(
         if (vadFrames != null) vadScanFrom = maxOf(vadScanFrom, vadFrames.size)
     }
 
-    private suspend fun decode(r: IntRange) {
+    private suspend fun decode(p: Piece) {
+        val r = p.range
         val pcm = recorder.gatedCopy(r.first, r.last + 1)
         val samples = WavIo.toFloats(pcm)
         if (quiet != null) {
@@ -350,6 +372,10 @@ class StreamingWhisper(
         }.trim()
         val ms = (System.nanoTime() - t0) / 1_000_000
         TranscribeProgress.record(model, pcm.size / SR.toFloat(), ms)
+        if (dropsQuietTailHallucination(text, pcm.size, p.isQuietTail)) {
+            Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${ms}ms (dropped quiet tail hallucination: ${text.length} chars)")
+            return
+        }
         Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${ms}ms")
         if (text.isNotEmpty()) texts.add(text)
     }
@@ -373,7 +399,7 @@ class StreamingWhisper(
             tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel),
             vadFrames?.takeIf { trustVad }?.let { tailEnd(it, pieceStart, recorder.rawLength(), 1f) } ?: Int.MAX_VALUE,
         )
-        if (end > pieceStart) enqueue(pieceStart until end)
+        if (end > pieceStart) enqueue(Piece(pieceStart until end, isQuietTail = quiet != null && pieces > 0))
         queue.close()
         // What is still to decode now that the user has stopped: the tail plus any piece queued
         // or in flight. The ring on the bubble estimates from this.

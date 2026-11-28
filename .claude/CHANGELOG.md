@@ -3,6 +3,12 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-28 — 내 목소리만 2차 CAM++ 화자 게이트·진단 로그, 조용히 말하기 꼬리 "감사합니다." 환각 제거
+- 사용자 로그(SM-S948N, 내 목소리만 켬, 침대 옆 근접 발화): VoxLock NPU는 정상 동작(`slowest isolation run 17~18ms`, 원음 폴백 없음)했으나 `-39~-44dB` 저음량·조용한 침실(`p10 -86dB`) 환경에서 근접 타인 목소리가 분리 출력을 통과해 전사됐다. 원인은 내 목소리만 모드에서 `speakerGateSession`이 꺼져(`no gate`) 2차 검증이 없었던 점과, 기존에도 `AudioRecorder.stop()`이 `speakerGateSession`을 비운 뒤 `StreamingWhisper.finish()`가 마스킹 안 된 `pcm`을 읽던 누락.
+- 고침(내 목소리만): `speakerGate`가 켜져 있으면 VoxLock 분리 출력 뒤에도 2차 CAM++ 화자 게이트(`gate(isolated)`)를 적용하고, `vox.flush()` 꼬리 VAD도 게이트에 넘기며, `finishAndApply`의 전체 길이 마스킹 결과(`maskedFull`)를 `pcm`에 반영해 `StreamingWhisper.finish()`의 남은 조각도 마스킹된 오디오를 읽게 했다. 진단용으로 `SpeakerGate` 세그먼트별 유사도(`segs: 시작-끝(min..max,통과/전체)`), `keep` 구간, 그리고 원음 쪽 `isolation raw gate(mic-fallback)` 요약을 로그에 남긴다.
+- 사용자 로그(조용히 말하기, 28.5초, Turbo NPU): 마지막 1.74초 꼬리 조각에 0.3초 잡음(`27.7+0.3s 13dB@-61`)이 들어가 `QuietSpeechDetector.hasSpeech`를 통과했고 Turbo NPU가 `"감사합니다."`(6자, 2토큰) 환각을 생성했다. 이미 앞 조각이 있는 조용히 말하기의 짧은 마지막 꼬리(`<= 2.5s`)가 단독 `"감사합니다"`/`"고맙습니다"`만 낸 경우 버린다(`StreamingWhisper.dropsQuietTailHallucination`, 로그 `dropped quiet tail hallucination`).
+- 폰 확인 전(로컬 릴리스 빌드·단위 테스트 통과). 확인할 것: 침대 옆·저음량 환경에서 2차 게이트(`gate(isolated)`)가 본인 목소리를 과도하게 거르지 않는지(세그먼트별 유사도 로그), 타인 단독 구간이 마스킹되는지.
+
 ## 2026-11-26 — Turbo NPU가 말 대신 힌트 글("네, 알겠어.")을 낸 창은 Small ACFT로 다시
 - 사용자 Compare(11-25 21:44 녹음, 2.6초, 내 목소리만 켬, 분리 후 -46dB): Turbo NPU "네, 알겠어." / Small ACFT "…링이 안 도는 이유를 알고 싶다." 실제 받아쓰기에서도 그 7자가 입력됐다(`decode [629ms/5tok] -> 7 chars`). Silero가 말을 들어서 기존 메아리 거르기(`dropsEcho`)는 실제 답으로 보고 통과시켰다.
 - 사용자 결정: 말이 있는 창에서 힌트 글만 나오면 그 창을 CPU Small ACFT로 다시 변환(`LocalSherpaStt.retriesEcho`/`echoRetry`). 다른 안 — 네이티브 패치로 NPU에서 힌트 없이 재디코드(확인 불가·JNI 재빌드), 그냥 버리기(말을 잃음) — 은 고르지 않았다. 조용히 말하기는 그대로 버림. Small이 없으면 버림.

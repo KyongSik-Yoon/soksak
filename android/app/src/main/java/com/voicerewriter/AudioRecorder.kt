@@ -214,13 +214,14 @@ class AudioRecorder(private val context: Context) {
     }
 
     /** The speaker gate over [audio], or null without an enrolled voice. */
-    private fun openGate(vadAutoStop: Boolean, audio: (Int, Int) -> ShortArray): SpeakerGateSession? {
+    private fun openGate(vadAutoStop: Boolean, label: String, audio: (Int, Int) -> ShortArray): SpeakerGateSession? {
         val embedder = VoiceLockManager.acquireEmbedder(context) ?: return null
         val enrolled = VoiceLockManager.getEnrolledEmbedding(context) ?: return null
         return SpeakerGateSession(
             scorer = { start, len -> embedder.scoreSimilarity(enrolled, WavIo.toFloats(audio(start, start + len))) },
             vadAutoStop = vadAutoStop,
             hangoverSamples = hangoverSamples,
+            label = label,
         )
     }
 
@@ -348,13 +349,16 @@ class AudioRecorder(private val context: Context) {
         levelSteps.clear()
         stepMicSq = 0.0; stepMicN = 0; stepIsoSq = 0.0; stepIsoN = 0
 
-        speakerGateSession = if (speakerGate && voxLockStream == null && !quiet && !rawCaptureOnly && vad != null) {
-            openGate(vadAutoStop) { start, end -> rawCopy(start, end) }
+        // 내 목소리만(VoxLock) 모드에서도 화자 게이트가 켜져 있으면 분리 출력에 2차 게이트를 건다:
+        // 근접·조용한 환경에서 VoxLock을 통과해 새어 나온 타인 단독 구간과 앞뒤 꼬리를 마스킹하고 Auto-stop을 보호한다.
+        speakerGateSession = if (speakerGate && !quiet && !rawCaptureOnly && vad != null) {
+            val label = if (voxLockStream != null) "isolated" else "mic"
+            openGate(vadAutoStop, label) { start, end -> rawCopy(start, end) }
         } else null
         // Isolating: the same gate over the microphone, so falling back on it keeps the TV out.
         // Its own Silero: the shared one is reading the isolated audio.
         micVad = if (watching) secondVad(context)?.also { it.reset() } else null
-        micGate = if (speakerGate && micVad != null) openGate(vadAutoStop = false) { start, end -> micCopy(start, end) } else null
+        micGate = if (speakerGate && micVad != null) openGate(vadAutoStop = false, label = "mic-fallback") { start, end -> micCopy(start, end) } else null
 
         vadActive = (vad != null && vadAutoStop) || quietDetector != null
 
@@ -446,7 +450,7 @@ class AudioRecorder(private val context: Context) {
                             levelSteps.add("${db(stepMicSq, stepMicN)}/${db(stepIsoSq, stepIsoN)}")
                             stepMicSq = 0.0; stepMicN = 0; stepIsoSq = 0.0; stepIsoN = 0
                         }
-                        emitProcessedChunk(isoPcm, isoPcm.size, vadInst, quietInst = null, gate = null, vadAutoStop = vadAutoStop, onAutoStop = onAutoStop)
+                        emitProcessedChunk(isoPcm, isoPcm.size, vadInst, quietInst = null, gate = gate, vadAutoStop = vadAutoStop, onAutoStop = onAutoStop)
                     }
                 } else {
                     emitProcessedChunk(buf, n, vadInst, quietInst, gate, vadAutoStop, onAutoStop)
@@ -619,14 +623,16 @@ class AudioRecorder(private val context: Context) {
                             vadTailLen = 0
                             val prob = try { vadInst.process(vadTail) } catch (_: Exception) { 0f }
                             noteSpeechFlag(prob)
+                            val chunkEnd = totalSamples - (tailPcm.size - off)
+                            speakerGateSession?.onVadFrame(prob, chunkEnd)
                             // Only a take that trims by auto-stop: with it off, speech first
                             // seen here would trim the take down to this tail.
                             if (vadActive && prob >= SPEECH_START_PROB) {
                                 if (!speechStarted) {
                                     speechStarted = true
-                                    firstSpeechSample = max(0, totalSamples - tailPcm.size + off - SileroVad.CHUNK - PRE_PAD_SAMPLES)
+                                    firstSpeechSample = max(0, chunkEnd - SileroVad.CHUNK - PRE_PAD_SAMPLES)
                                 }
-                                lastSpeechSample = totalSamples - (tailPcm.size - off)
+                                lastSpeechSample = chunkEnd
                                 speechSamples += SileroVad.CHUNK
                             }
                         }
@@ -654,12 +660,16 @@ class AudioRecorder(private val context: Context) {
             if (mGate == null) {
                 Log.i("AudioRecorder", "isolation lost the voice; no speaker gate, so the isolated audio stays")
             } else if (mic.size >= SAMPLE_RATE / 4) {
+                gate?.discard()
                 isolationFellBack = true
                 Log.i("AudioRecorder", "isolation lost the voice: transcribing the microphone through the speaker gate")
-                return gated(mGate, mic)
+                return gated(mGate, mic, updateStreamingPcm = false)
             }
         }
-        mGate?.discard()
+        if (mGate != null) {
+            Log.i("AudioRecorder", "isolation raw ${mGate.summary()}")
+            mGate.discard()
+        }
 
         if (total < SAMPLE_RATE / 4) {
             gate?.discard()
@@ -671,7 +681,7 @@ class AudioRecorder(private val context: Context) {
 
         if (rawCaptureOnlyMode) return full
 
-        if (gate != null) return gated(gate, full)
+        if (gate != null) return gated(gate, full, updateStreamingPcm = true)
 
         // VAD trim: keep just the speech region (with a little padding) — avoids
         // whisper hallucinating on trailing silence.
@@ -684,9 +694,19 @@ class AudioRecorder(private val context: Context) {
     }
 
     /** [full] through the speaker gate; null with [gateRejection] set when none of it was the enrolled voice. */
-    private fun gated(gate: SpeakerGateSession, full: ShortArray): ShortArray? {
+    private fun gated(gate: SpeakerGateSession, full: ShortArray, updateStreamingPcm: Boolean): ShortArray? {
         val res = gate.finishAndApply(full)
-        if (res.samples.size >= SAMPLE_RATE / 4) return res.samples
+        if (res.samples.size >= SAMPLE_RATE / 4) {
+            if (updateStreamingPcm) {
+                // stop() 직후 StreamingWhisper.finish()가 남은 조각을 gatedCopy()로 읽을 때
+                // 최종 확정된 비타겟 마스킹 결과를 보게 한다(speakerGateSession은 이미 null).
+                synchronized(pcmLock) {
+                    val n = min(res.maskedFull.size, pcmLen)
+                    if (n > 0) res.maskedFull.copyInto(pcm, 0, 0, n)
+                }
+            }
+            return res.samples
+        }
         res.rejected?.takeIf { it.size >= SAMPLE_RATE / 4 }?.let { speech ->
             gateRejection = GateRejection(speech, res.bestSimilarity, res.windows)
             Log.i(

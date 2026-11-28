@@ -198,4 +198,32 @@ class SpeakerGateTest {
         assertTrue("말이 멈춘 뒤에는 끝나야 함", feed(8.0, 0.05f))
         session.finishAndApply(makeConstantPcm(end))
     }
+
+    @Test fun `finishAndApply는 전체 길이의 마스킹 배열과 세그먼트 점수 요약을 유지한다`() {
+        val total = 5 * sr
+        val pcm = makeConstantPcm(total, amp = 2400)
+        // 0.3..1.5s 내 목소리(0.65), 2.5..4.0s 타인 목소리(0.11)
+        val probs = probsForIntervals(total, (0.3 * sr).toInt() to (1.5 * sr).toInt(), (2.5 * sr).toInt() to (4.0 * sr).toInt())
+        val session = SpeakerGateSession(
+            scorer = { start, _ -> if (start < 2 * sr) 0.65f else 0.11f },
+            vadAutoStop = false,
+            hangoverSamples = 2 * sr,
+            label = "isolated",
+        )
+        for (i in probs.indices) {
+            session.onVadFrame(probs[i], (i + 1) * chunk)
+        }
+        val res = session.finishAndApply(pcm)
+        assertEquals(total, res.maskedFull.size)
+        assertEquals(2400.toShort(), res.maskedFull[(0.9 * sr).toInt()])
+        assertEquals(0.toShort(), res.maskedFull[(3.2 * sr).toInt()])
+        assertTrue(session.summary().startsWith("gate(isolated):"))
+
+        val segs = SpeakerGate.activeSegments(probs, total)
+        val scored = segs.flatMap { seg ->
+            SpeakerGate.scoreSegment(seg.start, seg.end) { start, _ -> if (start < 2 * sr) 0.65f else 0.11f }
+        }
+        val fmt = SpeakerGate.formatSegmentScores(segs, scored)
+        assertTrue(fmt, fmt.contains("0.65..0.65") && fmt.contains("0.11..0.11"))
+    }
 }

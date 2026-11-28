@@ -152,4 +152,16 @@ class StreamingWhisperTest {
         val s = StreamingWhisper.pauseStats(e)
         assertTrue(s, s.contains(">=0.2s:2") && s.contains(">=0.7s:1") && s.contains(">=1.0s:0"))
     }
+
+    @Test fun `조용히 말하기의 짧은 꼬리 조각에서 나온 단독 감사 상투구만 버린다`() {
+        val sr = 16000
+        // 2026-11-28 폰 로그: 28.5초 녹음의 마지막 1.74초 잡음 꼬리에서 나온 "감사합니다."
+        assertTrue(StreamingWhisper.dropsQuietTailHallucination("감사합니다.", (1.74 * sr).toInt(), isQuietTail = true))
+        assertTrue(StreamingWhisper.dropsQuietTailHallucination("고맙습니다.", (2.0 * sr).toInt(), isQuietTail = true))
+        // 단독 1조각 녹음(isQuietTail=false)이나 길이가 긴 꼬리는 유지
+        assertTrue(!StreamingWhisper.dropsQuietTailHallucination("감사합니다.", (1.74 * sr).toInt(), isQuietTail = false))
+        assertTrue(!StreamingWhisper.dropsQuietTailHallucination("감사합니다.", (3.0 * sr).toInt(), isQuietTail = true))
+        // 다른 말이 섞인 문장은 건드리지 않음
+        assertTrue(!StreamingWhisper.dropsQuietTailHallucination("확인해 주세요. 감사합니다.", (1.8 * sr).toInt(), isQuietTail = true))
+    }
 }
