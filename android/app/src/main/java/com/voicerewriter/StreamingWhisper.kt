@@ -84,19 +84,20 @@ class StreamingWhisper(
         const val TAIL_MARGIN_S = 0.4
 
         /**
-         * 조용히 말하기에서 이미 앞 조각이 있는 긴 녹음의 짧은 마지막 꼬리 조각(잡음 0.1~0.3초만 남은 구간)에
-         * Whisper가 무음 상투구("감사합니다.")를 뱉는 경우를 거르기 위한 상한 길이(초).
+         * 조용히 말하기에서 이미 앞 조각이 있는 긴 녹음의 마지막 꼬리 조각은 자동 중지 대기(2.2~5초)가
+         * 통째로 붙어 전체 길이가 길어질 수 있다(2026-11-28 로그: 총 2.77s 중 실제 소리 0.1s에서 "감사합니다.").
+         * 전체 길이 대신 [QuietSpeechDetector]가 말로 본 소리 길이 상한으로 무음·잡음 꼬리 환각을 거른다.
          */
-        const val QUIET_TAIL_HALLUCINATION_MAX_S = 2.5
+        const val QUIET_TAIL_MAX_VOICED_S = 1.0
 
         private val QUIET_TAIL_HALLUCINATIONS = setOf("감사합니다", "감사합니다감사합니다", "고맙습니다")
 
         /**
-         * 조용히 말하기에서 앞 조각이 이미 있는 녹음의 짧은 꼬리 조각이 단독 감사 상투구만 냈는지 판정한다.
-         * 단독 1조각 녹음(실제로 "감사합니다."만 말한 경우)이나 다른 말이 섞인 문장은 건드리지 않는다.
+         * 조용히 말하기에서 앞 조각이 이미 있는 녹음의 마지막 꼬리 조각이 짧은 잡음만으로
+         * 단독 감사 상투구를 냈는지 판정한다. 단독 1조각 녹음이나 다른 말이 섞인 문장은 건드리지 않는다.
          */
-        internal fun dropsQuietTailHallucination(text: String, pieceSamples: Int, isQuietTail: Boolean): Boolean {
-            if (!isQuietTail || pieceSamples > (QUIET_TAIL_HALLUCINATION_MAX_S * SR).toInt()) return false
+        internal fun dropsQuietTailHallucination(text: String, voicedSamples: Int, isQuietTail: Boolean): Boolean {
+            if (!isQuietTail || voicedSamples > (QUIET_TAIL_MAX_VOICED_S * SR).toInt()) return false
             val n = HallucinationFilter.norm(text)
             return n.isNotEmpty() && n in QUIET_TAIL_HALLUCINATIONS
         }
@@ -264,7 +265,7 @@ class StreamingWhisper(
     private val energies = ArrayList<Float>()  // touched only by scan()
     @Volatile private var currentLevel = 0f   // speech level for decode(), set by scan()
     @Volatile private var trustVad = false     // [vadTrusted] for the take so far, set by scan()
-    private data class Piece(val range: IntRange, val isQuietTail: Boolean = false)
+    private data class Piece(val range: IntRange, val isQuietTail: Boolean = false, val quietVoicedSamples: Int = 0)
 
     private var pieceStart = 0      // sample where the pending piece begins
     private var scanFrom = 0        // first frame not yet checked for a cut
@@ -372,11 +373,12 @@ class StreamingWhisper(
         }.trim()
         val ms = (System.nanoTime() - t0) / 1_000_000
         TranscribeProgress.record(model, pcm.size / SR.toFloat(), ms)
-        if (dropsQuietTailHallucination(text, pcm.size, p.isQuietTail)) {
-            Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${ms}ms (dropped quiet tail hallucination: ${text.length} chars)")
+        if (dropsQuietTailHallucination(text, p.quietVoicedSamples, p.isQuietTail)) {
+            Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${ms}ms (dropped quiet tail hallucination: ${text.length} chars, voiced ${"%.2f".format(p.quietVoicedSamples / SR.toFloat())}s)")
             return
         }
-        Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${ms}ms")
+        Log.i(TAG, "piece ${"%.1f".format(pcm.size / SR.toFloat())}s -> ${ms}ms" +
+            if (p.isQuietTail) " (quiet tail voiced ${"%.2f".format(p.quietVoicedSamples / SR.toFloat())}s)" else "")
         if (text.isNotEmpty()) texts.add(text)
     }
 
@@ -399,7 +401,15 @@ class StreamingWhisper(
             tailEnd(energies, pieceStart, recorder.rawLength(), currentLevel),
             vadFrames?.takeIf { trustVad }?.let { tailEnd(it, pieceStart, recorder.rawLength(), 1f) } ?: Int.MAX_VALUE,
         )
-        if (end > pieceStart) enqueue(Piece(pieceStart until end, isQuietTail = quiet != null && pieces > 0))
+        if (end > pieceStart) {
+            val isQuietTail = quiet != null && pieces > 0
+            val quietVoiced = if (isQuietTail) {
+                val fromF = (pieceStart / FRAME).coerceIn(0, energies.size)
+                val toF = ((end + FRAME - 1) / FRAME).coerceIn(fromF, energies.size)
+                (fromF until toF).count { energies[it] >= 0.5f } * FRAME
+            } else 0
+            enqueue(Piece(pieceStart until end, isQuietTail = isQuietTail, quietVoicedSamples = quietVoiced))
+        }
         queue.close()
         // What is still to decode now that the user has stopped: the tail plus any piece queued
         // or in flight. The ring on the bubble estimates from this.

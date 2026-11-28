@@ -3,6 +3,10 @@
 최신이 위. 항목마다 날짜, 커밋, 사용자 관점의 변화, 사용자가 폰에서 확인한 결과(있으면).
 새 작업을 끝내면 맨 위에 추가한다.
 
+## 2026-11-28 — 조용히 말하기 꼬리 환각 기준을 전체 길이에서 실제 소리 길이로
+- 사용자 폰 확인(build-185, 조용히 말하기 9.4초, `ended=auto`, 대기 2.2초): 1조각 6.64초(38자) 뒤 2조각 꼬리가 **2.77초**(실제 소리는 `7.0+0.1s` 0.1초뿐, 나머지는 2.2초 자동 중지 무음)로 잡혀 전체 길이 상한(2.5초)을 `0.27초` 넘겼고 `"감사합니다."`(6자, 2토큰)가 그대로 들어갔다.
+- 고침: 조용히 말하기 꼬리 환각 판정(`StreamingWhisper.dropsQuietTailHallucination`)을 조각 전체 길이 대신 `QuietSpeechDetector`가 말로 본 소리 길이(`<= 1.0초`, `QUIET_TAIL_MAX_VOICED_S`) 기준으로 바꿨다. 꼬리 조각 로그에 `quiet tail voiced …s`를 함께 남긴다. 폰 확인 전.
+
 ## 2026-11-28 — 내 목소리만 2차 CAM++ 화자 게이트·진단 로그, 조용히 말하기 꼬리 "감사합니다." 환각 제거
 - 사용자 로그(SM-S948N, 내 목소리만 켬, 침대 옆 근접 발화): VoxLock NPU는 정상 동작(`slowest isolation run 17~18ms`, 원음 폴백 없음)했으나 `-39~-44dB` 저음량·조용한 침실(`p10 -86dB`) 환경에서 근접 타인 목소리가 분리 출력을 통과해 전사됐다. 원인은 내 목소리만 모드에서 `speakerGateSession`이 꺼져(`no gate`) 2차 검증이 없었던 점과, 기존에도 `AudioRecorder.stop()`이 `speakerGateSession`을 비운 뒤 `StreamingWhisper.finish()`가 마스킹 안 된 `pcm`을 읽던 누락.
 - 고침(내 목소리만): `speakerGate`가 켜져 있으면 VoxLock 분리 출력 뒤에도 2차 CAM++ 화자 게이트(`gate(isolated)`)를 적용하고, `vox.flush()` 꼬리 VAD도 게이트에 넘기며, `finishAndApply`의 전체 길이 마스킹 결과(`maskedFull`)를 `pcm`에 반영해 `StreamingWhisper.finish()`의 남은 조각도 마스킹된 오디오를 읽게 했다. 진단용으로 `SpeakerGate` 세그먼트별 유사도(`segs: 시작-끝(min..max,통과/전체)`), `keep` 구간, 그리고 원음 쪽 `isolation raw gate(mic-fallback)` 요약을 로그에 남긴다.
